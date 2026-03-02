@@ -37,6 +37,7 @@ from poly_csp.config.schema import (
 )
 from poly_csp.io.amber import export_amber_artifacts
 from poly_csp.io.pdb import write_pdb_from_rdkit
+from poly_csp.io.rdkit_io import write_sdf
 from poly_csp.ordering.hbonds import compute_hbond_metrics
 from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
@@ -46,6 +47,7 @@ from poly_csp.ordering.scoring import (
     selector_torsion_stats,
 )
 from poly_csp.ordering.symmetry_opt import OrderingSpec, optimize_selector_ordering
+from poly_csp.ordering.multi_opt import MultiOptSpec, run_multi_start_optimization
 
 # Optional selector imports (keep pipeline runnable even before selector is implemented).
 try:
@@ -124,6 +126,10 @@ class BuildReport:
     amber_enabled: bool
     amber_summary: dict[str, object]
     output_export_formats: List[str]
+    multi_opt_enabled: bool = False
+    multi_opt_rank: int = 0
+    multi_opt_total_starts: int = 0
+    multi_opt_seed_used: Optional[int] = None
 
 
 def _cfg_to_helixspec(cfg: DictConfig) -> HelixSpec:
@@ -148,6 +154,15 @@ def _cfg_to_ordering_spec(cfg: DictConfig) -> OrderingSpec:
     if not isinstance(payload, dict):
         return OrderingSpec()
     return OrderingSpec(**payload)
+
+
+def _cfg_to_multi_opt_spec(cfg: DictConfig) -> MultiOptSpec:
+    if "multi_opt" not in cfg or cfg.multi_opt is None:
+        return MultiOptSpec()
+    payload = OmegaConf.to_container(cfg.multi_opt, resolve=True)
+    if not isinstance(payload, dict):
+        return MultiOptSpec()
+    return MultiOptSpec(**payload)
 
 
 def _cfg_to_relax_spec(cfg: DictConfig):
@@ -307,7 +322,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     unsupported_formats = [
-        fmt for fmt in output_export_formats if fmt not in {"pdb", "amber"}
+        fmt for fmt in output_export_formats if fmt not in {"pdb", "amber", "sdf"}
     ]
     if unsupported_formats:
         raise NotImplementedError(
@@ -397,6 +412,7 @@ def main(cfg: DictConfig) -> None:
     selector: SelectorTemplate | None = None
     ordering_summary: dict[str, object] = {}
     ordering_applied = False
+    ranked_results = None
 
     if selector_enabled:
         if (
@@ -437,14 +453,33 @@ def main(cfg: DictConfig) -> None:
                     )
 
         if ordering_spec.enabled:
-            mol_poly, ordering_summary = optimize_selector_ordering(
-                mol=mol_poly,
-                selector=selector,
-                sites=selector_sites,
-                dp=backbone.dp,
-                spec=ordering_spec,
-            )
+            multi_opt_spec = _cfg_to_multi_opt_spec(cfg)
+            if multi_opt_spec.enabled:
+                # Multi-start mode: run N optimizations, keep top K.
+                ranked_results = run_multi_start_optimization(
+                    mol=mol_poly,
+                    selector=selector,
+                    sites=selector_sites,
+                    dp=backbone.dp,
+                    ordering_spec=ordering_spec,
+                    multi_spec=multi_opt_spec,
+                )
+                # Use best result as the primary mol.
+                best = ranked_results[0]
+                mol_poly = best.mol
+                ordering_summary = best.summary
+            else:
+                mol_poly, ordering_summary = optimize_selector_ordering(
+                    mol=mol_poly,
+                    selector=selector,
+                    sites=selector_sites,
+                    dp=backbone.dp,
+                    spec=ordering_spec,
+                )
+                ranked_results = None
             ordering_applied = True
+        else:
+            ranked_results = None
 
     amber_summary: dict[str, object] = {"enabled": False}
     amber_export_done = False
@@ -642,6 +677,10 @@ def main(cfg: DictConfig) -> None:
         amber_enabled=bool(amber_enabled),
         amber_summary=amber_summary,
         output_export_formats=output_export_formats,
+        multi_opt_enabled=bool(ranked_results is not None and len(ranked_results) > 0),
+        multi_opt_rank=1 if ranked_results else 0,
+        multi_opt_total_starts=len(ranked_results) if ranked_results else 0,
+        multi_opt_seed_used=int(ranked_results[0].seed_used) if ranked_results else None,
     )
 
     # ---- Write outputs.
@@ -652,13 +691,23 @@ def main(cfg: DictConfig) -> None:
     if "pdb" in output_export_formats:
         write_pdb_from_rdkit(mol_poly, pdb_path)
 
+    sdf_path = outdir / "model.sdf"
+    if "sdf" in output_export_formats:
+        write_sdf(mol_poly, sdf_path)
+
     with open(json_path, "w", encoding="utf-8") as handle:
         json.dump(asdict(report), handle, indent=2)
 
     with open(cfg_path, "w", encoding="utf-8") as handle:
         handle.write(OmegaConf.to_yaml(cfg))
 
-    print(f"\nWrote:\n  {pdb_path}\n  {json_path}\n  {cfg_path}")
+    wrote_lines = []
+    if "pdb" in output_export_formats:
+        wrote_lines.append(f"  {pdb_path}")
+    if "sdf" in output_export_formats:
+        wrote_lines.append(f"  {sdf_path}")
+    wrote_lines.extend([f"  {json_path}", f"  {cfg_path}"])
+    print("\nWrote:\n" + "\n".join(wrote_lines))
     if amber_enabled and "files" in amber_summary:
         print(f"  {amber_summary['manifest']}")
     print("\nQC:")
@@ -674,6 +723,36 @@ def main(cfg: DictConfig) -> None:
 
     if qc_spec.fail_on_thresholds and not qc_pass:
         raise RuntimeError("QC thresholds failed; see build_report.json for details.")
+
+    # ---- Write ranked results for multi-start optimization.
+    if ranked_results and len(ranked_results) > 1:
+        ranking_entries = []
+        for result in ranked_results:
+            rank_dir = _ensure_outdir(outdir / f"ranked_{result.rank:03d}")
+            if "pdb" in output_export_formats:
+                write_pdb_from_rdkit(result.mol, rank_dir / "model.pdb")
+            if "sdf" in output_export_formats:
+                write_sdf(result.mol, rank_dir / "model.sdf")
+            rank_report = {
+                "rank": result.rank,
+                "score": result.score,
+                "seed_used": result.seed_used,
+                "ordering_summary": result.summary,
+            }
+            with open(rank_dir / "build_report.json", "w", encoding="utf-8") as h:
+                json.dump(rank_report, h, indent=2)
+            ranking_entries.append({
+                "rank": result.rank,
+                "score": result.score,
+                "seed_used": result.seed_used,
+                "dir": str(rank_dir),
+            })
+        ranking_path = outdir / "ranking_summary.json"
+        with open(ranking_path, "w", encoding="utf-8") as h:
+            json.dump({"n_starts": len(ranked_results), "ranking": ranking_entries}, h, indent=2)
+        print(f"  {ranking_path}")
+        for entry in ranking_entries:
+            print(f"    rank {entry['rank']}: score={entry['score']:.4f}  seed={entry['seed_used']}")
 
 
 if __name__ == "__main__":

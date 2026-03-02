@@ -18,7 +18,9 @@ from poly_csp.ordering.rotamers import (
 from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
     min_distance_by_class,
+    min_distance_by_class_fast,
     min_interatomic_distance,
+    min_interatomic_distance_fast,
 )
 
 
@@ -55,6 +57,7 @@ def _objective(
     mol: Chem.Mol,
     selector: SelectorTemplate,
     spec: OrderingSpec,
+    use_fast: bool = True,
 ) -> tuple[float, HbondMetrics, float, dict[str, float]]:
     hb = compute_hbond_metrics(
         mol=mol,
@@ -68,8 +71,13 @@ def _objective(
     max_path_length = 1 + int(spec.exclude_13) + int(spec.exclude_14)
     excluded = bonded_exclusion_pairs(mol, max_path_length=max_path_length)
     heavy_mask = _heavy_mask(mol)
-    dmin = float(min_interatomic_distance(xyz, heavy_mask, excluded))
-    class_min = min_distance_by_class(mol, xyz, heavy_mask, excluded)
+
+    if use_fast:
+        dmin = float(min_interatomic_distance_fast(xyz, heavy_mask, excluded))
+        class_min = min_distance_by_class_fast(mol, xyz, heavy_mask, excluded)
+    else:
+        dmin = float(min_interatomic_distance(xyz, heavy_mask, excluded))
+        class_min = min_distance_by_class(mol, xyz, heavy_mask, excluded)
 
     bb = class_min["backbone_backbone"]
     bs = class_min["backbone_selector"]
@@ -95,10 +103,14 @@ def optimize_selector_ordering(
     dp: int,
     spec: OrderingSpec,
     grid: RotamerGridSpec | None = None,
+    seed: int | None = None,
 ) -> tuple[Chem.Mol, Dict[str, object]]:
     """
-    Deterministic stage-4 optimizer:
-    choose one rotamer pose per site and apply it consistently across residues.
+    Deterministic stage-4 optimizer.
+
+    When repeat_residues > 1, each residue within the repeat unit is
+    optimized independently (coordinate descent), then the pattern is
+    replicated periodically across the chain.
     """
     if not spec.enabled:
         baseline_score, baseline_hb, baseline_dmin, baseline_class = _objective(
@@ -131,47 +143,80 @@ def optimize_selector_ordering(
         )
     pose_library = enumerate_pose_library(grid_spec)
 
+    # Shuffle pose traversal order for diversity across multi-start runs.
+    if seed is not None:
+        rng = np.random.default_rng(seed)
+        indices = rng.permutation(len(pose_library))
+        pose_library = [pose_library[i] for i in indices]
+
     work = Chem.Mol(mol)
     baseline_score, baseline_hb, baseline_dmin, baseline_class = _objective(
         work, selector, spec
     )
-    selected: Dict[str, Dict[str, float]] = {}
+    selected: Dict[str, Dict[int, Dict[str, float]]] = {}
 
     repeat = max(1, min(int(spec.repeat_residues), int(dp)))
     residues = list(range(int(dp)))
 
     for site in [str(s) for s in sites]:
-        best_mol = Chem.Mol(work)
-        best_score = float("-inf")
-        best_pose: Dict[str, float] = {}
+        # Per-residue coordinate descent within the repeat unit.
+        # Each residue in the repeat unit gets its own best pose.
+        per_residue_poses: Dict[int, Dict[str, float]] = {}
 
-        for pose in pose_library:
-            trial = Chem.Mol(work)
-            # Apply one periodic pose pattern across the chain.
-            for residue_index in residues:
-                pattern_idx = residue_index % repeat
-                if pattern_idx < repeat:
-                    trial = apply_selector_pose_dihedrals(
-                        mol=trial,
-                        residue_index=residue_index,
-                        site=site,  # type: ignore[arg-type]
-                        pose_spec=pose,
-                        selector=selector,
-                    )
-            score, _, _, _ = _objective(trial, selector, spec)
-            if score > best_score:
-                best_score = score
-                best_mol = trial
-                best_pose = dict(pose.dihedral_targets_deg)
+        # Initialize: no dihedral changes (current state)
+        for r in range(repeat):
+            per_residue_poses[r] = {}
 
-        work = best_mol
-        selected[site] = best_pose
+        max_cd_cycles = 3  # coordinate descent iterations
+        for _cycle in range(max_cd_cycles):
+            improved = False
+            for res_in_repeat in range(repeat):
+                best_mol = Chem.Mol(work)
+                best_score = float("-inf")
+                best_pose: Dict[str, float] = dict(per_residue_poses[res_in_repeat])
+
+                for pose in pose_library:
+                    trial = Chem.Mol(work)
+                    # Apply this candidate pose to all residues matching
+                    # this position in the repeat unit.
+                    for residue_index in residues:
+                        if residue_index % repeat == res_in_repeat:
+                            trial = apply_selector_pose_dihedrals(
+                                mol=trial,
+                                residue_index=residue_index,
+                                site=site,  # type: ignore[arg-type]
+                                pose_spec=pose,
+                                selector=selector,
+                            )
+                    score, _, _, _ = _objective(trial, selector, spec)
+                    if score > best_score:
+                        best_score = score
+                        best_mol = trial
+                        best_pose = dict(pose.dihedral_targets_deg)
+                        improved = True
+
+                work = best_mol
+                per_residue_poses[res_in_repeat] = best_pose
+
+            if not improved:
+                break  # converged
+
+        selected[site] = per_residue_poses
 
     final_score, final_hb, final_dmin, final_class = _objective(work, selector, spec)
+
+    # Flatten per-residue poses for summary
+    selected_summary: Dict[str, object] = {}
+    for site_key, residue_poses in selected.items():
+        selected_summary[site_key] = {
+            str(r): pose for r, pose in residue_poses.items()
+        }
+
     summary: Dict[str, object] = {
         "enabled": True,
         "repeat_residues": repeat,
         "candidate_count": len(pose_library),
+        "seed": seed,
         "baseline_score": baseline_score,
         "baseline_hbond_like_fraction": baseline_hb.like_fraction,
         "baseline_hbond_geometric_fraction": baseline_hb.geometric_fraction,
@@ -186,6 +231,6 @@ def optimize_selector_ordering(
         "final_class_min_distance_A": {
             k: _finite_or_none(v) for k, v in final_class.items()
         },
-        "selected_pose_by_site": selected,
+        "selected_pose_by_site": selected_summary,
     }
     return work, summary

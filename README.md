@@ -248,6 +248,7 @@ outputs/2026-03-01/00-00-00/
 Containing:
 
 * `model.pdb`
+* `model.sdf` (if SDF export enabled)
 * `build_report.json`
 * optional logs
 
@@ -275,6 +276,71 @@ python -m poly_csp.pipelines.build_csp selector.sites=[C6]
 
 ---
 
+## 4. SDF export
+
+The pipeline supports SDF output with full bond topology (bond orders, aromaticity, stereochemistry). Enable via `output.export_formats`:
+
+```bash
+python -m poly_csp.pipelines.build_csp output.export_formats=[pdb,sdf]
+```
+
+The resulting `model.sdf` preserves all covalent bonds constructed during polymerization and selector attachment, making it directly importable into molecular viewers and cheminformatics tools.
+
+Supported export formats: `pdb`, `sdf`, `amber`.
+
+---
+
+## 5. Multi-start selector optimization
+
+The default ordering optimizer runs a single deterministic coordinate-descent pass. Multi-start mode runs N independent optimizations with different random seeds, producing diverse local minima for scoring:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  multi_opt.enabled=true \
+  multi_opt.n_starts=10 \
+  multi_opt.top_k=5 \
+  multi_opt.seed=42
+```
+
+### Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `multi_opt.enabled` | `false` | Enable multi-start optimization |
+| `multi_opt.n_starts` | `5` | Number of independent optimization runs |
+| `multi_opt.top_k` | `3` | Number of top-ranked results to keep |
+| `multi_opt.seed` | `null` | Master random seed (null = random) |
+| `multi_opt.strategy` | `multi_start` | Optimization strategy |
+| `multi_opt.n_workers` | `0` | Parallel workers (0 = auto-detect CPUs, 1 = serial) |
+
+Runs execute in parallel across CPU cores by default, providing near-linear speedup.
+
+### Output structure
+
+When enabled, ranked results are written to subfolders:
+
+```
+outputs/2026-03-01/00-00-00/
+├── model.pdb              # Best (rank-1) structure
+├── model.sdf              # Best structure (if SDF enabled)
+├── build_report.json
+├── ranking_summary.json   # All results with scores
+├── ranked_001/            # Rank 1 (best)
+│   ├── model.pdb
+│   ├── model.sdf
+│   └── build_report.json
+├── ranked_002/
+│   └── ...
+└── ranked_003/
+    └── ...
+```
+
+Each ranked result includes the optimization score, seed used, and full ordering summary. Use `ranking_summary.json` for automated scoring workflows.
+
+Seed reproducibility: the same `multi_opt.seed` value produces identical rankings across runs.
+
+---
+
 # Output Products
 
 Each build produces:
@@ -283,6 +349,8 @@ Each build produces:
 * Assigned 3D coordinates
 * Deterministic helical symmetry
 * Optional selector torsion initialization
+* SDF output with proper bond topology (bond orders, aromaticity)
+* Multi-start ranked structures with scores (when `multi_opt.enabled=true`)
 * QC metrics:
 
   * Symmetry RMSD
@@ -320,19 +388,6 @@ The pipeline is deterministic by design.
 
 ---
 
-# Development Strategy
-
-Recommended implementation order:
-
-1. Helix + backbone replication
-2. Polymer graph construction
-3. Single-site selector attachment
-4. Multi-site functionalization
-5. Rotamer + H-bond pre-organization
-6. OpenMM restrained relaxation
-7. Full CSP tiling / surface attachment
-
----
 
 # Roadmap
 
@@ -386,4 +441,4 @@ Used in chiral chromatography systems such as Chiralpak AD.
 
 # Status
 
-Deterministic construction workflow with selector attachment, ordering, QC, and two relaxation modes (geometric pre-relax and AmberTools-parameterized).
+Deterministic construction workflow with selector attachment, ordering, QC, SDF export, multi-start optimization, and two relaxation modes (geometric pre-relax and AmberTools-parameterized).

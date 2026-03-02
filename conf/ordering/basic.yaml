@@ -1,4 +1,4 @@
-enabled: false
+enabled: true
 repeat_residues: 1
 max_distance_A: 3.3
 neighbor_window: 1

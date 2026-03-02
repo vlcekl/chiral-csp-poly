@@ -1,6 +1,6 @@
-enabled: false
+enabled: true
 name: 35dmpc
-sites: [C6]
+sites: [C2,C3,C6]
 pose:
   dihedral_targets_deg: {}
   carbonyl_dir_local: null

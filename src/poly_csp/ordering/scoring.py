@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 from rdkit import Chem
+from scipy.spatial import cKDTree
 
 from poly_csp.config.schema import HelixSpec
 from poly_csp.geometry.dihedrals import measure_dihedral_rad
@@ -100,6 +101,73 @@ def min_distance_by_class(
             d = float(np.linalg.norm(coords[int(i)] - coords[int(j)]))
             if d < out[key]:
                 out[key] = d
+    return out
+
+
+def min_interatomic_distance_fast(
+    coords: np.ndarray,
+    heavy_mask: np.ndarray,
+    excluded_pairs: set[tuple[int, int]] | None = None,
+    cutoff: float = 2.0,
+) -> float:
+    """cKDTree-accelerated minimum distance (sub-cutoff pairs only)."""
+    idx = np.where(heavy_mask)[0]
+    if idx.size < 2:
+        return float("inf")
+    excluded = excluded_pairs or set()
+    tree = cKDTree(coords[idx])
+    pairs = tree.query_pairs(r=cutoff)
+    if not pairs:
+        return cutoff
+    dmin = cutoff
+    for i_pos, j_pos in pairs:
+        i, j = int(idx[i_pos]), int(idx[j_pos])
+        pair = (min(i, j), max(i, j))
+        if pair in excluded:
+            continue
+        d = float(np.linalg.norm(coords[i] - coords[j]))
+        dmin = min(dmin, d)
+    return dmin
+
+
+def min_distance_by_class_fast(
+    mol: Chem.Mol,
+    coords: np.ndarray,
+    heavy_mask: np.ndarray,
+    excluded_pairs: set[tuple[int, int]] | None = None,
+    cutoff: float = 2.0,
+) -> Dict[str, float]:
+    """cKDTree-accelerated class-aware minimum distances."""
+    idx = np.where(heavy_mask)[0]
+    excluded = excluded_pairs or set()
+    out = {
+        "backbone_backbone": float("inf"),
+        "backbone_selector": float("inf"),
+        "selector_selector": float("inf"),
+    }
+    if idx.size < 2:
+        return out
+
+    # pre-compute classes for heavy atoms
+    classes = np.array([_atom_class(mol.GetAtomWithIdx(int(i))) for i in idx])
+
+    tree = cKDTree(coords[idx])
+    pairs = tree.query_pairs(r=cutoff)
+    for i_pos, j_pos in pairs:
+        i, j = int(idx[i_pos]), int(idx[j_pos])
+        pair = (min(i, j), max(i, j))
+        if pair in excluded:
+            continue
+        ci, cj = classes[i_pos], classes[j_pos]
+        if ci == "backbone" and cj == "backbone":
+            key = "backbone_backbone"
+        elif ci == "selector" and cj == "selector":
+            key = "selector_selector"
+        else:
+            key = "backbone_selector"
+        d = float(np.linalg.norm(coords[i] - coords[j]))
+        if d < out[key]:
+            out[key] = d
     return out
 
 

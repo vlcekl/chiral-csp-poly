@@ -5,6 +5,7 @@ defaults:
   - ordering: basic
   - relax: restrained
   - qc: basic
+  - multi_opt: default
   - _self_
 
 output:
@@ -19,16 +20,16 @@ polymer:
   end_caps: {}
 
 amber:
-  enabled: false
+  enabled: true
   dir: amber
   charge_model: bcc
   parameter_backend: placeholder
   net_charge: auto
 
 selector:
-  enabled: false
+  enabled: true
   name: 35dmpc
-  sites: [C6]
+  sites: [C2,C3,C6]
   pose:
     dihedral_targets_deg: {}
     carbonyl_dir_local: null
