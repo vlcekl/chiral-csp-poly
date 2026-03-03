@@ -517,7 +517,7 @@ def main(cfg: DictConfig) -> None:
             polymer=polymer_kind,
             dp=dp,
             selector_mol=(
-                selector.template_mol if selector is not None else None
+                selector.mol if selector is not None else None
             ),
             periodic=is_periodic,
             box_vectors_A=_bv_relax,
@@ -678,7 +678,7 @@ def main(cfg: DictConfig) -> None:
             polymer=polymer_kind,
             dp=dp,
             selector_mol=(
-                selector.template_mol if selector is not None else None
+                selector.mol if selector is not None else None
             ),
             periodic=is_periodic,
             box_vectors_A=_bv,

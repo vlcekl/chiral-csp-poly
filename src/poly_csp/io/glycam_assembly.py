@@ -218,7 +218,18 @@ def parameterize_selector_fragment(
     frcmod_path = wd / "selector.frcmod"
     lib_path = wd / "selector.lib"
 
-    write_pdb_from_rdkit(selector_mol, pdb_path)
+    # Replace dummy atoms ([*], atomic number 0) with hydrogen so that
+    # antechamber can perform atom typing and charge derivation.
+    clean_mol = Chem.RWMol(selector_mol)
+    for atom in clean_mol.GetAtoms():
+        if atom.GetAtomicNum() == 0:
+            atom.SetAtomicNum(1)
+            atom.SetFormalCharge(0)
+            atom.SetNoImplicit(True)
+            atom.SetNumExplicitHs(0)
+    Chem.SanitizeMol(clean_mol)
+
+    write_pdb_from_rdkit(clean_mol, pdb_path)
 
     # antechamber
     _run_command(
