@@ -38,7 +38,9 @@ from poly_csp.config.schema import (
     SelectorPoseSpec,
     Site,
 )
-from poly_csp.forcefield.glycam import export_amber_artifacts
+from poly_csp.forcefield.amber_export import export_amber_artifacts
+from poly_csp.forcefield.glycam import load_glycam_params
+from poly_csp.forcefield.system_builder import build_backbone_glycam_system
 from poly_csp.io.pdb import write_pdb_from_rdkit
 from poly_csp.io.rdkit_io import write_sdf
 from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
@@ -110,6 +112,9 @@ class BuildReport:
     selector_pose_dihedral_targets_deg: dict[str, float]
     ordering_enabled: bool
     ordering_summary: dict[str, object]
+    forcefield_enabled: bool
+    forcefield_mode: str
+    forcefield_summary: dict[str, object]
     relax_enabled: bool
     relax_mode: str
     relax_summary: dict[str, object]
@@ -189,8 +194,12 @@ def _cfg_to_relax_spec(cfg: DictConfig):
         if hasattr(relax_cfg, "anneal") and relax_cfg.anneal is not None
         else {}
     )
+    enabled = bool(relax_cfg.enabled if "enabled" in relax_cfg else False)
+    relax_enabled = bool(
+        relax_cfg.relax_enabled if "relax_enabled" in relax_cfg else False
+    )
     return RelaxSpec(
-        enabled=bool(relax_cfg.enabled if "enabled" in relax_cfg else False),
+        enabled=bool(enabled and relax_enabled),
         positional_k=float(
             relax_cfg.positional_k if "positional_k" in relax_cfg else 5000.0
         ),
@@ -211,6 +220,29 @@ def _cfg_to_relax_spec(cfg: DictConfig):
             anneal_cfg.cool_down if "cool_down" in anneal_cfg else True
         ),
     )
+
+
+def _forcefield_enabled(cfg: DictConfig) -> bool:
+    return bool(
+        "forcefield" in cfg
+        and cfg.forcefield is not None
+        and "options" in cfg.forcefield
+        and cfg.forcefield.options is not None
+        and "enabled" in cfg.forcefield.options
+        and cfg.forcefield.options.enabled
+    )
+
+
+def _forcefield_mode(cfg: DictConfig) -> str:
+    if (
+        "forcefield" in cfg
+        and cfg.forcefield is not None
+        and "options" in cfg.forcefield
+        and cfg.forcefield.options is not None
+        and "mode" in cfg.forcefield.options
+    ):
+        return str(cfg.forcefield.options.mode)
+    return "legacy_generic"
 
 
 def _cfg_to_qc_spec(cfg: DictConfig) -> QcSpec:
@@ -322,6 +354,8 @@ def main(cfg: DictConfig) -> None:
     amber_cfg_enabled = bool(
         "amber" in cfg and cfg.amber is not None and "enabled" in cfg.amber and cfg.amber.enabled
     )
+    if not amber_cfg_enabled:
+        output_export_formats = [fmt for fmt in output_export_formats if fmt != "amber"]
     if amber_cfg_enabled and "amber" not in output_export_formats:
         output_export_formats.append("amber")
 
@@ -362,15 +396,10 @@ def main(cfg: DictConfig) -> None:
     ordering_spec = _cfg_to_ordering_spec(cfg)
     qc_spec = _cfg_to_qc_spec(cfg)
 
-    relax_requested = bool(
-        "forcefield" in cfg
-        and cfg.forcefield is not None
-        and "options" in cfg.forcefield
-        and cfg.forcefield.options is not None
-        and "enabled" in cfg.forcefield.options
-        and cfg.forcefield.options.enabled
-    )
+    forcefield_enabled = _forcefield_enabled(cfg)
+    forcefield_mode = _forcefield_mode(cfg) if forcefield_enabled else "none"
     relax_spec = _cfg_to_relax_spec(cfg)
+    relax_requested = bool(relax_spec is not None and relax_spec.enabled)
     if relax_requested and (run_staged_relaxation is None or relax_spec is None):
         raise RuntimeError(
             "Relaxation requested but OpenMM modules are unavailable in this environment."
@@ -486,6 +515,61 @@ def main(cfg: DictConfig) -> None:
 
     amber_summary: dict[str, object] = {"enabled": False}
     amber_export_done = False
+    forcefield_summary: dict[str, object] = {"enabled": False, "mode": "none"}
+
+    # ---- Stage 4a: optional runtime forcefield build.
+    if forcefield_enabled:
+        forcefield_input = build_forcefield_molecule(mol_poly)
+        if forcefield_mode == "backbone_glycam_only":
+            if selector_enabled:
+                raise ValueError(
+                    "forcefield.options.mode=backbone_glycam_only supports pure backbone systems only; selectors are not supported."
+                )
+            if backbone.end_mode != "open":
+                raise ValueError(
+                    "forcefield.options.mode=backbone_glycam_only supports only open chains."
+                )
+            if backbone.monomer_representation != "anhydro":
+                raise ValueError(
+                    "forcefield.options.mode=backbone_glycam_only supports only the anhydro backbone representation."
+                )
+            if relax_requested:
+                raise ValueError(
+                    "forcefield.options.mode=backbone_glycam_only does not support relaxation yet."
+                )
+            glycam_params = load_glycam_params(
+                polymer=polymer_kind,
+                representation=monomer_representation,
+                end_mode=end_mode,  # type: ignore[arg-type]
+                work_dir=outdir / "glycam_reference",
+            )
+            built_system = build_backbone_glycam_system(
+                forcefield_input.mol,
+                glycam_params,
+            )
+            forcefield_summary = {
+                "enabled": True,
+                "mode": forcefield_mode,
+                "parameter_backend": "glycam_reference_extract",
+                "nonbonded_mode": built_system.nonbonded_mode,
+                "particle_count": int(built_system.system.getNumParticles()),
+                "force_count": int(built_system.system.getNumForces()),
+                "topology_manifest_size": len(built_system.topology_manifest),
+                "component_counts": dict(built_system.component_counts),
+                "exception_summary": dict(built_system.exception_summary),
+                "source_manifest": dict(built_system.source_manifest),
+            }
+        elif forcefield_mode == "legacy_generic":
+            forcefield_summary = {
+                "enabled": True,
+                "mode": forcefield_mode,
+                "parameter_backend": "generic_runtime",
+                "notes": [
+                    "Legacy generic runtime path remains available for relaxation and mixed-system work.",
+                ],
+            }
+        else:
+            raise ValueError(f"Unsupported forcefield.options.mode {forcefield_mode!r}.")
 
     # ---- Stage 4b: AMBER export (needed before relaxation for prmtop). ---
     if amber_cfg_enabled:
@@ -699,6 +783,9 @@ def main(cfg: DictConfig) -> None:
         selector_pose_dihedral_targets_deg=dict(selector_pose.dihedral_targets_deg),
         ordering_enabled=bool(ordering_applied),
         ordering_summary=ordering_summary,
+        forcefield_enabled=bool(forcefield_enabled),
+        forcefield_mode=str(forcefield_mode),
+        forcefield_summary=forcefield_summary,
         relax_enabled=bool(relax_enabled),
         relax_mode="hybrid_split_system" if relax_enabled else "none",
         relax_summary=relax_summary,

@@ -119,3 +119,4 @@ dihedral application, atom mapping, and terminal/export stages.
 9. Within `build_backbone_structure()`, heavy backbone atoms are added before their hydrogens so residue label maps remain stable when later attachment hydrogens are consumed.
 10. Backbone hydrogens come from explicit-H residue templates placed directly into the helix, not from a late whole-molecule generic hydrogen-addition step.
 11. PDB naming should prefer `_poly_csp_atom_name` / preassigned residue info when present instead of regenerating names heuristically.
+12. Forcefield-specific residue or atom identities, such as GLYCAM residue codes and hydroxyl-hydrogen aliases (`HO2 -> H2O`), must remain in the forcefield mapping layer. They must not overwrite the generic Phase 1 manifest naming policy stored on the structure/forcefield-domain molecule.

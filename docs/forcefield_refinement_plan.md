@@ -291,6 +291,10 @@ This is required because GLYCAM needs the correct atom presence and atom naming,
      - terminal residues,
      - periodic variants if they remain supported.
 
+5a. Runtime GLYCAM loading and AMBER export must remain separate concerns.
+   - Runtime extraction/mapping/build should live in the forcefield runtime modules.
+   - tleap export for downstream artifacts should stay a separate export utility.
+
 6. Acceptance for this phase:
    - a pure polysaccharide CSP can build an all-atom OpenMM system using GLYCAM only,
    - no generic bonded fallback is used,

@@ -1,4 +1,6 @@
 enabled: true
+mode: legacy_generic
+relax_enabled: true
 
 # Restrained relaxation controls
 positional_k: 5000.0

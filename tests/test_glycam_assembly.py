@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from poly_csp.forcefield.amber_export import parameterize_selector_fragment
 from poly_csp.forcefield.glycam import (
     build_glycam_sequence,
     build_linkage_frcmod,
@@ -14,16 +15,16 @@ from poly_csp.forcefield.glycam import (
 def test_glycam_sequence_amylose_dp4() -> None:
     seq = build_glycam_sequence("amylose", dp=4)
     assert len(seq) == 4
-    assert seq[0] == "0GA"
-    assert seq[-1] == "4GA"
-    assert all(r == "4GA" for r in seq[1:])
+    assert seq[0] == "4GA"
+    assert seq[-1] == "0GA"
+    assert all(r == "4GA" for r in seq[:-1])
 
 
 def test_glycam_sequence_cellulose_dp2() -> None:
     seq = build_glycam_sequence("cellulose", dp=2)
     assert len(seq) == 2
-    assert seq[0] == "0GB"
-    assert seq[1] == "4GB"
+    assert seq[0] == "4GB"
+    assert seq[1] == "0GB"
 
 
 def test_glycam_sequence_dp1() -> None:
@@ -46,22 +47,12 @@ def test_tleap_script_backbone_only() -> None:
     assert "leaprc.gaff2" not in script
     # Residue names must NOT have nested braces (Bug 2 regression check).
     assert "{ 0GA }" not in script
-    assert "sequence { 0GA 4GA" in script
+    assert "sequence { 4GA 4GA 4GA 0GA }" in script
 
 
-def test_tleap_script_with_selector() -> None:
-    script = build_tleap_script(
-        polymer="amylose",
-        dp=4,
-        selector_lib_path="/tmp/sel.lib",
-        selector_frcmod_path="/tmp/sel.frcmod",
-    )
-    assert "GLYCAM_06j" in script
-    assert "gaff2" in script
-    assert "/tmp/sel.lib" in script
-    assert "/tmp/sel.frcmod" in script
-    # Should have both GLYCAM and GAFF2
-    assert "0GA" in script
+def test_tleap_script_uses_model_name_for_outputs() -> None:
+    script = build_tleap_script(polymer="amylose", dp=2, model_name="amylose_ref")
+    assert "saveamberparm mol amylose_ref.prmtop amylose_ref.inpcrd" in script
 
 
 def test_tleap_script_periodic_includes_bond_and_box() -> None:
@@ -100,7 +91,7 @@ def test_parameterize_selector_fragment_cleans_dummy_atoms(monkeypatch, tmp_path
     """Selector fragment inputs should be hydrogen-complete before PDB write."""
     from rdkit import Chem
     from rdkit.Chem import AllChem
-    from poly_csp.forcefield import glycam as glycam_assembly
+    from poly_csp.forcefield import amber_export as amber_export_mod
 
     # Build a small mol with a dummy atom
     mol = Chem.MolFromSmiles("[*]C(=O)NC")
@@ -124,11 +115,11 @@ def test_parameterize_selector_fragment_cleans_dummy_atoms(monkeypatch, tmp_path
         elif "tleap" in cmd:
             (cwd / "selector.lib").write_text("dummy", encoding="utf-8")
 
-    monkeypatch.setattr(glycam_assembly, "write_pdb_from_rdkit", fake_write_pdb)
-    monkeypatch.setattr(glycam_assembly, "_run_command", fake_run_command)
-    monkeypatch.setattr(glycam_assembly, "_ensure_required_tools", lambda tools: None)
+    monkeypatch.setattr(amber_export_mod, "write_pdb_from_rdkit", fake_write_pdb)
+    monkeypatch.setattr(amber_export_mod, "_run_command", fake_run_command)
+    monkeypatch.setattr(amber_export_mod, "_ensure_required_tools", lambda tools: None)
 
-    result = glycam_assembly.parameterize_selector_fragment(mol, work_dir=tmp_path)
+    result = parameterize_selector_fragment(mol, work_dir=tmp_path)
 
     assert len(written_mols) == 1
     written = written_mols[0]

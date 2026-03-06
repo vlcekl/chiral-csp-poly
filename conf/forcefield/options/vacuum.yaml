@@ -1,2 +1,4 @@
 enabled: true
+mode: legacy_generic
+relax_enabled: false
 nonbonded: vacuum
