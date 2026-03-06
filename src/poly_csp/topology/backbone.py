@@ -44,6 +44,7 @@ def _set_polymer_metadata(
     residue_label_map = _build_residue_label_map(template, dp, removed_sorted)
 
     mol.SetIntProp("_poly_csp_dp", dp)
+    mol.SetProp("_poly_csp_polymer", template.polymer)
     mol.SetIntProp("_poly_csp_template_atom_count", template.mol.GetNumAtoms())
     mol.SetProp("_poly_csp_representation", template.representation)
     mol.SetProp("_poly_csp_removed_old_indices_json", json.dumps(removed_sorted))

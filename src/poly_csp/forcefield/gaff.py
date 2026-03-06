@@ -31,7 +31,6 @@ from openmm import app as mmapp
 
 from poly_csp.topology.atom_mapping import selector_instance_maps
 from poly_csp.topology.selectors import SelectorTemplate
-from poly_csp.forcefield.system_builder import _covalent_bond_length_nm, _equilibrium_angle_rad
 from poly_csp.io.pdb import write_pdb_from_rdkit
 
 log = logging.getLogger(__name__)
@@ -274,19 +273,6 @@ def _fix_mol2_bond_count(lines: list[str], count_stash: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Per-instance mapping helpers
-# ---------------------------------------------------------------------------
-
-def _selector_all_indices(mol: Chem.Mol) -> set[int]:
-    """Set of all selector atom indices in the polymer."""
-    return {
-        atom.GetIdx()
-        for atom in mol.GetAtoms()
-        if atom.HasProp("_poly_csp_selector_instance")
-    }
-
-
-# ---------------------------------------------------------------------------
 # Load GAFF2 forces from prmtop and remap to molecule indices
 # ---------------------------------------------------------------------------
 
@@ -316,7 +302,10 @@ def load_gaff2_selector_forces(
     -------
     List of OpenMM Force objects ready to be added to a System.  Typically
     contains one HarmonicBondForce, one HarmonicAngleForce, and one or two
-    PeriodicTorsionForce objects (proper torsions + impropers).
+    PeriodicTorsionForce objects (proper torsions + impropers). Terms that
+    cross into connector atoms are intentionally absent because
+    ``selector_instance_maps`` includes selector-core atoms only; those
+    linkage terms are handled by connector overlays.
     """
     dummy_idx = selector_template.attach_dummy_idx  # may be None
 
@@ -433,67 +422,6 @@ def _transfer_torsions(
         if g1 is None or g2 is None or g3 is None or g4 is None:
             continue
         out_force.addTorsion(g1, g2, g3, g4, periodicity, phase, k)
-
-
-# ---------------------------------------------------------------------------
-# Junction forces: bonds/angles crossing the backbone-selector boundary
-# ---------------------------------------------------------------------------
-
-def build_junction_forces(
-    mol: Chem.Mol,
-    selector_indices: set[int],
-    bond_k: float = 200_000.0,
-    angle_k: float = 500.0,
-) -> tuple[mm.HarmonicBondForce, mm.HarmonicAngleForce]:
-    """Build bonded forces for bonds/angles crossing the backbone↔selector boundary.
-
-    These are the attachment bonds (e.g. sugar-O—carbonyl-C) and angles
-    where atoms span both sides.  Generic covalent-radius parameters are
-    used since the GAFF2 prmtop does not cover these cross-boundary terms.
-
-    Returns
-    -------
-    (bond_force, angle_force) covering only the junction terms.
-    """
-    bond_force = mm.HarmonicBondForce()
-    for bond in mol.GetBonds():
-        i = bond.GetBeginAtomIdx()
-        j = bond.GetEndAtomIdx()
-        i_sel = i in selector_indices
-        j_sel = j in selector_indices
-        if i_sel == j_sel:
-            continue  # both backbone or both selector → not a junction
-        z1 = mol.GetAtomWithIdx(i).GetAtomicNum()
-        z2 = mol.GetAtomWithIdx(j).GetAtomicNum()
-        r0 = _covalent_bond_length_nm(z1, z2)
-        bond_force.addBond(i, j, r0, bond_k)
-
-    # Build adjacency list for angle enumeration.
-    n = mol.GetNumAtoms()
-    adj: list[list[int]] = [[] for _ in range(n)]
-    for bond in mol.GetBonds():
-        a = bond.GetBeginAtomIdx()
-        b = bond.GetEndAtomIdx()
-        adj[a].append(b)
-        adj[b].append(a)
-
-    angle_force = mm.HarmonicAngleForce()
-    for j_atom in range(n):
-        nbrs = adj[j_atom]
-        theta0 = _equilibrium_angle_rad(mol.GetAtomWithIdx(j_atom))
-        j_sel = j_atom in selector_indices
-        for ii in range(len(nbrs)):
-            for jj in range(ii + 1, len(nbrs)):
-                a, b = nbrs[ii], nbrs[jj]
-                a_sel = a in selector_indices
-                b_sel = b in selector_indices
-                # Include only if atoms span the boundary.
-                sides = {a_sel, j_sel, b_sel}
-                if len(sides) < 2:
-                    continue  # all on same side → skip
-                angle_force.addAngle(a, j_atom, b, theta0, angle_k)
-
-    return bond_force, angle_force
 
 
 def parameterize_isolated_selector(

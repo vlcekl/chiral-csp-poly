@@ -10,14 +10,12 @@ from rdkit.Geometry import Point3D
 import openmm as mm
 from openmm import unit
 
+from poly_csp.forcefield.connectors import parameterize_capped_monomer
 from poly_csp.topology.atom_mapping import selector_instance_maps
 from poly_csp.topology.selectors import SelectorTemplate
 from poly_csp.structure.dihedrals import measure_dihedral_rad
 from poly_csp.forcefield.anneal import run_heat_cool_cycle, run_temperature_ramp
-from poly_csp.forcefield.system_builder import (
-    build_bonded_relaxation_system,
-    _sigma_nm,
-)
+from poly_csp.forcefield.system_builder import create_system
 from poly_csp.forcefield.restraints import (
     add_dihedral_restraints,
     add_hbond_distance_restraints,
@@ -137,6 +135,56 @@ def _hbond_pairs(
     return pairs
 
 
+def _positions_nm_from_mol(mol: Chem.Mol) -> unit.Quantity:
+    if mol.GetNumConformers() == 0:
+        raise ValueError("Molecule must have coordinates before OpenMM system build.")
+    xyz_A = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
+    return (xyz_A / 10.0) * unit.nanometer
+
+
+def _selector_sites(mol: Chem.Mol) -> list[str]:
+    sites = {
+        atom.GetProp("_poly_csp_site")
+        for atom in mol.GetAtoms()
+        if atom.HasProp("_poly_csp_selector_instance") and atom.HasProp("_poly_csp_site")
+    }
+    return sorted(sites)
+
+
+def _has_connector_atoms(mol: Chem.Mol) -> bool:
+    return any(atom.HasProp("_poly_csp_connector_atom") for atom in mol.GetAtoms())
+
+
+def _connector_params_by_site(
+    mol: Chem.Mol,
+    selector: SelectorTemplate | None,
+    selector_prmtop_path: str | None,
+) -> Dict[str, object] | None:
+    import logging
+
+    log = logging.getLogger(__name__)
+
+    if selector is None or selector_prmtop_path is None:
+        return None
+    if not selector.connector_local_roles or not _has_connector_atoms(mol):
+        return None
+    if not mol.HasProp("_poly_csp_polymer"):
+        log.warning(
+            "Skipping connector parameterization because _poly_csp_polymer metadata is missing."
+        )
+        return None
+
+    polymer = mol.GetProp("_poly_csp_polymer")
+    params_by_site: Dict[str, object] = {}
+    for site in _selector_sites(mol):
+        params_by_site[site] = parameterize_capped_monomer(
+            polymer=polymer,  # type: ignore[arg-type]
+            selector_template=selector,
+            site=site,  # type: ignore[arg-type]
+        )
+    return params_by_site or None
+
+
 def _update_rdkit_coords(mol: Chem.Mol, positions_nm: unit.Quantity) -> Chem.Mol:
     xyz_A = positions_nm.value_in_unit(unit.nanometer) * 10.0
     out = Chem.Mol(mol)
@@ -168,159 +216,20 @@ def run_staged_relaxation(
     )
 
 
-# ---------------------------------------------------------------------------
-# Hybrid pre-relax: GAFF2 selector forces + frozen backbone
-# ---------------------------------------------------------------------------
-
-
-def _build_gaff2_composite_system(
-    mol: Chem.Mol,
-    selector_prmtop_path: str,
-    selector_template: SelectorTemplate,
-    selector_indices: set[int],
-) -> 'SystemBuildResult':
-    """Build an OpenMM system with GAFF2 forces for selectors.
-
-    Backbone atoms get generic harmonic bonds and angles from RDKit
-    (sufficient because the backbone is frozen during annealing).
-    Selector atoms get full GAFF2 bonded forces (bonds, angles,
-    torsions, impropers) transferred from the selector prmtop.
-    Junction bonds (backbone↔selector) use generic parameters.
-
-    Returns a SystemBuildResult with the composite system.
-    """
-    import logging
-
-    from poly_csp.forcefield.gaff import (
-        build_junction_forces,
-        load_gaff2_selector_forces,
-    )
-    from poly_csp.forcefield.system_builder import (
-        SystemBuildResult,
-        _atomic_mass_dalton,
-        _covalent_bond_length_nm,
-        _equilibrium_angle_rad,
-        exclusion_pairs_from_mol,
-    )
-
-    log = logging.getLogger(__name__)
-
-    if mol.GetNumConformers() == 0:
-        raise ValueError("Molecule must have coordinates before system build.")
-
-    xyz_A = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
-    positions_nm = (xyz_A / 10.0) * unit.nanometer
-
-    system = mm.System()
-    for atom in mol.GetAtoms():
-        system.addParticle(_atomic_mass_dalton(atom.GetAtomicNum()) * unit.dalton)
-
-    # --- 1. Backbone-only generic bonded forces (bonds + angles). ---
-    #     The backbone is frozen so exact parameters don't matter much,
-    #     but we still need them for structural stability.
-    backbone_bond_force = mm.HarmonicBondForce()
-    for bond in mol.GetBonds():
-        i = bond.GetBeginAtomIdx()
-        j = bond.GetEndAtomIdx()
-        # Only include pure backbone bonds.
-        if i in selector_indices or j in selector_indices:
-            continue
-        z1 = mol.GetAtomWithIdx(i).GetAtomicNum()
-        z2 = mol.GetAtomWithIdx(j).GetAtomicNum()
-        r0 = _covalent_bond_length_nm(z1, z2)
-        backbone_bond_force.addBond(i, j, r0, 200_000.0)
-    system.addForce(backbone_bond_force)
-
-    n = mol.GetNumAtoms()
-    adj: list[list[int]] = [[] for _ in range(n)]
-    for bond in mol.GetBonds():
-        a = bond.GetBeginAtomIdx()
-        b = bond.GetEndAtomIdx()
-        adj[a].append(b)
-        adj[b].append(a)
-
-    backbone_angle_force = mm.HarmonicAngleForce()
-    for j_atom in range(n):
-        if j_atom in selector_indices:
-            continue  # neither central nor end atom should be selector
-        nbrs = adj[j_atom]
-        theta0 = _equilibrium_angle_rad(mol.GetAtomWithIdx(j_atom))
-        for ii in range(len(nbrs)):
-            for jj in range(ii + 1, len(nbrs)):
-                a, b = nbrs[ii], nbrs[jj]
-                if a in selector_indices or b in selector_indices:
-                    continue  # skip junction angles — handled below
-                backbone_angle_force.addAngle(a, j_atom, b, theta0, 500.0)
-    system.addForce(backbone_angle_force)
-
-    log.info(
-        "Backbone: %d bonds, %d angles",
-        backbone_bond_force.getNumBonds(),
-        backbone_angle_force.getNumAngles(),
-    )
-
-    # --- 2. GAFF2 bonded forces for selector atoms. ---
-    gaff2_forces = load_gaff2_selector_forces(
-        selector_prmtop_path=selector_prmtop_path,
-        mol=mol,
-        selector_template=selector_template,
-    )
-    for force in gaff2_forces:
-        system.addForce(force)
-
-    # --- 3. Junction forces (backbone↔selector boundary). ---
-    junc_bond, junc_angle = build_junction_forces(
-        mol=mol,
-        selector_indices=selector_indices,
-    )
-    system.addForce(junc_bond)
-    system.addForce(junc_angle)
-    log.info(
-        "Junction: %d bonds, %d angles",
-        junc_bond.getNumBonds(),
-        junc_angle.getNumAngles(),
-    )
-
-    # --- 4. Soft pairwise repulsion for all atoms. ---
-    repulsive = mm.CustomNonbondedForce(
-        "k_rep*step(sigma-r)*(sigma-r)^2;"
-        "sigma=0.5*(sigma1+sigma2)"
-    )
-    repulsive.addGlobalParameter("k_rep", 800.0)
-    repulsive.addPerParticleParameter("sigma")
-    repulsive.setNonbondedMethod(mm.CustomNonbondedForce.CutoffNonPeriodic)
-    repulsive.setCutoffDistance(0.6 * unit.nanometer)
-
-    for atom in mol.GetAtoms():
-        repulsive.addParticle([_sigma_nm(atom)])
-
-    excluded = exclusion_pairs_from_mol(mol, exclude_13=True, exclude_14=False)
-    for i, j in sorted(excluded):
-        repulsive.addExclusion(int(i), int(j))
-    system.addForce(repulsive)
-
-    return SystemBuildResult(
-        system=system,
-        positions_nm=positions_nm,
-        excluded_pairs=excluded,
-    )
-
 def _run_hybrid_pre_relax(
     mol: Chem.Mol,
     spec: RelaxSpec,
     selector: SelectorTemplate | None = None,
     selector_prmtop_path: str | None = None,
 ) -> tuple[Chem.Mol, Dict[str, object]]:
-    """Relaxation with frozen backbone and bonded forces.
+    """Relaxation with a shared modular forcefield and optional frozen backbone.
 
-    When ``selector_prmtop_path`` is provided, selector atoms get full
-    GAFF2 forces (bonds, angles, dihedrals, impropers) transferred from
-    the selector prmtop.  Otherwise, all atoms get generic harmonic bonds
-    and angles derived from the RDKit bond graph.
-
-    Backbone heavy atoms are frozen (mass = 0) so they cannot move during
-    either minimization or dynamics.  Only selector atoms explore
-    conformational space.
+    The base system always starts from the generic RDKit-derived bonded model.
+    When ``selector_prmtop_path`` is provided, pure selector-core terms are
+    overlaid from the isolated selector GAFF2 prmtop and connector terms are
+    overlaid from capped-monomer parameterization. Backbone heavy atoms can be
+    frozen (mass = 0) so only selectors and linkers explore conformational
+    space during restrained minimization and annealing.
     """
     import logging
 
@@ -332,28 +241,29 @@ def _run_hybrid_pre_relax(
     selector_indices = _selector_all_indices(mol)
 
     use_gaff2 = selector_prmtop_path is not None and selector is not None and len(selector_indices) > 0
-
+    gaff_params = None
     if use_gaff2:
-        # --- Build composite system: generic backbone + GAFF2 selectors. ---
-        built = _build_gaff2_composite_system(
-            mol=mol,
-            selector_prmtop_path=selector_prmtop_path,  # type: ignore[arg-type]
-            selector_template=selector,  # type: ignore[arg-type]
-            selector_indices=selector_indices,
-        )
-    else:
-        # --- Fallback: generic bonded forces from RDKit topology for ALL atoms. ---
-        built = build_bonded_relaxation_system(mol)
+        gaff_params = {
+            "selector_prmtop_path": selector_prmtop_path,
+            "selector_template": selector,
+        }
+    connector_params = _connector_params_by_site(
+        mol=mol,
+        selector=selector,
+        selector_prmtop_path=selector_prmtop_path,
+    )
 
-    system = built.system
-    positions_nm = built.positions_nm
+    system = create_system(
+        mol=mol,
+        gaff_params=gaff_params,
+        connector_params=connector_params,
+    )
+    positions_nm = _positions_nm_from_mol(mol)
 
     # --- Freeze backbone heavy atoms. ---
     #     mass=0 makes them immovable in both minimization and dynamics.
-    saved_masses: dict[int, float] = {}
     if spec.freeze_backbone:
         for idx in backbone_heavy:
-            saved_masses[idx] = system.getParticleMass(idx).value_in_unit(unit.dalton)
             system.setParticleMass(idx, 0.0)
 
     # --- Add restraints (selectors only benefit from these). ---
@@ -461,7 +371,11 @@ def _run_hybrid_pre_relax(
     out = _update_rdkit_coords(mol, final_positions)
     summary: Dict[str, object] = {
         "enabled": True,
-        "force_model": "gaff2_selectors" if use_gaff2 else "hybrid_frozen_backbone",
+        "force_model": (
+            "modular_gaff2_connectors"
+            if use_gaff2 and connector_params
+            else ("gaff2_selectors" if use_gaff2 else "hybrid_frozen_backbone")
+        ),
         "n_stages": int(spec.n_stages),
         "stage_energies_kj_mol": stage_energies,
         "anneal_enabled": bool(spec.anneal_enabled),

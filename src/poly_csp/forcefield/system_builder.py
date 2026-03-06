@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Mapping, Sequence
 
 import numpy as np
 from rdkit import Chem
 
 import openmm as mm
 from openmm import unit
+
+if TYPE_CHECKING:
+    from poly_csp.forcefield.connectors import ConnectorParams
 
 
 @dataclass(frozen=True)
@@ -221,56 +224,6 @@ def build_bonded_relaxation_system(
     return SystemBuildResult(system=system, positions_nm=positions_nm, excluded_pairs=excluded)
 
 
-def build_selector_bonded_forces(
-    mol: Chem.Mol,
-    selector_indices: set[int],
-    bond_k: float = 200_000.0,
-    angle_k: float = 500.0,
-) -> tuple[mm.HarmonicBondForce, mm.HarmonicAngleForce]:
-    """Build bonded forces for bonds/angles involving at least one selector atom.
-
-    This covers:
-    - Pure selector bonds/angles (both atoms are selectors)
-    - Junction bonds/angles (one backbone atom, one selector atom)
-
-    The forces use generic covalent-radius bond lengths and hybridisation-
-    based equilibrium angles — not production-quality, but sufficient to
-    keep the molecule intact during annealing.
-    """
-    bond_force = mm.HarmonicBondForce()
-    for bond in mol.GetBonds():
-        i = bond.GetBeginAtomIdx()
-        j = bond.GetEndAtomIdx()
-        if i not in selector_indices and j not in selector_indices:
-            continue  # pure backbone — handled by AMBER forces
-        z1 = mol.GetAtomWithIdx(i).GetAtomicNum()
-        z2 = mol.GetAtomWithIdx(j).GetAtomicNum()
-        r0 = _covalent_bond_length_nm(z1, z2)
-        bond_force.addBond(i, j, r0, bond_k)
-
-    n = mol.GetNumAtoms()
-    adj: list[list[int]] = [[] for _ in range(n)]
-    for bond in mol.GetBonds():
-        a = bond.GetBeginAtomIdx()
-        b = bond.GetEndAtomIdx()
-        adj[a].append(b)
-        adj[b].append(a)
-
-    angle_force = mm.HarmonicAngleForce()
-    for j in range(n):
-        nbrs = adj[j]
-        theta0 = _equilibrium_angle_rad(mol.GetAtomWithIdx(j))
-        for ii in range(len(nbrs)):
-            for jj in range(ii + 1, len(nbrs)):
-                a, b = nbrs[ii], nbrs[jj]
-                # Include this angle if any of the three atoms is a selector
-                if a not in selector_indices and j not in selector_indices and b not in selector_indices:
-                    continue
-                angle_force.addAngle(a, j, b, theta0, angle_k)
-
-    return bond_force, angle_force
-
-
 def add_glycam_backbone(
     system: mm.System,
     mol: Chem.Mol,
@@ -288,12 +241,28 @@ def add_gaff_selectors(
     selector_indices: set[int],
     gaff_params: Mapping[str, Any] | None = None,
 ) -> mm.System:
-    """Attach selector-specific bonded parameters to an existing system."""
-    if not gaff_params:
+    """Attach selector-core GAFF bonded parameters to an existing system."""
+    if not gaff_params or not selector_indices:
         return system
-    bond_force, angle_force = build_selector_bonded_forces(mol, selector_indices)
-    system.addForce(bond_force)
-    system.addForce(angle_force)
+
+    forces = gaff_params.get("forces")
+    if forces is None:
+        selector_prmtop_path = gaff_params.get("selector_prmtop_path")
+        selector_template = gaff_params.get("selector_template")
+        if not selector_prmtop_path or selector_template is None:
+            raise ValueError(
+                "gaff_params must include either 'forces' or both "
+                "'selector_prmtop_path' and 'selector_template'."
+            )
+        from poly_csp.forcefield.gaff import load_gaff2_selector_forces
+
+        forces = load_gaff2_selector_forces(
+            selector_prmtop_path=str(selector_prmtop_path),
+            mol=mol,
+            selector_template=selector_template,
+        )
+
+    _apply_transferred_bonded_forces(system, forces)
     return system
 
 
@@ -303,8 +272,63 @@ def add_connectors(
     connector_indices: set[int],
     connector_params: Mapping[str, Any] | None = None,
 ) -> mm.System:
-    """Attach connector parameters to an existing system (placeholder)."""
-    _ = (mol, connector_indices, connector_params)
+    """Patch connector bond/angle terms and add connector torsions."""
+    _ = connector_indices
+    params_list = _normalize_connector_params(connector_params)
+    if not params_list:
+        return system
+
+    bond_force = _first_force(system, mm.HarmonicBondForce)
+    angle_force = _first_force(system, mm.HarmonicAngleForce)
+    torsion_force = mm.PeriodicTorsionForce()
+    added_torsions = 0
+
+    for params in params_list:
+        for role_map in _connector_role_maps(mol, params):
+            if bond_force is not None:
+                for roles, (r0, k) in params.bond_params.items():
+                    a = role_map.get(roles[0])
+                    b = role_map.get(roles[1])
+                    if a is None or b is None:
+                        continue
+                    _set_or_add_bond(bond_force, int(a), int(b), float(r0), float(k))
+
+            if angle_force is not None:
+                for roles, (theta0, k) in params.angle_params.items():
+                    a = role_map.get(roles[0])
+                    b = role_map.get(roles[1])
+                    c = role_map.get(roles[2])
+                    if a is None or b is None or c is None:
+                        continue
+                    _set_or_add_angle(
+                        angle_force,
+                        int(a),
+                        int(b),
+                        int(c),
+                        float(theta0),
+                        float(k),
+                    )
+
+            for roles, (periodicity, phase, k) in params.torsion_params:
+                a = role_map.get(roles[0])
+                b = role_map.get(roles[1])
+                c = role_map.get(roles[2])
+                d = role_map.get(roles[3])
+                if a is None or b is None or c is None or d is None:
+                    continue
+                torsion_force.addTorsion(
+                    int(a),
+                    int(b),
+                    int(c),
+                    int(d),
+                    int(periodicity),
+                    float(phase),
+                    float(k),
+                )
+                added_torsions += 1
+
+    if added_torsions > 0:
+        system.addForce(torsion_force)
     return system
 
 
@@ -333,3 +357,139 @@ def create_system(
         apply_mixing_rules(system=system, atom_map=atom_map)
 
     return system
+
+
+def _first_force(system: mm.System, force_type):
+    for idx in range(system.getNumForces()):
+        force = system.getForce(idx)
+        if isinstance(force, force_type):
+            return force
+    return None
+
+
+def _apply_transferred_bonded_forces(
+    system: mm.System,
+    forces: Sequence[mm.Force],
+) -> None:
+    bond_force = _first_force(system, mm.HarmonicBondForce)
+    angle_force = _first_force(system, mm.HarmonicAngleForce)
+
+    for force in forces:
+        if isinstance(force, mm.HarmonicBondForce):
+            if bond_force is None:
+                bond_force = mm.HarmonicBondForce()
+                system.addForce(bond_force)
+            for idx in range(force.getNumBonds()):
+                a, b, r0, k = force.getBondParameters(idx)
+                _set_or_add_bond(bond_force, int(a), int(b), r0, k)
+            continue
+
+        if isinstance(force, mm.HarmonicAngleForce):
+            if angle_force is None:
+                angle_force = mm.HarmonicAngleForce()
+                system.addForce(angle_force)
+            for idx in range(force.getNumAngles()):
+                a, b, c, theta0, k = force.getAngleParameters(idx)
+                _set_or_add_angle(angle_force, int(a), int(b), int(c), theta0, k)
+            continue
+
+        if isinstance(force, mm.PeriodicTorsionForce) and force.getNumTorsions() > 0:
+            system.addForce(_copy_periodic_torsion_force(force))
+
+
+def _copy_periodic_torsion_force(force: mm.PeriodicTorsionForce) -> mm.PeriodicTorsionForce:
+    copied = mm.PeriodicTorsionForce()
+    for idx in range(force.getNumTorsions()):
+        a, b, c, d, periodicity, phase, k = force.getTorsionParameters(idx)
+        copied.addTorsion(a, b, c, d, periodicity, phase, k)
+    return copied
+
+
+def _normalize_connector_params(
+    connector_params: Mapping[str, Any] | "ConnectorParams" | None,
+) -> list["ConnectorParams"]:
+    from poly_csp.forcefield.connectors import ConnectorParams
+
+    if connector_params is None:
+        return []
+    if isinstance(connector_params, ConnectorParams):
+        return [connector_params]
+    if isinstance(connector_params, Mapping):
+        out: list[ConnectorParams] = []
+        for value in connector_params.values():
+            if isinstance(value, ConnectorParams):
+                out.append(value)
+        return out
+    return []
+
+
+def _connector_role_maps(mol: Chem.Mol, params: ConnectorParams) -> list[dict[str, int]]:
+    from poly_csp.topology.atom_mapping import attachment_instance_maps
+    from poly_csp.topology.utils import residue_label_maps
+
+    instance_maps = attachment_instance_maps(mol)
+    if not instance_maps:
+        return []
+
+    residue_maps = residue_label_maps(mol)
+    by_instance: dict[int, dict[str, int]] = {}
+    for atom in mol.GetAtoms():
+        if not atom.HasProp("_poly_csp_selector_instance"):
+            continue
+        instance_id = int(atom.GetIntProp("_poly_csp_selector_instance"))
+        residue_index = int(atom.GetIntProp("_poly_csp_residue_index"))
+        site = atom.GetProp("_poly_csp_site") if atom.HasProp("_poly_csp_site") else None
+        if params.site is not None and site != params.site:
+            continue
+        if instance_id in by_instance:
+            continue
+        role_map: dict[str, int] = {}
+        if residue_index >= len(residue_maps):
+            continue
+        for label, atom_idx in residue_maps[residue_index].items():
+            role_map[f"BB_{label}"] = int(atom_idx)
+        for local_idx, atom_idx in instance_maps.get(instance_id, {}).items():
+            role_map[f"SL_{local_idx:03d}"] = int(atom_idx)
+        by_instance[instance_id] = role_map
+    return list(by_instance.values())
+
+
+def _bond_key(a: int, b: int) -> tuple[int, int]:
+    return (a, b) if a <= b else (b, a)
+
+
+def _angle_key(a: int, b: int, c: int) -> tuple[int, int, int]:
+    return (a, b, c) if a <= c else (c, b, a)
+
+
+def _set_or_add_bond(
+    force: mm.HarmonicBondForce,
+    a: int,
+    b: int,
+    r0,
+    k,
+) -> None:
+    target = _bond_key(a, b)
+    for idx in range(force.getNumBonds()):
+        p1, p2, _, _ = force.getBondParameters(idx)
+        if _bond_key(int(p1), int(p2)) == target:
+            force.setBondParameters(idx, int(p1), int(p2), r0, k)
+            return
+    force.addBond(int(a), int(b), r0, k)
+
+
+def _set_or_add_angle(
+    force: mm.HarmonicAngleForce,
+    a: int,
+    b: int,
+    c: int,
+    theta0,
+    k,
+) -> None:
+    target = _angle_key(a, b, c)
+    for idx in range(force.getNumAngles()):
+        p1, p2, p3, _, _ = force.getAngleParameters(idx)
+        if _angle_key(int(p1), int(p2), int(p3)) == target:
+            force.setAngleParameters(idx, int(p1), int(p2), int(p3), theta0, k)
+            return
+    force.addAngle(int(a), int(b), int(c), theta0, k)

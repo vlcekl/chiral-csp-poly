@@ -33,6 +33,7 @@ def test_natural_oh_polymerize_removes_internal_o1() -> None:
 
     n = template.mol.GetNumAtoms()
     assert mol.GetNumAtoms() == dp * n - (dp - 1)
+    assert mol.GetProp("_poly_csp_polymer") == "amylose"
     assert mol.GetProp("_poly_csp_representation") == "natural_oh"
 
     maps = json.loads(mol.GetProp("_poly_csp_residue_label_map_json"))
