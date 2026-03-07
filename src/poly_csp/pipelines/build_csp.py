@@ -26,6 +26,7 @@ from rdkit import Chem
 from omegaconf import DictConfig, OmegaConf
 
 from poly_csp.forcefield.model import build_forcefield_molecule
+from poly_csp.forcefield.export_bundle import prepare_export_bundle
 from poly_csp.forcefield.runtime_params import load_runtime_params
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.monomers import make_glucose_template
@@ -43,7 +44,9 @@ from poly_csp.config.schema import (
 from poly_csp.forcefield.amber_export import export_amber_artifacts
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.io.pdb import write_pdb_from_rdkit
+from poly_csp.io.pdbqt import write_receptor_pdbqt
 from poly_csp.io.rdkit_io import write_sdf
+from poly_csp.io.vina import VinaBoxSpec, build_vina_box, write_vina_box
 from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
 from poly_csp.ordering.hbonds import compute_hbond_metrics
 from poly_csp.ordering.scoring import (
@@ -95,6 +98,12 @@ class QcSpec:
     fail_on_thresholds: bool = False
 
 
+@dataclass(frozen=True)
+class DockingSpec:
+    box_buffer_A: float = 6.0
+    window_residues: Optional[int] = None
+
+
 @dataclass
 class BuildReport:
     polymer: str
@@ -133,6 +142,8 @@ class BuildReport:
     qc_fail_reasons: List[str]
     amber_enabled: bool
     amber_summary: dict[str, object]
+    docking_enabled: bool
+    docking_summary: dict[str, object]
     output_export_formats: List[str]
     all_atom_atom_count: Optional[int] = None
     all_atom_backbone_h_count: Optional[int] = None
@@ -266,6 +277,21 @@ def _cfg_to_qc_spec(cfg: DictConfig) -> QcSpec:
     )
 
 
+def _cfg_to_docking_spec(cfg: DictConfig) -> DockingSpec:
+    docking_cfg = cfg.docking if "docking" in cfg and cfg.docking is not None else {}
+    return DockingSpec(
+        box_buffer_A=float(
+            docking_cfg.box_buffer_A if "box_buffer_A" in docking_cfg else 6.0
+        ),
+        window_residues=(
+            int(docking_cfg.window_residues)
+            if "window_residues" in docking_cfg
+            and docking_cfg.window_residues is not None
+            else None
+        ),
+    )
+
+
 def _selector_enabled(cfg: DictConfig) -> bool:
     return bool(
         "topology" in cfg
@@ -292,6 +318,64 @@ def _heavy_atom_mask_from_rdkit(mol) -> np.ndarray:
 
 def _finite_or_none(value: float) -> Optional[float]:
     return float(value) if np.isfinite(value) else None
+
+
+def _export_runtime_artifacts(
+    *,
+    mol: Chem.Mol,
+    outdir: Path,
+    export_formats: list[str],
+    helix: HelixSpec,
+    docking_spec: DockingSpec,
+    runtime_params,
+    built_system=None,
+    mixing_rules_cfg: dict | None = None,
+    repulsion_k_kj_per_mol_nm2: float = 800.0,
+    repulsion_cutoff_nm: float = 0.6,
+    model_name: str = "model",
+) -> tuple[dict[str, object], dict[str, object]]:
+    amber_summary: dict[str, object] = {"enabled": False}
+    docking_summary: dict[str, object] = {"enabled": False}
+    requested = {fmt for fmt in export_formats if fmt in {"amber", "pdbqt"}}
+    if not requested:
+        return amber_summary, docking_summary
+
+    bundle = prepare_export_bundle(
+        mol,
+        runtime_params=runtime_params,
+        system_build=built_system,
+        mixing_rules_cfg=mixing_rules_cfg,
+        repulsion_k_kj_per_mol_nm2=float(repulsion_k_kj_per_mol_nm2),
+        repulsion_cutoff_nm=float(repulsion_cutoff_nm),
+    )
+
+    if "pdbqt" in requested:
+        pdbqt_summary = write_receptor_pdbqt(bundle, outdir / "receptor.pdbqt")
+        vina_box = build_vina_box(
+            bundle.mol,
+            helix=helix,
+            spec=VinaBoxSpec(
+                buffer_A=float(docking_spec.box_buffer_A),
+                window_residues=docking_spec.window_residues,
+            ),
+        )
+        box_summary = write_vina_box(vina_box, outdir / "vina_box.txt")
+        docking_summary = {
+            "enabled": True,
+            "backend": "native_openmm_charge_export",
+            "source_manifest": dict(bundle.system_build.source_manifest),
+            "receptor": pdbqt_summary,
+            "vina_box": box_summary,
+        }
+
+    if "amber" in requested:
+        amber_summary = export_amber_artifacts(
+            bundle,
+            outdir=outdir,
+            model_name=model_name,
+        )
+
+    return amber_summary, docking_summary
 
 
 @hydra.main(config_path="../../../conf", config_name="config", version_base=None)
@@ -321,32 +405,9 @@ def main(cfg: DictConfig) -> None:
         if "output" in cfg and "export_formats" in cfg.output
         else ["pdb"]
     )
-    amber_cfg_enabled = bool(
-        "amber" in cfg and cfg.amber is not None and "enabled" in cfg.amber and cfg.amber.enabled
-    )
-    if not amber_cfg_enabled:
-        output_export_formats = [fmt for fmt in output_export_formats if fmt != "amber"]
-    if amber_cfg_enabled and "amber" not in output_export_formats:
-        output_export_formats.append("amber")
-
-    amber_dir = (
-        str(cfg.amber.dir)
-        if "amber" in cfg and cfg.amber is not None and "dir" in cfg.amber
-        else "amber"
-    )
-    amber_charge_model = (
-        str(cfg.amber.charge_model)
-        if "amber" in cfg and cfg.amber is not None and "charge_model" in cfg.amber
-        else "bcc"
-    )
-    amber_net_charge = (
-        cfg.amber.net_charge
-        if "amber" in cfg and cfg.amber is not None and "net_charge" in cfg.amber
-        else "auto"
-    )
 
     unsupported_formats = [
-        fmt for fmt in output_export_formats if fmt not in {"pdb", "amber", "sdf"}
+        fmt for fmt in output_export_formats if fmt not in {"pdb", "amber", "sdf", "pdbqt"}
     ]
     if unsupported_formats:
         raise NotImplementedError(
@@ -365,10 +426,19 @@ def main(cfg: DictConfig) -> None:
     )
     ordering_spec = _cfg_to_ordering_spec(cfg)
     qc_spec = _cfg_to_qc_spec(cfg)
+    docking_spec = _cfg_to_docking_spec(cfg)
     forcefield_options = _cfg_to_forcefield_options(cfg)
 
     forcefield_enabled = bool(forcefield_options.enabled)
     forcefield_mode = "runtime" if forcefield_enabled else "none"
+    requires_runtime_export = any(
+        fmt in {"amber", "pdbqt"} for fmt in output_export_formats
+    )
+    if requires_runtime_export and not forcefield_enabled:
+        raise ValueError(
+            "Requested amber/pdbqt export requires forcefield.options.enabled=true "
+            "because these artifacts are emitted from the canonical full runtime system."
+        )
     relax_spec = _cfg_to_relax_spec(forcefield_options)
     relax_requested = bool(relax_spec is not None and relax_spec.enabled)
     if relax_requested and (run_staged_relaxation is None or relax_spec is None):
@@ -461,9 +531,11 @@ def main(cfg: DictConfig) -> None:
                     )
 
     amber_summary: dict[str, object] = {"enabled": False}
+    docking_summary: dict[str, object] = {"enabled": False}
     forcefield_summary: dict[str, object] = {"enabled": False, "mode": "none"}
     runtime_mol = build_forcefield_molecule(mol_poly).mol
     runtime_params = None
+    built_system = None
     runtime_cache_enabled = bool(forcefield_options.cache_enabled)
     runtime_cache_dir = forcefield_options.cache_dir
 
@@ -704,29 +776,25 @@ def main(cfg: DictConfig) -> None:
 
     qc_pass = len(qc_fail_reasons) == 0
 
-    # ---- Stage 8: optional AMBER export from the final coordinates.
-    amber_enabled = "amber" in output_export_formats
-    if amber_enabled:
-        from poly_csp.structure.pbc import get_box_vectors_A as _get_bv
-        export_mol = runtime_mol
-        _bv = _get_bv(export_mol) if is_periodic else None
-        amber_summary = export_amber_artifacts(
-            mol=export_mol,
-            outdir=outdir / amber_dir,
-            model_name="model",
-            charge_model=amber_charge_model,
-            net_charge=amber_net_charge,
-            polymer=polymer_kind,
-            dp=dp,
-            selector_mol=(
-                selector.mol if selector is not None else None
-            ),
-            periodic=is_periodic,
-            box_vectors_A=_bv,
-        )
-
     forcefield_result = build_forcefield_molecule(runtime_mol)
     final_mol = forcefield_result.mol
+    amber_enabled = "amber" in output_export_formats
+    docking_enabled = "pdbqt" in output_export_formats
+    amber_summary, docking_summary = _export_runtime_artifacts(
+        mol=final_mol,
+        outdir=outdir,
+        export_formats=output_export_formats,
+        helix=helix,
+        docking_spec=docking_spec,
+        runtime_params=runtime_params,
+        built_system=(built_system if not relax_enabled else None),
+        mixing_rules_cfg=mixing_rules_cfg,
+        repulsion_k_kj_per_mol_nm2=float(
+            forcefield_options.soft_repulsion_k_kj_per_mol_nm2
+        ),
+        repulsion_cutoff_nm=float(forcefield_options.soft_repulsion_cutoff_nm),
+        model_name="model",
+    )
     all_atom_stats = {
         "all_atom_atom_count": int(final_mol.GetNumAtoms()),
         "all_atom_backbone_h_count": sum(
@@ -777,6 +845,8 @@ def main(cfg: DictConfig) -> None:
         qc_fail_reasons=qc_fail_reasons,
         amber_enabled=bool(amber_enabled),
         amber_summary=amber_summary,
+        docking_enabled=bool(docking_enabled),
+        docking_summary=docking_summary,
         output_export_formats=output_export_formats,
         all_atom_atom_count=all_atom_stats["all_atom_atom_count"],
         all_atom_backbone_h_count=all_atom_stats["all_atom_backbone_h_count"],
@@ -810,9 +880,16 @@ def main(cfg: DictConfig) -> None:
         wrote_lines.append(f"  {pdb_path}")
     if "sdf" in output_export_formats:
         wrote_lines.append(f"  {sdf_path}")
+    if docking_enabled and "receptor" in docking_summary:
+        wrote_lines.append(f"  {docking_summary['receptor']['file']}")
+    if docking_enabled and "vina_box" in docking_summary:
+        wrote_lines.append(f"  {docking_summary['vina_box']['file']}")
+    if amber_enabled and "files" in amber_summary:
+        wrote_lines.append(f"  {amber_summary['files']['prmtop']}")
+        wrote_lines.append(f"  {amber_summary['files']['inpcrd']}")
     wrote_lines.extend([f"  {json_path}", f"  {cfg_path}"])
     print("\nWrote:\n" + "\n".join(wrote_lines))
-    if amber_enabled and "files" in amber_summary:
+    if amber_enabled and "manifest" in amber_summary:
         print(f"  {amber_summary['manifest']}")
     print("\nQC:")
     print(f"  pass:                         {qc_pass}")
@@ -838,11 +915,28 @@ def main(cfg: DictConfig) -> None:
                 write_pdb_from_rdkit(rank_final_mol, rank_dir / "model.pdb")
             if "sdf" in output_export_formats:
                 write_sdf(rank_final_mol, rank_dir / "model.sdf")
+            rank_amber_summary, rank_docking_summary = _export_runtime_artifacts(
+                mol=rank_final_mol,
+                outdir=rank_dir,
+                export_formats=output_export_formats,
+                helix=helix,
+                docking_spec=docking_spec,
+                runtime_params=runtime_params,
+                built_system=None,
+                mixing_rules_cfg=mixing_rules_cfg,
+                repulsion_k_kj_per_mol_nm2=float(
+                    forcefield_options.soft_repulsion_k_kj_per_mol_nm2
+                ),
+                repulsion_cutoff_nm=float(forcefield_options.soft_repulsion_cutoff_nm),
+                model_name="model",
+            )
             rank_report = {
                 "rank": result.rank,
                 "score": result.score,
                 "seed_used": result.seed_used,
                 "ordering_summary": result.summary,
+                "amber_summary": rank_amber_summary,
+                "docking_summary": rank_docking_summary,
             }
             with open(rank_dir / "build_report.json", "w", encoding="utf-8") as h:
                 json.dump(rank_report, h, indent=2)
@@ -851,6 +945,8 @@ def main(cfg: DictConfig) -> None:
                 "score": result.score,
                 "seed_used": result.seed_used,
                 "dir": str(rank_dir),
+                "amber_enabled": bool(rank_amber_summary.get("enabled", False)),
+                "docking_enabled": bool(rank_docking_summary.get("enabled", False)),
             })
         ranking_path = outdir / "ranking_summary.json"
         with open(ranking_path, "w", encoding="utf-8") as h:

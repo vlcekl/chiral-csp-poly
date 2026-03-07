@@ -30,7 +30,7 @@ def test_pipeline_capped_mode_runs_with_explicit_caps(tmp_path: Path) -> None:
         "topology.backbone.end_mode=capped "
         "+topology.backbone.end_caps.left=acetyl "
         "+topology.backbone.end_caps.right=methoxy "
-        "forcefield.options.enabled=false amber.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 
@@ -46,7 +46,7 @@ def test_pipeline_periodic_natural_oh_runs(tmp_path: Path) -> None:
         "topology.backbone.dp=3 topology.selector.enabled=false "
         "topology.backbone.monomer_representation=natural_oh "
         "topology.backbone.end_mode=periodic "
-        "forcefield.options.enabled=false amber.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 
@@ -61,7 +61,7 @@ def test_pipeline_writes_all_atom_model_by_default(tmp_path: Path) -> None:
     outdir = tmp_path / "all_atom_out"
     _run_build(
         "topology.backbone.dp=1 topology.selector.enabled=false "
-        "forcefield.options.enabled=false amber.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 

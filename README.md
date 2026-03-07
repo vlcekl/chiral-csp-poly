@@ -220,6 +220,7 @@ poly_csp/
         │   ├── glycam.py
         │   ├── glycam_mapping.py
         │   ├── exceptions.py
+        │   ├── export_bundle.py
         │   └── restraints.py
         │
         ├── ordering/
@@ -235,7 +236,9 @@ poly_csp/
         └── io/
             ├── rdkit_io.py
             ├── openmm_io.py
-            └── pdb.py
+            ├── pdb.py
+            ├── pdbqt.py
+            └── vina.py
 ```
 
 Runtime source of truth:
@@ -253,8 +256,9 @@ Core stack:
 * NumPy / SciPy
 * Pydantic v2
 * OpenMM
+* ParmEd
 * Hydra
-* AmberTools (for `antechamber`, `parmchk2`, `tleap` AMBER backend)
+* AmberTools (for GLYCAM reference extraction and GAFF selector/connector payload derivation)
 
 Optional (later stages):
 
@@ -377,14 +381,13 @@ Containing:
 
 ## 3. Build a backbone helix only
 
-This builds only the explicit-H amylose backbone, with selectors and AMBER export disabled:
+This builds only the explicit-H amylose backbone, with selectors and runtime-derived export artifacts disabled:
 
 ```bash
 python -m poly_csp.pipelines.build_csp \
   topology.backbone.dp=12 \
   topology.selector.enabled=false \
   forcefield.options.enabled=false \
-  amber.enabled=false \
   output.export_formats=[pdb,sdf]
 ```
 
@@ -405,7 +408,7 @@ Example:
 ```bash
 python -m poly_csp.pipelines.build_csp \
   forcefield/options=runtime \
-  amber.enabled=false
+  output.export_formats=[pdb,sdf]
 ```
 
 This path:
@@ -469,17 +472,41 @@ python -m poly_csp.pipelines.build_csp topology.selector.sites=[C6]
 
 ---
 
-## 6. SDF export
+## 6. Docking and AMBER export
 
-The pipeline supports SDF output with full bond topology (bond orders, aromaticity, stereochemistry). Enable via `output.export_formats`:
+The pipeline supports `pdb`, `sdf`, `pdbqt`, and `amber` export.
+
+`pdbqt` and `amber` come from the canonical full runtime system:
+
+* `receptor.pdbqt` is written natively by `poly_csp`
+* explicit hydrogens are preserved from the final receptor
+* partial charges come directly from the OpenMM `NonbondedForce`
+* `vina_box.txt` is generated automatically from the central helical segment
+* `model.prmtop` / `model.inpcrd` are written downstream from the same runtime system via ParmEd
+
+Example:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  forcefield/options=runtime \
+  output.export_formats=[pdb,sdf,pdbqt,amber]
+```
+
+The resulting directory contains:
+
+* `model.pdb`
+* `model.sdf`
+* `receptor.pdbqt`
+* `vina_box.txt`
+* `model.prmtop`
+* `model.inpcrd`
+* `build_report.json`
+
+If you only want structure inspection without runtime-derived docking or AMBER artifacts, request:
 
 ```bash
 python -m poly_csp.pipelines.build_csp output.export_formats=[pdb,sdf]
 ```
-
-The resulting `model.sdf` preserves all covalent bonds constructed during polymerization and selector attachment, making it directly importable into molecular viewers and cheminformatics tools.
-
-Supported export formats: `pdb`, `sdf`, `amber`.
 
 ---
 
@@ -524,11 +551,19 @@ When enabled, ranked results are written to subfolders:
 outputs/2026-03-01/00-00-00/
 ├── model.pdb              # Best (rank-1) structure
 ├── model.sdf              # Best structure (if SDF enabled)
+├── receptor.pdbqt         # Best structure (if pdbqt enabled)
+├── vina_box.txt           # Best structure docking box (if pdbqt enabled)
+├── model.prmtop           # Best structure (if amber enabled)
+├── model.inpcrd           # Best structure (if amber enabled)
 ├── build_report.json
 ├── ranking_summary.json   # All results with scores
 ├── ranked_001/            # Rank 1 (best)
 │   ├── model.pdb
 │   ├── model.sdf
+│   ├── receptor.pdbqt
+│   ├── vina_box.txt
+│   ├── model.prmtop
+│   ├── model.inpcrd
 │   └── build_report.json
 ├── ranked_002/
 │   └── ...
@@ -551,6 +586,9 @@ Each build produces:
 * Deterministic helical symmetry
 * Optional selector torsion initialization
 * SDF output with proper bond topology (bond orders, aromaticity)
+* Native rigid-receptor `pdbqt` output with OpenMM charges
+* Automatic `vina_box.txt` search-box output
+* Downstream AMBER `prmtop` / `inpcrd` export from the canonical runtime system
 * Multi-start ranked structures with scores (when `multi_opt.enabled=true`)
 * Forcefield-mode metadata in `build_report.json`
 * QC metrics:
@@ -602,7 +640,7 @@ The current forcefield presets are:
      - `relax_summary.anneal_summary`
    - No generic bonded fallback is used in this path.
 
-AMBER export remains available, but it is now a downstream artifact path rather than the runtime source of backbone parameters.
+AMBER export remains available, but it is now a downstream product of the canonical runtime system rather than the runtime source of backbone parameters. The docking handoff uses that same final runtime model to emit rigid-receptor `pdbqt` plus `vina_box.txt`.
 
 ---
 

@@ -30,7 +30,7 @@ def test_pipeline_relax_disabled_writes_summary(tmp_path: Path) -> None:
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
         "forcefield.options.enabled=false "
-        "amber.enabled=false "
+        "output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 
@@ -44,7 +44,7 @@ def test_pipeline_qc_production_hard_fails(tmp_path: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         _run_build(
             "topology.backbone.dp=2 topology.selector.enabled=false qc=production "
-            "forcefield.options.enabled=false amber.enabled=false "
+            "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
             "qc.min_heavy_distance_A=10.0 "
             f"output.dir={outdir}"
         )

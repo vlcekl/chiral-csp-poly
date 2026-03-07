@@ -13,6 +13,6 @@ output:
   dir: outputs
   export_formats: [pdb, sdf, amber]
 
-amber:
-  enabled: true
-  dir: amber
+docking:
+  box_buffer_A: 6.0
+  window_residues: null

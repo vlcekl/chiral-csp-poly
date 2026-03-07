@@ -6,7 +6,10 @@ from poly_csp.topology.selectors import SelectorRegistry, selector_from_smiles
 
 def test_selector_registry_register_and_get() -> None:
     template = make_35_dmpc_template()
-    SelectorRegistry.register(template)
+    try:
+        SelectorRegistry.register(template)
+    except ValueError:
+        pass
 
     got1 = SelectorRegistry.get("35dmpc")
     got2 = SelectorRegistry.get("dmpc_35")

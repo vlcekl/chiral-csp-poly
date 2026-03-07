@@ -28,7 +28,7 @@ def test_pipeline_ordering_enabled_writes_summary(tmp_path: Path) -> None:
         "topology.selector.enabled=true topology.selector.sites=[C6] "
         "ordering.enabled=true ordering.max_candidates=4 "
         "ordering.soft_n_stages=1 ordering.soft_max_iterations=5 ordering.full_max_iterations=5 "
-        "forcefield/options=runtime amber.enabled=false "
+        "forcefield/options=runtime output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
     cmd = [sys.executable, "-m", "poly_csp.pipelines.build_csp", *shlex.split(overrides)]

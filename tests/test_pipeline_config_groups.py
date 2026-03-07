@@ -28,7 +28,7 @@ def test_pipeline_topology_backbone_group_override_runs(tmp_path: Path) -> None:
     _run_build(
         "topology/backbone=amylose_periodic "
         "topology.selector.enabled=false "
-        "forcefield.options.enabled=false amber.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 
@@ -45,7 +45,7 @@ def test_pipeline_structure_helix_group_override_runs(tmp_path: Path) -> None:
         "structure/helix=cellulose_i "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
-        "forcefield.options.enabled=false amber.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
         f"output.dir={outdir}"
     )
 
