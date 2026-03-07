@@ -288,6 +288,7 @@ def run_staged_relaxation(
         glycam_params=runtime.glycam,
         selector_params_by_name=runtime.selector_params_by_name,
         connector_params_by_key=runtime.connector_params_by_key,
+        parameter_provenance=runtime.source_manifest,
         nonbonded_mode="soft",
         mixing_rules_cfg=mixing_rules_cfg,
     )
@@ -310,6 +311,7 @@ def run_staged_relaxation(
         glycam_params=runtime.glycam,
         selector_params_by_name=runtime.selector_params_by_name,
         connector_params_by_key=runtime.connector_params_by_key,
+        parameter_provenance=runtime.source_manifest,
         nonbonded_mode="full",
         mixing_rules_cfg=mixing_rules_cfg,
     )

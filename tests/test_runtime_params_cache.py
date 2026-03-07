@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +8,12 @@ from poly_csp.config.schema import HelixSpec
 from poly_csp.forcefield.connectors import ConnectorAtomParams, ConnectorParams
 from poly_csp.forcefield.gaff import SelectorAtomParams, SelectorFragmentParams
 from poly_csp.forcefield.model import build_forcefield_molecule
-from poly_csp.forcefield.payload_cache import connector_cache_dir, selector_cache_dir
+from poly_csp.forcefield.payload_cache import (
+    PAYLOAD_CACHE_SCHEMA_VERSION,
+    connector_cache_dir,
+    load_cached_connector_params,
+    selector_cache_dir,
+)
 from poly_csp.forcefield.runtime_params import load_runtime_params
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
@@ -81,6 +87,7 @@ def _connector_payload(
         selector_name=selector_name,
         site=site,
         monomer_representation="natural_oh",
+        linkage_type="ether",
         atom_params={
             "SL_000": ConnectorAtomParams(
                 atom_name="SL_000",
@@ -89,6 +96,7 @@ def _connector_payload(
                 epsilon_kj_per_mol=0.09,
             )
         },
+        connector_role_atom_names={},
         bonds=(),
         angles=(),
         torsions=(),
@@ -166,6 +174,10 @@ def test_load_runtime_params_reuses_selector_and_connector_cache(
     assert second.cache_summary.selector_misses == 0
     assert second.cache_summary.connector_hits == 1
     assert second.cache_summary.connector_misses == 0
+    assert first.source_manifest["selector"][selector.name]["cache"]["hit"] is False
+    assert first.source_manifest["connector"][f"{selector.name}:C6"]["cache"]["hit"] is False
+    assert second.source_manifest["selector"][selector.name]["cache"]["hit"] is True
+    assert second.source_manifest["connector"][f"{selector.name}:C6"]["cache"]["hit"] is True
 
     selector_entry, _ = selector_cache_dir(cache_dir, selector)
     connector_entry, _ = connector_cache_dir(
@@ -238,3 +250,43 @@ def test_load_runtime_params_invalidates_connector_cache_by_site(
     assert second.cache_summary.selector_misses == 0
     assert second.cache_summary.connector_hits == 0
     assert second.cache_summary.connector_misses == 1
+    assert second.source_manifest["selector"][selector_c2.name]["cache"]["hit"] is True
+    assert second.source_manifest["connector"][f"{selector_c2.name}:C2"]["cache"]["hit"] is False
+
+
+def test_connector_cache_dir_is_polymer_specific(tmp_path: Path) -> None:
+    selector = make_35_dmpc_template()
+    amylose_dir, _ = connector_cache_dir(
+        tmp_path,
+        polymer="amylose",
+        selector_template=selector,
+        site="C6",
+        monomer_representation="natural_oh",
+    )
+    cellulose_dir, _ = connector_cache_dir(
+        tmp_path,
+        polymer="cellulose",
+        selector_template=selector,
+        site="C6",
+        monomer_representation="natural_oh",
+    )
+
+    assert amylose_dir != cellulose_dir
+
+
+def test_load_cached_connector_params_rejects_stale_schema(tmp_path: Path) -> None:
+    entry_dir = tmp_path / "connector_entry"
+    entry_dir.mkdir(parents=True, exist_ok=True)
+    (entry_dir / "payload.json").write_text(
+        json.dumps(
+            {
+                "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION - 1,
+                "payload_kind": "connector_fragment",
+                "identity": {"kind": "connector_fragment"},
+                "payload": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_cached_connector_params(entry_dir) is None

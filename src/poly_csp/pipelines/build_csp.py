@@ -539,6 +539,7 @@ def main(cfg: DictConfig) -> None:
             glycam_params=runtime_params.glycam,
             selector_params_by_name=runtime_params.selector_params_by_name,
             connector_params_by_key=runtime_params.connector_params_by_key,
+            parameter_provenance=runtime_params.source_manifest,
             nonbonded_mode="full",
             mixing_rules_cfg=(
                 OmegaConf.to_container(cfg.forcefield, resolve=True)

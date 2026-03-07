@@ -10,7 +10,11 @@ from rdkit import Chem
 import openmm as mm
 from openmm import unit
 
-from poly_csp.forcefield.connectors import ConnectorParams, ConnectorToken
+from poly_csp.forcefield.connectors import (
+    ConnectorParams,
+    ConnectorToken,
+    validate_connector_params,
+)
 from poly_csp.forcefield.exceptions import apply_mixing_rules
 from poly_csp.forcefield.gaff import (
     SelectorAngleTemplate,
@@ -95,6 +99,55 @@ def _bond_key(a: int, b: int) -> tuple[int, int]:
 
 def _angle_key(a: int, b: int, c: int) -> tuple[int, int, int]:
     return (a, b, c) if a <= c else (c, b, a)
+
+
+def _torsion_key(a: int, b: int, c: int, d: int) -> tuple[int, int, int, int]:
+    forward = (a, b, c, d)
+    reverse = (d, c, b, a)
+    return forward if forward <= reverse else reverse
+
+
+def _register_term_owner(
+    registry: dict[tuple[int, ...], str],
+    key: tuple[int, ...],
+    owner: str,
+    *,
+    term_kind: str,
+) -> None:
+    existing = registry.get(key)
+    if existing is None:
+        registry[key] = owner
+        return
+    if existing != owner:
+        raise ValueError(
+            f"Ambiguous {term_kind} ownership for atoms {key!r}: "
+            f"{existing!r} vs {owner!r}."
+        )
+
+
+def _merge_source_manifest(
+    base: Mapping[str, object],
+    extra: Mapping[str, object] | None,
+) -> dict[str, object]:
+    if not extra:
+        return dict(base)
+
+    def _merge_value(left: object, right: object) -> object:
+        if isinstance(left, Mapping) and isinstance(right, Mapping):
+            merged = {str(key): value for key, value in left.items()}
+            for key, value in right.items():
+                key_str = str(key)
+                if key_str in merged:
+                    merged[key_str] = _merge_value(merged[key_str], value)
+                else:
+                    merged[key_str] = value
+            return merged
+        return right
+
+    return {
+        key: _merge_value(base.get(key), value) if key in base else value
+        for key, value in {**dict(base), **dict(extra)}.items()
+    }
 
 
 def _set_or_add_bond(force: mm.HarmonicBondForce, a: int, b: int, r0, k) -> None:
@@ -262,6 +315,16 @@ def _connector_contexts(
                 f"Connector instance atom-set mismatch for instance {instance_id}. "
                 f"Missing={missing}, extra={extra}."
             )
+        missing_role_atoms = {
+            role_name: atom_name
+            for role_name, atom_name in connector_params.connector_role_atom_names.items()
+            if atom_name not in connector_atoms_by_name
+        }
+        if missing_role_atoms:
+            raise ValueError(
+                "Connector instance is missing connector-role atoms required by the "
+                f"payload for instance {instance_id}: {missing_role_atoms!r}."
+            )
         out[instance_id] = _ConnectorContext(
             instance_id=instance_id,
             selector_name=selector_name,
@@ -320,6 +383,7 @@ def create_system(
     glycam_params: GlycamParams,
     selector_params_by_name: Mapping[str, SelectorFragmentParams] | None = None,
     connector_params_by_key: Mapping[tuple[str, str], ConnectorParams] | None = None,
+    parameter_provenance: Mapping[str, object] | None = None,
     nonbonded_mode: str = "full",
     mixing_rules_cfg: Mapping[str, object] | None = None,
     repulsion_k_kj_per_mol_nm2: float = 800.0,
@@ -409,9 +473,12 @@ def create_system(
         source_manifest.setdefault("connector", {})[f"{key[0]}:{key[1]}"] = {
             "source_prmtop": params.source_prmtop,
             "fragment_atom_count": params.fragment_atom_count,
+            "linkage_type": params.linkage_type,
+            "connector_role_atom_names": dict(params.connector_role_atom_names),
         }
     for instance_id, context in connector_context_by_instance.items():
         params = connector_params_by_key[(context.selector_name, context.site)]
+        validate_connector_params(params)
         for atom_name, atom_idx in context.connector_atoms_by_name.items():
             atom_params = params.atom_params[atom_name]
             assigned_nonbonded[atom_idx] = (
@@ -427,6 +494,9 @@ def create_system(
     bond_force = mm.HarmonicBondForce()
     angle_force = mm.HarmonicAngleForce()
     torsion_force = mm.PeriodicTorsionForce()
+    bond_owner_by_key: dict[tuple[int, int], str] = {}
+    angle_owner_by_key: dict[tuple[int, int, int], str] = {}
+    torsion_owner_by_key: dict[tuple[int, int, int, int], str] = {}
 
     def _resolve_backbone_tokens(anchor_residue: int, tokens) -> tuple[int, ...] | None:
         resolved: list[int] = []
@@ -449,18 +519,36 @@ def create_system(
             if resolved is None:
                 continue
             a, b = resolved
+            _register_term_owner(
+                bond_owner_by_key,
+                _bond_key(a, b),
+                f"backbone:{residue_role}",
+                term_kind="bond",
+            )
             _set_or_add_bond(bond_force, a, b, float(template.length_nm), float(template.k_kj_per_mol_nm2))
         for template in residue_template.angles:
             resolved = _resolve_backbone_tokens(residue_index, template.atoms)
             if resolved is None:
                 continue
             a, b, c = resolved
+            _register_term_owner(
+                angle_owner_by_key,
+                _angle_key(a, b, c),
+                f"backbone:{residue_role}",
+                term_kind="angle",
+            )
             _set_or_add_angle(angle_force, a, b, c, float(template.theta0_rad), float(template.k_kj_per_mol_rad2))
         for template in residue_template.torsions:
             resolved = _resolve_backbone_tokens(residue_index, template.atoms)
             if resolved is None:
                 continue
             a, b, c, d = resolved
+            _register_term_owner(
+                torsion_owner_by_key,
+                _torsion_key(a, b, c, d),
+                f"backbone:{residue_role}",
+                term_kind="torsion",
+            )
             torsion_force.addTorsion(a, b, c, d, int(template.periodicity), float(template.phase_rad), float(template.k_kj_per_mol))
 
     for left_residue in range(max(0, len(residue_roles) - 1)):
@@ -476,18 +564,36 @@ def create_system(
             if resolved is None:
                 continue
             a, b = resolved
+            _register_term_owner(
+                bond_owner_by_key,
+                _bond_key(a, b),
+                f"backbone_linkage:{pair[0]}->{pair[1]}",
+                term_kind="bond",
+            )
             _set_or_add_bond(bond_force, a, b, float(template.length_nm), float(template.k_kj_per_mol_nm2))
         for template in linkage_template.angles:
             resolved = _resolve_backbone_tokens(left_residue, template.atoms)
             if resolved is None:
                 continue
             a, b, c = resolved
+            _register_term_owner(
+                angle_owner_by_key,
+                _angle_key(a, b, c),
+                f"backbone_linkage:{pair[0]}->{pair[1]}",
+                term_kind="angle",
+            )
             _set_or_add_angle(angle_force, a, b, c, float(template.theta0_rad), float(template.k_kj_per_mol_rad2))
         for template in linkage_template.torsions:
             resolved = _resolve_backbone_tokens(left_residue, template.atoms)
             if resolved is None:
                 continue
             a, b, c, d = resolved
+            _register_term_owner(
+                torsion_owner_by_key,
+                _torsion_key(a, b, c, d),
+                f"backbone_linkage:{pair[0]}->{pair[1]}",
+                term_kind="torsion",
+            )
             torsion_force.addTorsion(a, b, c, d, int(template.periodicity), float(template.phase_rad), float(template.k_kj_per_mol))
 
     for instance_id, mapping in selector_instance_maps.items():
@@ -495,17 +601,35 @@ def create_system(
         for template in params.bonds:
             a = mapping.atom_index_by_name[template.atom_names[0]]
             b = mapping.atom_index_by_name[template.atom_names[1]]
+            _register_term_owner(
+                bond_owner_by_key,
+                _bond_key(a, b),
+                f"selector:{mapping.selector_name}:{instance_id}",
+                term_kind="bond",
+            )
             _set_or_add_bond(bond_force, a, b, float(template.length_nm), float(template.k_kj_per_mol_nm2))
         for template in params.angles:
             a = mapping.atom_index_by_name[template.atom_names[0]]
             b = mapping.atom_index_by_name[template.atom_names[1]]
             c = mapping.atom_index_by_name[template.atom_names[2]]
+            _register_term_owner(
+                angle_owner_by_key,
+                _angle_key(a, b, c),
+                f"selector:{mapping.selector_name}:{instance_id}",
+                term_kind="angle",
+            )
             _set_or_add_angle(angle_force, a, b, c, float(template.theta0_rad), float(template.k_kj_per_mol_rad2))
         for template in params.torsions:
             a = mapping.atom_index_by_name[template.atom_names[0]]
             b = mapping.atom_index_by_name[template.atom_names[1]]
             c = mapping.atom_index_by_name[template.atom_names[2]]
             d = mapping.atom_index_by_name[template.atom_names[3]]
+            _register_term_owner(
+                torsion_owner_by_key,
+                _torsion_key(a, b, c, d),
+                f"selector:{mapping.selector_name}:{instance_id}",
+                term_kind="torsion",
+            )
             torsion_force.addTorsion(a, b, c, d, int(template.periodicity), float(template.phase_rad), float(template.k_kj_per_mol))
 
     for instance_id, context in connector_context_by_instance.items():
@@ -513,17 +637,35 @@ def create_system(
         for template in params.bonds:
             a = _resolve_connector_token(context, template.atoms[0])
             b = _resolve_connector_token(context, template.atoms[1])
+            _register_term_owner(
+                bond_owner_by_key,
+                _bond_key(a, b),
+                f"connector:{context.selector_name}:{context.site}:{instance_id}",
+                term_kind="bond",
+            )
             _set_or_add_bond(bond_force, a, b, float(template.length_nm), float(template.k_kj_per_mol_nm2))
         for template in params.angles:
             a = _resolve_connector_token(context, template.atoms[0])
             b = _resolve_connector_token(context, template.atoms[1])
             c = _resolve_connector_token(context, template.atoms[2])
+            _register_term_owner(
+                angle_owner_by_key,
+                _angle_key(a, b, c),
+                f"connector:{context.selector_name}:{context.site}:{instance_id}",
+                term_kind="angle",
+            )
             _set_or_add_angle(angle_force, a, b, c, float(template.theta0_rad), float(template.k_kj_per_mol_rad2))
         for template in params.torsions:
             a = _resolve_connector_token(context, template.atoms[0])
             b = _resolve_connector_token(context, template.atoms[1])
             c = _resolve_connector_token(context, template.atoms[2])
             d = _resolve_connector_token(context, template.atoms[3])
+            _register_term_owner(
+                torsion_owner_by_key,
+                _torsion_key(a, b, c, d),
+                f"connector:{context.selector_name}:{context.site}:{instance_id}",
+                term_kind="torsion",
+            )
             torsion_force.addTorsion(a, b, c, d, int(template.periodicity), float(template.phase_rad), float(template.k_kj_per_mol))
 
     system.addForce(bond_force)
@@ -578,7 +720,7 @@ def create_system(
         topology_manifest=_topology_manifest(mol, backbone_mapping),
         component_counts=_component_counts(mol),
         exception_summary=exception_summary,
-        source_manifest=source_manifest,
+        source_manifest=_merge_source_manifest(source_manifest, parameter_provenance),
     )
 
 

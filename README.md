@@ -390,9 +390,9 @@ python -m poly_csp.pipelines.build_csp \
 
 ---
 
-## 4. Pure-backbone GLYCAM runtime mode
+## 4. Canonical runtime mode
 
-The canonical runtime presets now cover the supported selector-bearing slice:
+The canonical runtime presets now cover the supported built-in selector-bearing slice:
 
 * polymer: `amylose` or `cellulose`
 * representation: `anhydro`
@@ -413,6 +413,8 @@ This path:
 * builds the explicit-H backbone first,
 * maps backbone atoms into GLYCAM identities,
 * maps selector and connector atoms into GAFF/capped-fragment identities when present,
+* derives connector payloads from complete capped monomer fragments before partitioning,
+* validates connector ownership and planarity-preserving boundary torsions,
 * builds a real OpenMM runtime `System`,
 * fails fast on unsupported chemistry instead of falling back.
 
@@ -423,6 +425,7 @@ The build report now records:
 * `forcefield_enabled`
 * `forcefield_mode`
 * `forcefield_summary`
+* runtime parameter cache hits/misses and per-source provenance
 
 ---
 
@@ -544,8 +547,9 @@ The current forcefield presets are:
    - Builds the canonical runtime system for the supported `anhydro`, `open` slice.
    - Backbone atoms get GLYCAM parameters.
    - Selector atoms get GAFF-derived selector-core parameters.
-   - Connector atoms get capped-fragment parameters.
+   - Connector atoms get capped-fragment parameters extracted from complete selector-bearing monomer references.
    - The resulting system has real bonded terms, explicit charges, explicit Lennard-Jones parameters, and a real `NonbondedForce`.
+   - Runtime parameter payloads are cached persistently by chemistry identity.
 
 3. `forcefield/options=runtime_relax`
    - Uses the same canonical runtime parameter sources.
@@ -629,17 +633,19 @@ The codebase now has:
 * a clean topology/structure/forcefield domain split,
 * a validated forcefield-domain molecule with stable naming/manifest metadata,
 * runtime GLYCAM extraction from complete reference systems,
-* deterministic GLYCAM mapping for the supported pure-backbone slice,
-* a pure-backbone GLYCAM OpenMM builder with a real `NonbondedForce`,
+* deterministic GLYCAM mapping for the supported runtime slice,
+* selector-core GAFF parameter transfer on the canonical runtime path,
+* connector nonbonded and bonded transfer from complete capped-fragment references,
+* validated connector ownership and planarity-term preservation on that same path,
+* a mixed GLYCAM/GAFF/connector OpenMM builder with real bonded terms and a real `NonbondedForce`,
+* canonical two-stage runtime relaxation (`soft -> full`),
+* persistent GLYCAM / selector / connector runtime-parameter caching,
 * separate AMBER export utilities,
 * selector ordering, QC, SDF export, and multi-start optimization.
 
 What remains for later phases:
 
-* full selector GAFF2 nonbonded transfer in the runtime system,
-* connector nonbonded transfer,
-* mixed GLYCAM/GAFF/connector OpenMM assembly,
-* the intended two-stage forcefield refinement path:
-  1. real bonded + soft-repulsion nonbonded overlap cleanup,
-  2. full realistic nonbonded refinement,
-* migration of selector-bearing relaxation away from the legacy generic builder.
+* widening the supported chemistry slice beyond built-in selectors and open `anhydro` chains,
+* capped and periodic runtime support,
+* richer runtime diagnostics and ordering metrics on the final forcefield,
+* broader integration coverage for slow AmberTools-dependent reference builds.

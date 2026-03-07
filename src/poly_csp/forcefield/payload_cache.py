@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     )
 
 
-PAYLOAD_CACHE_SCHEMA_VERSION = 1
+PAYLOAD_CACHE_SCHEMA_VERSION = 2
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_RUNTIME_CACHE_DIR = _REPO_ROOT / ".cache" / "poly_csp" / "runtime_params"
 
@@ -305,8 +305,10 @@ def _connector_params_to_jsonable(params: ConnectorParams) -> dict[str, Any]:
         "selector_name": params.selector_name,
         "site": params.site,
         "monomer_representation": params.monomer_representation,
+        "linkage_type": params.linkage_type,
         "source_prmtop": params.source_prmtop,
         "fragment_atom_count": params.fragment_atom_count,
+        "connector_role_atom_names": dict(sorted(params.connector_role_atom_names.items())),
         "atom_params": {
             name: {
                 "atom_name": atom.atom_name,
@@ -356,6 +358,11 @@ def _connector_params_from_jsonable(data: dict[str, Any]) -> ConnectorParams:
             if data.get("monomer_representation") is not None
             else None
         ),
+        linkage_type=(
+            str(data["linkage_type"])
+            if data.get("linkage_type") is not None
+            else None
+        ),
         atom_params={
             str(name): ConnectorAtomParams(
                 atom_name=str(payload["atom_name"]),
@@ -364,6 +371,10 @@ def _connector_params_from_jsonable(data: dict[str, Any]) -> ConnectorParams:
                 epsilon_kj_per_mol=float(payload["epsilon_kj_per_mol"]),
             )
             for name, payload in dict(data["atom_params"]).items()
+        },
+        connector_role_atom_names={
+            str(role_name): str(atom_name)
+            for role_name, atom_name in dict(data.get("connector_role_atom_names", {})).items()
         },
         bonds=tuple(
             ConnectorBondTemplate(

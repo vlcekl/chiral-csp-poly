@@ -103,6 +103,7 @@ def test_run_staged_relaxation_uses_soft_then_full_runtime_systems(monkeypatch) 
         glycam=None,
         selector_params_by_name={},
         connector_params_by_key={},
+        source_manifest={"runtime": {"cache": {"kind": "test"}}},
     )
     calls: list[str] = []
 

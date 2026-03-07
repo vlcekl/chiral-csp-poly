@@ -1,8 +1,15 @@
+"""Connector payload extraction from complete capped monomer references.
+
+This module has one canonical job: build a chemically complete selector-bearing
+monomer fragment, parameterize that whole fragment, then partition out the
+connector-owned runtime payload. There is intentionally no truncated-connector
+fallback path.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Literal, Sequence
+from typing import Dict, Literal, Mapping, Sequence
 
 import openmm as mm
 from openmm import app as mmapp
@@ -22,6 +29,17 @@ from poly_csp.topology.utils import residue_label_maps
 
 
 ConnectorSource = Literal["backbone", "selector", "connector"]
+ConnectorLinkageType = Literal["carbamate", "ester", "ether"]
+_BACKBONE_ANCHOR_BY_SITE: dict[Site, str] = {
+    "C2": "O2",
+    "C3": "O3",
+    "C6": "O6",
+}
+_REQUIRED_CONNECTOR_ROLES: dict[ConnectorLinkageType, tuple[str, ...]] = {
+    "carbamate": ("amide_n", "carbonyl_c", "carbonyl_o"),
+    "ester": ("carbonyl_c", "carbonyl_o"),
+    "ether": (),
+}
 
 
 @dataclass(frozen=True)
@@ -66,7 +84,9 @@ class ConnectorParams:
     selector_name: str | None = None
     site: Site | None = None
     monomer_representation: MonomerRepresentation | None = None
+    linkage_type: ConnectorLinkageType | None = None
     atom_params: dict[str, ConnectorAtomParams] = field(default_factory=dict)
+    connector_role_atom_names: dict[str, str] = field(default_factory=dict)
     bonds: tuple[ConnectorBondTemplate, ...] = ()
     angles: tuple[ConnectorAngleTemplate, ...] = ()
     torsions: tuple[ConnectorTorsionTemplate, ...] = ()
@@ -80,6 +100,15 @@ class CappedMonomerFragment:
     atom_roles: Dict[str, int] = field(default_factory=dict)
     connector_roles: Dict[str, int] = field(default_factory=dict)
     connector_atom_roles: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ConnectorReferenceMetadata:
+    forcefield_mol: Chem.Mol
+    source_by_name: dict[str, str]
+    atom_name_map: dict[int, str]
+    connector_role_atom_names: dict[str, str]
+    allowed_names_by_source: dict[str, frozenset[str]]
 
 
 def _fragment_atom_role_map(fragment: Chem.Mol) -> dict[int, str]:
@@ -208,7 +237,7 @@ def _token_tuple_sort_key(tokens: tuple[ConnectorToken, ...]) -> tuple[tuple[str
     return tuple(_token_sort_key(token) for token in tokens)
 
 
-def _forcefield_fragment_metadata(fragment: CappedMonomerFragment) -> tuple[Chem.Mol, dict[str, str]]:
+def _forcefield_fragment_metadata(fragment: CappedMonomerFragment) -> ConnectorReferenceMetadata:
     forcefield = build_forcefield_molecule(fragment.mol)
     atom_names = {
         int(entry.atom_index): str(entry.atom_name)
@@ -218,7 +247,31 @@ def _forcefield_fragment_metadata(fragment: CappedMonomerFragment) -> tuple[Chem
         str(entry.atom_name): str(entry.source)
         for entry in forcefield.manifest
     }
-    return forcefield.mol, source_by_name
+    fragment_role_to_atom_name = {
+        atom.GetProp("_poly_csp_fragment_role"): atom.GetProp("_poly_csp_atom_name")
+        for atom in forcefield.mol.GetAtoms()
+        if atom.HasProp("_poly_csp_fragment_role") and atom.HasProp("_poly_csp_atom_name")
+    }
+    connector_role_atom_names = {
+        role_name: fragment_role_to_atom_name[fragment_role]
+        for role_name, fragment_role in fragment.connector_atom_roles.items()
+        if fragment_role in fragment_role_to_atom_name
+    }
+    allowed_names_by_source: dict[str, frozenset[str]] = {
+        source: frozenset(
+            name
+            for name, observed_source in source_by_name.items()
+            if observed_source == source
+        )
+        for source in {"backbone", "selector", "connector"}
+    }
+    return ConnectorReferenceMetadata(
+        forcefield_mol=forcefield.mol,
+        source_by_name=source_by_name,
+        atom_name_map=atom_names,
+        connector_role_atom_names=connector_role_atom_names,
+        allowed_names_by_source=allowed_names_by_source,
+    )
 
 
 def _tokenize_terms(
@@ -232,6 +285,235 @@ def _tokenize_terms(
         )
         for name in names
     )
+
+
+def _touches_connector_tokens(tokens: Sequence[ConnectorToken]) -> bool:
+    return any(token.source == "connector" for token in tokens)
+
+
+def _token_sources(tokens: Sequence[ConnectorToken]) -> set[str]:
+    return {str(token.source) for token in tokens}
+
+
+def _torsion_contains_connector_pair(
+    template: ConnectorTorsionTemplate,
+    atom_names: set[str],
+) -> bool:
+    connector_names = {
+        token.atom_name
+        for token in template.atoms
+        if token.source == "connector"
+    }
+    return atom_names.issubset(connector_names)
+
+
+def _validate_connector_planarity_terms(params: ConnectorParams) -> None:
+    if params.linkage_type is None or params.site is None:
+        raise ValueError(
+            "Connector payload is missing linkage/site metadata for planarity validation."
+        )
+    anchor = _BACKBONE_ANCHOR_BY_SITE[params.site]
+    role_names = dict(params.connector_role_atom_names)
+    torsions = tuple(params.torsions)
+
+    if params.linkage_type == "carbamate":
+        carbonyl_c = role_names["carbonyl_c"]
+        carbonyl_o = role_names["carbonyl_o"]
+        amide_n = role_names["amide_n"]
+
+        if not any(
+            _torsion_contains_connector_pair(template, {carbonyl_c, amide_n})
+            and "selector" in _token_sources(template.atoms)
+            for template in torsions
+        ):
+            raise ValueError(
+                "Carbamate connector payload is missing a selector-facing torsion "
+                "that preserves carbonyl_c/amide_n planarity."
+            )
+        if not any(
+            _torsion_contains_connector_pair(template, {carbonyl_c, amide_n})
+            and any(
+                token.source == "backbone" and token.atom_name == anchor
+                for token in template.atoms
+            )
+            for template in torsions
+        ):
+            raise ValueError(
+                "Carbamate connector payload is missing a backbone-anchor torsion "
+                f"through {anchor} and the carbonyl_c/amide_n pair."
+            )
+        if not any(
+            _torsion_contains_connector_pair(template, {carbonyl_c, carbonyl_o})
+            and "selector" in _token_sources(template.atoms)
+            for template in torsions
+        ):
+            raise ValueError(
+                "Carbamate connector payload is missing a selector-facing torsion "
+                "that preserves carbonyl_o/carbonyl_c planarity."
+            )
+        return
+
+    if params.linkage_type == "ester":
+        carbonyl_c = role_names["carbonyl_c"]
+        carbonyl_o = role_names["carbonyl_o"]
+
+        if not any(
+            _torsion_contains_connector_pair(template, {carbonyl_c, carbonyl_o})
+            and "selector" in _token_sources(template.atoms)
+            for template in torsions
+        ):
+            raise ValueError(
+                "Ester connector payload is missing a selector-facing torsion "
+                "that preserves carbonyl_o/carbonyl_c planarity."
+            )
+        if not any(
+            carbonyl_c
+            in {
+                token.atom_name
+                for token in template.atoms
+                if token.source == "connector"
+            }
+            and any(
+                token.source == "backbone" and token.atom_name == anchor
+                for token in template.atoms
+            )
+            and "selector" in _token_sources(template.atoms)
+            for template in torsions
+        ):
+            raise ValueError(
+                "Ester connector payload is missing a backbone-anchor torsion "
+                f"through {anchor} and the carbonyl_c selector boundary."
+            )
+
+
+def validate_connector_params(
+    params: ConnectorParams,
+    *,
+    allowed_names_by_source: Mapping[str, frozenset[str]] | None = None,
+) -> None:
+    """Validate the canonical connector ownership contract and planarity terms."""
+    if not params.atom_params:
+        raise ValueError("Connector payload extraction produced no connector atom parameters.")
+    if params.linkage_type is None:
+        raise ValueError("Connector payload is missing linkage_type metadata.")
+
+    required_roles = _REQUIRED_CONNECTOR_ROLES[params.linkage_type]
+    observed_roles = tuple(sorted(params.connector_role_atom_names))
+    if tuple(sorted(required_roles)) != observed_roles:
+        raise ValueError(
+            "Connector payload role map does not match the required connector roles "
+            f"for linkage_type={params.linkage_type!r}. "
+            f"Expected={sorted(required_roles)}, observed={list(observed_roles)}."
+        )
+
+    connector_names = set(params.atom_params)
+    if not set(params.connector_role_atom_names.values()).issubset(connector_names):
+        raise ValueError("Connector role map references atoms that are not connector-owned.")
+
+    if allowed_names_by_source is not None:
+        for source in ("backbone", "selector", "connector"):
+            if source not in allowed_names_by_source:
+                raise ValueError(
+                    "Connector payload validation is missing the allowed-name set "
+                    f"for source {source!r}."
+                )
+
+    for templates, label in (
+        (params.bonds, "bond"),
+        (params.angles, "angle"),
+        (params.torsions, "torsion"),
+    ):
+        for template in templates:
+            tokens = template.atoms
+            if not _touches_connector_tokens(tokens):
+                raise ValueError(
+                    f"Connector {label} payload contains a term with no connector atoms."
+                )
+            for token in tokens:
+                if token.source == "connector" and token.atom_name not in connector_names:
+                    raise ValueError(
+                        f"Connector {label} payload references unknown connector atom {token.atom_name!r}."
+                    )
+                if (
+                    allowed_names_by_source is not None
+                    and token.atom_name not in allowed_names_by_source[token.source]
+                ):
+                    raise ValueError(
+                        "Connector "
+                        f"{label} payload references an atom outside its allowed {token.source!r} "
+                        f"name set: {token.atom_name!r}."
+                    )
+
+    _validate_connector_planarity_terms(params)
+
+
+def _infer_fragment_linkage_type(fragment: CappedMonomerFragment) -> ConnectorLinkageType:
+    role_names = set(fragment.connector_roles)
+    if "amide_n" in role_names:
+        return "carbamate"
+    if "carbonyl_c" in role_names and "carbonyl_o" in role_names:
+        return "ester"
+    return "ether"
+
+
+def _infer_fragment_site(fragment: CappedMonomerFragment) -> Site:
+    connector_indices = set(fragment.connector_roles.values())
+    for site, anchor in _BACKBONE_ANCHOR_BY_SITE.items():
+        role = f"BB_{anchor}"
+        atom_idx = fragment.atom_roles.get(role)
+        if atom_idx is None:
+            continue
+        atom = fragment.mol.GetAtomWithIdx(int(atom_idx))
+        if any(int(neighbor.GetIdx()) in connector_indices for neighbor in atom.GetNeighbors()):
+            return site
+    raise ValueError("Could not infer connector attachment site from the capped monomer fragment.")
+
+
+def _finalize_connector_params(
+    *,
+    polymer: PolymerKind | None,
+    selector_name: str | None,
+    site: Site | None,
+    monomer_representation: MonomerRepresentation | None,
+    linkage_type: ConnectorLinkageType | None,
+    connector_role_atom_names: dict[str, str],
+    atom_params: dict[str, ConnectorAtomParams],
+    bonds: dict[tuple[ConnectorToken, ConnectorToken], ConnectorBondTemplate],
+    angles: dict[tuple[ConnectorToken, ConnectorToken, ConnectorToken], ConnectorAngleTemplate],
+    torsions: list[ConnectorTorsionTemplate],
+    source_prmtop: str | None,
+    fragment_atom_count: int | None,
+    allowed_names_by_source: Mapping[str, frozenset[str]] | None = None,
+) -> ConnectorParams:
+    params = ConnectorParams(
+        polymer=polymer,
+        selector_name=selector_name,
+        site=site,
+        monomer_representation=monomer_representation,
+        linkage_type=linkage_type,
+        atom_params=atom_params,
+        connector_role_atom_names=dict(connector_role_atom_names),
+        bonds=tuple(sorted(bonds.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        angles=tuple(sorted(angles.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        torsions=tuple(
+            sorted(
+                torsions,
+                key=lambda item: (
+                    _token_tuple_sort_key(item.atoms),
+                    item.periodicity,
+                    item.phase_rad,
+                    item.k_kj_per_mol,
+                ),
+            )
+        ),
+        source_prmtop=source_prmtop,
+        fragment_atom_count=fragment_atom_count,
+    )
+    validate_connector_params(
+        params,
+        allowed_names_by_source=allowed_names_by_source,
+    )
+    return params
 
 
 def load_connector_params(
@@ -255,11 +537,10 @@ def load_connector_params(
         site=site,
         monomer_representation=monomer_representation,
     )
-    forcefield_mol, source_by_name = _forcefield_fragment_metadata(fragment)
-    atom_name_map = {
-        int(atom.GetIdx()): atom.GetProp("_poly_csp_atom_name")
-        for atom in forcefield_mol.GetAtoms()
-    }
+    metadata = _forcefield_fragment_metadata(fragment)
+    forcefield_mol = metadata.forcefield_mol
+    source_by_name = metadata.source_by_name
+    atom_name_map = dict(metadata.atom_name_map)
 
     artifacts = parameterize_gaff_fragment(
         fragment_mol=forcefield_mol,
@@ -404,30 +685,20 @@ def load_connector_params(
                     ),
                 )
 
-    if not atom_params:
-        raise ValueError("Connector payload extraction produced no connector atom parameters.")
-
-    return ConnectorParams(
+    return _finalize_connector_params(
         polymer=polymer,
         selector_name=selector_template.name,
         site=site,
         monomer_representation=monomer_representation,
+        linkage_type=selector_template.linkage_type,
+        connector_role_atom_names=metadata.connector_role_atom_names,
         atom_params=atom_params,
-        bonds=tuple(sorted(bonds.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
-        angles=tuple(sorted(angles.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
-        torsions=tuple(
-            sorted(
-                torsions,
-                key=lambda item: (
-                    _token_tuple_sort_key(item.atoms),
-                    item.periodicity,
-                    item.phase_rad,
-                    item.k_kj_per_mol,
-                ),
-            )
-        ),
+        bonds=bonds,
+        angles=angles,
+        torsions=torsions,
         source_prmtop=str(prmtop_path),
         fragment_atom_count=forcefield_mol.GetNumAtoms(),
+        allowed_names_by_source=metadata.allowed_names_by_source,
     )
 
 
@@ -437,12 +708,10 @@ def extract_linkage_params_from_system(
     source_prmtop: str | None = None,
 ) -> ConnectorParams:
     """Test helper: extract connector payloads from a prebuilt reference system."""
-    forcefield_mol, source_by_name = _forcefield_fragment_metadata(fragment)
-    atom_name_map = {
-        int(atom.GetIdx()): atom.GetProp("_poly_csp_atom_name")
-        for atom in forcefield_mol.GetAtoms()
-    }
-    idx_to_name = atom_name_map
+    metadata = _forcefield_fragment_metadata(fragment)
+    forcefield_mol = metadata.forcefield_mol
+    source_by_name = metadata.source_by_name
+    idx_to_name = dict(metadata.atom_name_map)
 
     atom_params: dict[str, ConnectorAtomParams] = {}
     bonds: dict[tuple[ConnectorToken, ConnectorToken], ConnectorBondTemplate] = {}
@@ -536,22 +805,18 @@ def extract_linkage_params_from_system(
                     ),
                 )
 
-    return ConnectorParams(
+    return _finalize_connector_params(
+        polymer=None,
         selector_name="attached_selector",
+        site=_infer_fragment_site(fragment),
+        monomer_representation=None,
+        linkage_type=_infer_fragment_linkage_type(fragment),
+        connector_role_atom_names=metadata.connector_role_atom_names,
         atom_params=atom_params,
-        bonds=tuple(sorted(bonds.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
-        angles=tuple(sorted(angles.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
-        torsions=tuple(
-            sorted(
-                torsions,
-                key=lambda item: (
-                    _token_tuple_sort_key(item.atoms),
-                    item.periodicity,
-                    item.phase_rad,
-                    item.k_kj_per_mol,
-                ),
-            )
-        ),
+        bonds=bonds,
+        angles=angles,
+        torsions=torsions,
         source_prmtop=source_prmtop,
         fragment_atom_count=forcefield_mol.GetNumAtoms(),
+        allowed_names_by_source=metadata.allowed_names_by_source,
     )

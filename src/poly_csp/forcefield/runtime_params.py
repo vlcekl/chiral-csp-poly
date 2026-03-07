@@ -1,7 +1,7 @@
 """Canonical runtime parameter loading for the supported forcefield slice."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rdkit import Chem
@@ -38,6 +38,27 @@ class RuntimeParams:
     selector_params_by_name: dict[str, SelectorFragmentParams]
     connector_params_by_key: dict[tuple[str, str], ConnectorParams]
     cache_summary: RuntimeParamCacheSummary
+    source_manifest: dict[str, object] = field(default_factory=dict)
+
+
+def _cache_meta(
+    *,
+    cache_enabled: bool,
+    cache_hit: bool,
+    cache_entry_dir: Path | None,
+) -> dict[str, object]:
+    return {
+        "cache": {
+            "enabled": bool(cache_enabled),
+            "hit": bool(cache_hit) if cache_enabled else False,
+            "kind": (
+                "hit"
+                if cache_enabled and cache_hit
+                else ("build" if cache_enabled else "disabled")
+            ),
+            "entry_dir": None if cache_entry_dir is None else str(cache_entry_dir),
+        }
+    }
 
 
 def _load_or_build_selector_params(
@@ -46,28 +67,54 @@ def _load_or_build_selector_params(
     work_dir: Path | None,
     cache_enabled: bool,
     cache_dir: str | Path | None,
-) -> tuple[SelectorFragmentParams, int, int]:
+) -> tuple[SelectorFragmentParams, dict[str, object]]:
     if not cache_enabled:
         return (
             load_selector_fragment_params(
                 selector_template=selector_template,
                 work_dir=None if work_dir is None else work_dir / "selector",
             ),
-            0,
-            0,
+            {
+                "selector_name": str(selector_template.name),
+                **_cache_meta(
+                    cache_enabled=False,
+                    cache_hit=False,
+                    cache_entry_dir=None if work_dir is None else work_dir / "selector",
+                ),
+            },
         )
 
     entry_dir, identity = selector_cache_dir(cache_dir, selector_template)
     cached = load_cached_selector_params(entry_dir)
     if cached is not None:
-        return cached, 1, 0
+        return (
+            cached,
+            {
+                "selector_name": str(selector_template.name),
+                **_cache_meta(
+                    cache_enabled=True,
+                    cache_hit=True,
+                    cache_entry_dir=entry_dir,
+                ),
+            },
+        )
 
     params = load_selector_fragment_params(
         selector_template=selector_template,
         work_dir=entry_dir,
     )
     store_cached_selector_params(entry_dir, identity=identity, params=params)
-    return params, 0, 1
+    return (
+        params,
+        {
+            "selector_name": str(selector_template.name),
+            **_cache_meta(
+                cache_enabled=True,
+                cache_hit=False,
+                cache_entry_dir=entry_dir,
+            ),
+        },
+    )
 
 
 def _load_or_build_connector_params(
@@ -78,7 +125,7 @@ def _load_or_build_connector_params(
     work_dir: Path | None,
     cache_enabled: bool,
     cache_dir: str | Path | None,
-) -> tuple[ConnectorParams, int, int]:
+) -> tuple[ConnectorParams, dict[str, object]]:
     if not cache_enabled:
         return (
             load_connector_params(
@@ -88,8 +135,17 @@ def _load_or_build_connector_params(
                 monomer_representation="natural_oh",
                 work_dir=None if work_dir is None else work_dir / f"connector_{site.lower()}",
             ),
-            0,
-            0,
+            {
+                "selector_name": str(selector_template.name),
+                "site": str(site),
+                **_cache_meta(
+                    cache_enabled=False,
+                    cache_hit=False,
+                    cache_entry_dir=(
+                        None if work_dir is None else work_dir / f"connector_{site.lower()}"
+                    ),
+                ),
+            },
         )
 
     entry_dir, identity = connector_cache_dir(
@@ -101,7 +157,18 @@ def _load_or_build_connector_params(
     )
     cached = load_cached_connector_params(entry_dir)
     if cached is not None:
-        return cached, 1, 0
+        return (
+            cached,
+            {
+                "selector_name": str(selector_template.name),
+                "site": str(site),
+                **_cache_meta(
+                    cache_enabled=True,
+                    cache_hit=True,
+                    cache_entry_dir=entry_dir,
+                ),
+            },
+        )
 
     params = load_connector_params(
         polymer=polymer,  # type: ignore[arg-type]
@@ -111,7 +178,18 @@ def _load_or_build_connector_params(
         work_dir=entry_dir,
     )
     store_cached_connector_params(entry_dir, identity=identity, params=params)
-    return params, 0, 1
+    return (
+        params,
+        {
+            "selector_name": str(selector_template.name),
+            "site": str(site),
+            **_cache_meta(
+                cache_enabled=True,
+                cache_hit=False,
+                cache_entry_dir=entry_dir,
+            ),
+        },
+    )
 
 
 def load_runtime_params(
@@ -165,6 +243,7 @@ def load_runtime_params(
 
     selector_params_by_name: dict[str, SelectorFragmentParams] = {}
     connector_params_by_key: dict[tuple[str, str], ConnectorParams] = {}
+    source_manifest: dict[str, object] = {"glycam": dict(glycam_provenance)}
     selector_hit_count = 0
     selector_miss_count = 0
     connector_hit_count = 0
@@ -184,6 +263,7 @@ def load_runtime_params(
                 glycam_hits=glycam_hit_count,
                 glycam_misses=glycam_miss_count,
             ),
+            source_manifest=source_manifest,
         )
 
     if selector_template is None:
@@ -191,15 +271,18 @@ def load_runtime_params(
             "Selector-bearing runtime parameter loading requires the SelectorTemplate."
         )
 
-    selector_params, selector_hits, selector_misses = _load_or_build_selector_params(
+    selector_params, selector_meta = _load_or_build_selector_params(
         selector_template=selector_template,
         work_dir=work_dir,
         cache_enabled=cache_enabled,
         cache_dir=cache_dir,
     )
     selector_params_by_name[selector_template.name] = selector_params
-    selector_hit_count += selector_hits
-    selector_miss_count += selector_misses
+    source_manifest.setdefault("selector", {})[selector_template.name] = selector_meta
+    if bool(selector_meta["cache"]["enabled"]) and bool(selector_meta["cache"]["hit"]):
+        selector_hit_count += 1
+    elif bool(selector_meta["cache"]["enabled"]):
+        selector_miss_count += 1
 
     sites = sorted(
         {
@@ -209,7 +292,7 @@ def load_runtime_params(
         }
     )
     for site in sites:
-        connector_params, connector_hits, connector_misses = _load_or_build_connector_params(
+        connector_params, connector_meta = _load_or_build_connector_params(
             polymer=polymer,
             selector_template=selector_template,
             site=site,
@@ -218,8 +301,13 @@ def load_runtime_params(
             cache_dir=cache_dir,
         )
         connector_params_by_key[(selector_template.name, site)] = connector_params
-        connector_hit_count += connector_hits
-        connector_miss_count += connector_misses
+        source_manifest.setdefault("connector", {})[
+            f"{selector_template.name}:{site}"
+        ] = connector_meta
+        if bool(connector_meta["cache"]["enabled"]) and bool(connector_meta["cache"]["hit"]):
+            connector_hit_count += 1
+        elif bool(connector_meta["cache"]["enabled"]):
+            connector_miss_count += 1
 
     return RuntimeParams(
         glycam=glycam,
@@ -235,4 +323,5 @@ def load_runtime_params(
             connector_hits=connector_hit_count,
             connector_misses=connector_miss_count,
         ),
+        source_manifest=source_manifest,
     )
