@@ -120,9 +120,9 @@ def test_build_backbone_glycam_system_builds_real_nonbonded_system(tmp_path) -> 
     result = build_backbone_glycam_system(mol, params)
 
     assert result.system.getNumParticles() == mol.GetNumAtoms()
-    assert result.nonbonded_mode == "glycam_no_cutoff"
+    assert result.nonbonded_mode == "full"
     assert len(result.topology_manifest) == mol.GetNumAtoms()
-    assert result.exception_summary["num_exceptions"] > 0
+    assert result.exception_summary["exceptions_seen"] > 0
 
     forces = [result.system.getForce(i) for i in range(result.system.getNumForces())]
     assert any(isinstance(force, openmm.NonbondedForce) for force in forces)
@@ -156,7 +156,7 @@ def test_build_backbone_glycam_system_supports_cellulose(tmp_path) -> None:
     assert result.system.getNumParticles() == mol.GetNumAtoms()
 
 
-def test_map_backbone_to_glycam_rejects_selector_bearing_system(tmp_path) -> None:
+def test_map_backbone_to_glycam_ignores_selector_atoms(tmp_path) -> None:
     template = make_glucose_template("amylose", monomer_representation="anhydro")
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     topology = apply_terminal_mode(
@@ -180,8 +180,13 @@ def test_map_backbone_to_glycam_rejects_selector_bearing_system(tmp_path) -> Non
         work_dir=tmp_path / "selector_reject",
     )
 
-    with pytest.raises(ValueError, match="pure backbone"):
-        map_backbone_to_glycam(mol, params)
+    mapping = map_backbone_to_glycam(mol, params)
+    assert mapping.assignments
+    assert all(assignment.generic_atom_name.startswith(("C", "O", "H")) for assignment in mapping.assignments)
+    assert all(
+        mol.GetAtomWithIdx(assignment.atom_index).GetProp("_poly_csp_manifest_source") == "backbone"
+        for assignment in mapping.assignments
+    )
 
 
 def test_load_glycam_params_rejects_unsupported_representation() -> None:

@@ -26,6 +26,7 @@ from rdkit import Chem
 from omegaconf import DictConfig, OmegaConf
 
 from poly_csp.forcefield.model import build_forcefield_molecule
+from poly_csp.forcefield.runtime_params import load_runtime_params
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
@@ -39,8 +40,7 @@ from poly_csp.config.schema import (
     Site,
 )
 from poly_csp.forcefield.amber_export import export_amber_artifacts
-from poly_csp.forcefield.glycam import load_glycam_params
-from poly_csp.forcefield.system_builder import build_backbone_glycam_system
+from poly_csp.forcefield.system_builder import create_system
 from poly_csp.io.pdb import write_pdb_from_rdkit
 from poly_csp.io.rdkit_io import write_sdf
 from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
@@ -233,18 +233,6 @@ def _forcefield_enabled(cfg: DictConfig) -> bool:
     )
 
 
-def _forcefield_mode(cfg: DictConfig) -> str:
-    if (
-        "forcefield" in cfg
-        and cfg.forcefield is not None
-        and "options" in cfg.forcefield
-        and cfg.forcefield.options is not None
-        and "mode" in cfg.forcefield.options
-    ):
-        return str(cfg.forcefield.options.mode)
-    return "legacy_generic"
-
-
 def _cfg_to_qc_spec(cfg: DictConfig) -> QcSpec:
     qc_cfg = cfg.qc if "qc" in cfg and cfg.qc is not None else {}
     return QcSpec(
@@ -397,7 +385,7 @@ def main(cfg: DictConfig) -> None:
     qc_spec = _cfg_to_qc_spec(cfg)
 
     forcefield_enabled = _forcefield_enabled(cfg)
-    forcefield_mode = _forcefield_mode(cfg) if forcefield_enabled else "none"
+    forcefield_mode = "runtime" if forcefield_enabled else "none"
     relax_spec = _cfg_to_relax_spec(cfg)
     relax_requested = bool(relax_spec is not None and relax_spec.enabled)
     if relax_requested and (run_staged_relaxation is None or relax_spec is None):
@@ -514,82 +502,41 @@ def main(cfg: DictConfig) -> None:
             ranked_results = None
 
     amber_summary: dict[str, object] = {"enabled": False}
-    amber_export_done = False
     forcefield_summary: dict[str, object] = {"enabled": False, "mode": "none"}
+    runtime_params = None
+    runtime_mol = build_forcefield_molecule(mol_poly).mol
 
     # ---- Stage 4a: optional runtime forcefield build.
     if forcefield_enabled:
-        forcefield_input = build_forcefield_molecule(mol_poly)
-        if forcefield_mode == "backbone_glycam_only":
-            if selector_enabled:
-                raise ValueError(
-                    "forcefield.options.mode=backbone_glycam_only supports pure backbone systems only; selectors are not supported."
-                )
-            if backbone.end_mode != "open":
-                raise ValueError(
-                    "forcefield.options.mode=backbone_glycam_only supports only open chains."
-                )
-            if backbone.monomer_representation != "anhydro":
-                raise ValueError(
-                    "forcefield.options.mode=backbone_glycam_only supports only the anhydro backbone representation."
-                )
-            if relax_requested:
-                raise ValueError(
-                    "forcefield.options.mode=backbone_glycam_only does not support relaxation yet."
-                )
-            glycam_params = load_glycam_params(
-                polymer=polymer_kind,
-                representation=monomer_representation,
-                end_mode=end_mode,  # type: ignore[arg-type]
-                work_dir=outdir / "glycam_reference",
-            )
-            built_system = build_backbone_glycam_system(
-                forcefield_input.mol,
-                glycam_params,
-            )
-            forcefield_summary = {
-                "enabled": True,
-                "mode": forcefield_mode,
-                "parameter_backend": "glycam_reference_extract",
-                "nonbonded_mode": built_system.nonbonded_mode,
-                "particle_count": int(built_system.system.getNumParticles()),
-                "force_count": int(built_system.system.getNumForces()),
-                "topology_manifest_size": len(built_system.topology_manifest),
-                "component_counts": dict(built_system.component_counts),
-                "exception_summary": dict(built_system.exception_summary),
-                "source_manifest": dict(built_system.source_manifest),
-            }
-        elif forcefield_mode == "legacy_generic":
-            forcefield_summary = {
-                "enabled": True,
-                "mode": forcefield_mode,
-                "parameter_backend": "generic_runtime",
-                "notes": [
-                    "Legacy generic runtime path remains available for relaxation and mixed-system work.",
-                ],
-            }
-        else:
-            raise ValueError(f"Unsupported forcefield.options.mode {forcefield_mode!r}.")
-
-    # ---- Stage 4b: AMBER export (needed before relaxation for prmtop). ---
-    if amber_cfg_enabled:
-        from poly_csp.structure.pbc import get_box_vectors_A as _get_bv_relax
-        _bv_relax = _get_bv_relax(mol_poly) if is_periodic else None
-        amber_summary = export_amber_artifacts(
-            mol=mol_poly,
-            outdir=outdir / amber_dir,
-            model_name="model",
-            charge_model=amber_charge_model,
-            net_charge=amber_net_charge,
-            polymer=polymer_kind,
-            dp=dp,
-            selector_mol=(
-                selector.mol if selector is not None else None
-            ),
-            periodic=is_periodic,
-            box_vectors_A=_bv_relax,
+        runtime_params = load_runtime_params(
+            runtime_mol,
+            selector_template=selector,
+            work_dir=outdir / "runtime_params",
         )
-        amber_export_done = True
+        built_system = create_system(
+            runtime_mol,
+            glycam_params=runtime_params.glycam,
+            selector_params_by_name=runtime_params.selector_params_by_name,
+            connector_params_by_key=runtime_params.connector_params_by_key,
+            nonbonded_mode="full",
+            mixing_rules_cfg=(
+                OmegaConf.to_container(cfg.forcefield, resolve=True)
+                if "forcefield" in cfg and cfg.forcefield is not None
+                else None
+            ),
+        )
+        forcefield_summary = {
+            "enabled": True,
+            "mode": forcefield_mode,
+            "parameter_backend": "runtime_component_merge",
+            "nonbonded_mode": built_system.nonbonded_mode,
+            "particle_count": int(built_system.system.getNumParticles()),
+            "force_count": int(built_system.system.getNumForces()),
+            "topology_manifest_size": len(built_system.topology_manifest),
+            "component_counts": dict(built_system.component_counts),
+            "exception_summary": dict(built_system.exception_summary),
+            "source_manifest": dict(built_system.source_manifest),
+        }
 
     # ---- Stage 5: optional restrained relaxation.
     relax_summary: dict[str, object] = {"enabled": False}
@@ -599,17 +546,19 @@ def main(cfg: DictConfig) -> None:
             raise RuntimeError(
                 "Relaxation requested but run_staged_relaxation is unavailable."
             )
-        # Extract selector prmtop for GAFF2 force transfer.
-        _sel_prmtop = None
-        if isinstance(amber_summary.get("files"), dict):
-            _sel_prmtop = amber_summary["files"].get("selector_prmtop")  # type: ignore[union-attr]
-        mol_poly, relax_summary = run_staged_relaxation(
-            mol=mol_poly,
+        runtime_mol, relax_summary = run_staged_relaxation(
+            mol=runtime_mol,
             spec=relax_spec,
             selector=selector,
-            selector_prmtop_path=_sel_prmtop,
+            runtime_params=runtime_params,
+            mixing_rules_cfg=(
+                OmegaConf.to_container(cfg.forcefield, resolve=True)
+                if "forcefield" in cfg and cfg.forcefield is not None
+                else None
+            ),
         )
         relax_enabled = True
+        mol_poly = Chem.Mol(runtime_mol)
 
     # ---- Stage 6: QC metrics and threshold evaluation.
     conf = mol_poly.GetConformer(0)
@@ -730,13 +679,14 @@ def main(cfg: DictConfig) -> None:
 
     qc_pass = len(qc_fail_reasons) == 0
 
-    # ---- Stage 8: optional AMBER export (if not already done for relaxation).
-    amber_enabled = "amber" in output_export_formats or amber_export_done
-    if amber_enabled and not amber_export_done:
+    # ---- Stage 8: optional AMBER export from the final coordinates.
+    amber_enabled = "amber" in output_export_formats
+    if amber_enabled:
         from poly_csp.structure.pbc import get_box_vectors_A as _get_bv
-        _bv = _get_bv(mol_poly) if is_periodic else None
+        export_mol = runtime_mol if forcefield_enabled else mol_poly
+        _bv = _get_bv(export_mol) if is_periodic else None
         amber_summary = export_amber_artifacts(
-            mol=mol_poly,
+            mol=export_mol,
             outdir=outdir / amber_dir,
             model_name="model",
             charge_model=amber_charge_model,
@@ -749,9 +699,8 @@ def main(cfg: DictConfig) -> None:
             periodic=is_periodic,
             box_vectors_A=_bv,
         )
-        amber_export_done = True
 
-    forcefield_result = build_forcefield_molecule(mol_poly)
+    forcefield_result = build_forcefield_molecule(runtime_mol if forcefield_enabled else mol_poly)
     final_mol = forcefield_result.mol
     all_atom_stats = {
         "all_atom_atom_count": int(final_mol.GetNumAtoms()),
@@ -787,7 +736,7 @@ def main(cfg: DictConfig) -> None:
         forcefield_mode=str(forcefield_mode),
         forcefield_summary=forcefield_summary,
         relax_enabled=bool(relax_enabled),
-        relax_mode="hybrid_split_system" if relax_enabled else "none",
+        relax_mode="two_stage_runtime" if relax_enabled else "none",
         relax_summary=relax_summary,
         qc_min_heavy_distance_A=qc_min_dist,
         qc_class_min_distance_A=qc_class_dist,

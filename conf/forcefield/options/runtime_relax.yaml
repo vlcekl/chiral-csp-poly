@@ -1,5 +1,4 @@
 enabled: true
-mode: legacy_generic
 relax_enabled: true
 
 # Restrained relaxation controls

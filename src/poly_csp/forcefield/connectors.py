@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Collection, Dict, Mapping, Sequence
+from typing import Dict, Literal, Sequence
 
-import numpy as np
 import openmm as mm
 from openmm import app as mmapp
 from openmm import unit
@@ -12,6 +11,7 @@ from rdkit import Chem
 
 from poly_csp.config.schema import HelixSpec, MonomerRepresentation, PolymerKind, Site
 from poly_csp.forcefield.gaff import build_fragment_prmtop, parameterize_gaff_fragment
+from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.atom_mapping import attachment_instance_maps
 from poly_csp.topology.backbone import polymerize
@@ -21,16 +21,55 @@ from poly_csp.topology.selectors import SelectorTemplate
 from poly_csp.topology.utils import residue_label_maps
 
 
+ConnectorSource = Literal["backbone", "selector", "connector"]
+
+
+@dataclass(frozen=True)
+class ConnectorToken:
+    source: ConnectorSource
+    atom_name: str
+
+
+@dataclass(frozen=True)
+class ConnectorAtomParams:
+    atom_name: str
+    charge_e: float
+    sigma_nm: float
+    epsilon_kj_per_mol: float
+
+
+@dataclass(frozen=True)
+class ConnectorBondTemplate:
+    atoms: tuple[ConnectorToken, ConnectorToken]
+    length_nm: float
+    k_kj_per_mol_nm2: float
+
+
+@dataclass(frozen=True)
+class ConnectorAngleTemplate:
+    atoms: tuple[ConnectorToken, ConnectorToken, ConnectorToken]
+    theta0_rad: float
+    k_kj_per_mol_rad2: float
+
+
+@dataclass(frozen=True)
+class ConnectorTorsionTemplate:
+    atoms: tuple[ConnectorToken, ConnectorToken, ConnectorToken, ConnectorToken]
+    periodicity: int
+    phase_rad: float
+    k_kj_per_mol: float
+
+
 @dataclass(frozen=True)
 class ConnectorParams:
     polymer: PolymerKind | None = None
     selector_name: str | None = None
     site: Site | None = None
     monomer_representation: MonomerRepresentation | None = None
-    bond_params: Dict[tuple[str, str], tuple[float, float]] = field(default_factory=dict)
-    angle_params: Dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
-    torsion_params: tuple[tuple[tuple[str, str, str, str], tuple[int, float, float]], ...] = ()
-    connector_atom_roles: Dict[str, str] = field(default_factory=dict)
+    atom_params: dict[str, ConnectorAtomParams] = field(default_factory=dict)
+    bonds: tuple[ConnectorBondTemplate, ...] = ()
+    angles: tuple[ConnectorAngleTemplate, ...] = ()
+    torsions: tuple[ConnectorTorsionTemplate, ...] = ()
     source_prmtop: str | None = None
     fragment_atom_count: int | None = None
 
@@ -43,22 +82,14 @@ class CappedMonomerFragment:
     connector_atom_roles: Dict[str, str] = field(default_factory=dict)
 
 
-def _fragment_heavy_atom_names(fragment: CappedMonomerFragment) -> dict[int, str]:
-    names: dict[int, str] = {}
-    for role, atom_idx in fragment.atom_roles.items():
-        if role.startswith("BB_"):
-            names[int(atom_idx)] = role[3:][:4]
-        elif role.startswith("SL_"):
-            names[int(atom_idx)] = f"S{role[3:]}"[:4]
-    return names
-
-
-def _fragment_short_name_to_role(fragment: CappedMonomerFragment) -> dict[str, str]:
-    heavy_names = _fragment_heavy_atom_names(fragment)
-    return {
-        heavy_names[int(atom_idx)]: role
-        for role, atom_idx in fragment.atom_roles.items()
-    }
+def _fragment_atom_role_map(fragment: Chem.Mol) -> dict[int, str]:
+    out: dict[int, str] = {}
+    for atom in fragment.GetAtoms():
+        if atom.HasProp("_poly_csp_manifest_source"):
+            source = atom.GetProp("_poly_csp_manifest_source")
+            atom_name = atom.GetProp("_poly_csp_atom_name")
+            out[int(atom.GetIdx())] = f"{source}:{atom_name}"
+    return out
 
 
 def build_capped_monomer_fragment(
@@ -67,14 +98,7 @@ def build_capped_monomer_fragment(
     site: Site,
     monomer_representation: MonomerRepresentation = "natural_oh",
 ) -> CappedMonomerFragment:
-    """Build a single-residue capped fragment with one attached selector.
-
-    The fragment is the topology/structure precursor for capped-monomer
-    connector parameter extraction. Atom roles are assigned in semantic
-    space:
-    - backbone atoms: ``BB_<label>`` from residue label metadata
-    - attached selector atoms: ``SL_<local_idx>``
-    """
+    """Build a single-residue capped fragment with one attached selector."""
     template = make_glucose_template(
         polymer,
         monomer_representation=monomer_representation,
@@ -146,186 +170,71 @@ def build_capped_monomer_fragment(
     )
 
 
-def _canonical_bond_roles(a: str, b: str) -> tuple[str, str]:
-    return (a, b) if a <= b else (b, a)
+def _bond_key(
+    atoms: tuple[ConnectorToken, ConnectorToken],
+) -> tuple[ConnectorToken, ConnectorToken]:
+    a, b = atoms
+    return (a, b) if (a.source, a.atom_name) <= (b.source, b.atom_name) else (b, a)
 
 
-def _canonical_angle_roles(a: str, b: str, c: str) -> tuple[str, str, str]:
-    return (a, b, c) if a <= c else (c, b, a)
+def _angle_key(
+    atoms: tuple[ConnectorToken, ConnectorToken, ConnectorToken],
+) -> tuple[ConnectorToken, ConnectorToken, ConnectorToken]:
+    a, b, c = atoms
+    return (a, b, c) if (a.source, a.atom_name) <= (c.source, c.atom_name) else (c, b, a)
 
 
-def extract_linkage_params_from_system(
-    ref_system: mm.System,
-    fragment: CappedMonomerFragment,
-    source_prmtop: str | None = None,
-) -> ConnectorParams:
-    """Extract connector-specific bonded terms from a reference fragment system."""
-    idx_to_role = {idx: role for role, idx in fragment.atom_roles.items()}
-    connector_atom_roles = set(fragment.connector_atom_roles.values())
+def _append_unique_torsion(
+    bucket: list[ConnectorTorsionTemplate],
+    template: ConnectorTorsionTemplate,
+) -> None:
+    for existing in bucket:
+        if existing.atoms != template.atoms:
+            continue
+        if (
+            existing.periodicity == template.periodicity
+            and abs(existing.phase_rad - template.phase_rad) <= 1e-8
+            and abs(existing.k_kj_per_mol - template.k_kj_per_mol) <= 1e-8
+        ):
+            return
+    bucket.append(template)
 
-    bond_params: Dict[tuple[str, str], tuple[float, float]] = {}
-    angle_params: Dict[tuple[str, str, str], tuple[float, float]] = {}
-    torsion_terms: list[tuple[tuple[str, str, str, str], tuple[int, float, float]]] = []
 
-    for force_idx in range(ref_system.getNumForces()):
-        force = ref_system.getForce(force_idx)
-        if isinstance(force, mm.HarmonicBondForce):
-            for bond_idx in range(force.getNumBonds()):
-                a, b, r0, k = force.getBondParameters(bond_idx)
-                roles = (idx_to_role.get(int(a)), idx_to_role.get(int(b)))
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                bond_params[_canonical_bond_roles(roles[0], roles[1])] = (
-                    float(r0.value_in_unit(unit.nanometer)),
-                    float(k.value_in_unit(unit.kilojoule_per_mole / unit.nanometer**2)),
-                )
+def _token_sort_key(token: ConnectorToken) -> tuple[str, str]:
+    return (str(token.source), str(token.atom_name))
 
-        elif isinstance(force, mm.HarmonicAngleForce):
-            for angle_idx in range(force.getNumAngles()):
-                a, b, c, theta0, k = force.getAngleParameters(angle_idx)
-                roles = (
-                    idx_to_role.get(int(a)),
-                    idx_to_role.get(int(b)),
-                    idx_to_role.get(int(c)),
-                )
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                angle_params[_canonical_angle_roles(roles[0], roles[1], roles[2])] = (
-                    float(theta0.value_in_unit(unit.radian)),
-                    float(k.value_in_unit(unit.kilojoule_per_mole / unit.radian**2)),
-                )
 
-        elif isinstance(force, mm.PeriodicTorsionForce):
-            for torsion_idx in range(force.getNumTorsions()):
-                a, b, c, d, periodicity, phase, k = force.getTorsionParameters(torsion_idx)
-                roles = (
-                    idx_to_role.get(int(a)),
-                    idx_to_role.get(int(b)),
-                    idx_to_role.get(int(c)),
-                    idx_to_role.get(int(d)),
-                )
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                torsion_terms.append(
-                    (
-                        (roles[0], roles[1], roles[2], roles[3]),
-                        (
-                            int(periodicity),
-                            float(phase.value_in_unit(unit.radian)),
-                            float(k.value_in_unit(unit.kilojoule_per_mole)),
-                        ),
-                    )
-                )
+def _token_tuple_sort_key(tokens: tuple[ConnectorToken, ...]) -> tuple[tuple[str, str], ...]:
+    return tuple(_token_sort_key(token) for token in tokens)
 
-    selector_name = None
-    if fragment.mol.HasProp("_poly_csp_selector_count") and fragment.mol.GetIntProp("_poly_csp_selector_count") > 0:
-        for atom in fragment.mol.GetAtoms():
-            if atom.HasProp("_poly_csp_component") and atom.GetProp("_poly_csp_component") in {"selector", "connector"}:
-                selector_name = "attached_selector"
-                break
 
-    return ConnectorParams(
-        selector_name=selector_name,
-        bond_params=bond_params,
-        angle_params=angle_params,
-        torsion_params=tuple(torsion_terms),
-        connector_atom_roles=dict(fragment.connector_atom_roles),
-        source_prmtop=source_prmtop,
-        fragment_atom_count=fragment.mol.GetNumAtoms(),
+def _forcefield_fragment_metadata(fragment: CappedMonomerFragment) -> tuple[Chem.Mol, dict[str, str]]:
+    forcefield = build_forcefield_molecule(fragment.mol)
+    atom_names = {
+        int(entry.atom_index): str(entry.atom_name)
+        for entry in forcefield.manifest
+    }
+    source_by_name = {
+        str(entry.atom_name): str(entry.source)
+        for entry in forcefield.manifest
+    }
+    return forcefield.mol, source_by_name
+
+
+def _tokenize_terms(
+    names: Sequence[str],
+    source_by_name: dict[str, str],
+) -> tuple[ConnectorToken, ...]:
+    return tuple(
+        ConnectorToken(
+            source=str(source_by_name[name]).replace("terminal_cap_left", "backbone").replace("terminal_cap_right", "backbone"),  # type: ignore[arg-type]
+            atom_name=str(name),
+        )
+        for name in names
     )
 
 
-def extract_linkage_params(
-    prmtop_path: str | Path,
-    fragment: CappedMonomerFragment,
-) -> ConnectorParams:
-    """Extract connector-specific bonded terms from a capped-fragment prmtop."""
-    prmtop = mmapp.AmberPrmtopFile(str(prmtop_path))
-    ref_system = prmtop.createSystem()
-    short_name_to_role = _fragment_short_name_to_role(fragment)
-    idx_to_role: dict[int, str] = {}
-    for atom_idx, atom in enumerate(prmtop.topology.atoms()):
-        role = short_name_to_role.get(atom.name.strip())
-        if role is not None:
-            idx_to_role[int(atom_idx)] = role
-
-    connector_atom_roles = set(fragment.connector_atom_roles.values())
-    bond_params: Dict[tuple[str, str], tuple[float, float]] = {}
-    angle_params: Dict[tuple[str, str, str], tuple[float, float]] = {}
-    torsion_terms: list[tuple[tuple[str, str, str, str], tuple[int, float, float]]] = []
-
-    for force_idx in range(ref_system.getNumForces()):
-        force = ref_system.getForce(force_idx)
-        if isinstance(force, mm.HarmonicBondForce):
-            for bond_idx in range(force.getNumBonds()):
-                a, b, r0, k = force.getBondParameters(bond_idx)
-                roles = (idx_to_role.get(int(a)), idx_to_role.get(int(b)))
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                bond_params[_canonical_bond_roles(roles[0], roles[1])] = (
-                    float(r0.value_in_unit(unit.nanometer)),
-                    float(k.value_in_unit(unit.kilojoule_per_mole / unit.nanometer**2)),
-                )
-        elif isinstance(force, mm.HarmonicAngleForce):
-            for angle_idx in range(force.getNumAngles()):
-                a, b, c, theta0, k = force.getAngleParameters(angle_idx)
-                roles = (
-                    idx_to_role.get(int(a)),
-                    idx_to_role.get(int(b)),
-                    idx_to_role.get(int(c)),
-                )
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                angle_params[_canonical_angle_roles(roles[0], roles[1], roles[2])] = (
-                    float(theta0.value_in_unit(unit.radian)),
-                    float(k.value_in_unit(unit.kilojoule_per_mole / unit.radian**2)),
-                )
-        elif isinstance(force, mm.PeriodicTorsionForce):
-            for torsion_idx in range(force.getNumTorsions()):
-                a, b, c, d, periodicity, phase, k = force.getTorsionParameters(torsion_idx)
-                roles = (
-                    idx_to_role.get(int(a)),
-                    idx_to_role.get(int(b)),
-                    idx_to_role.get(int(c)),
-                    idx_to_role.get(int(d)),
-                )
-                if any(role is None for role in roles):
-                    continue
-                if not connector_atom_roles.intersection(roles):
-                    continue
-                torsion_terms.append(
-                    (
-                        (roles[0], roles[1], roles[2], roles[3]),
-                        (
-                            int(periodicity),
-                            float(phase.value_in_unit(unit.radian)),
-                            float(k.value_in_unit(unit.kilojoule_per_mole)),
-                        ),
-                    )
-                )
-
-    return ConnectorParams(
-        selector_name="attached_selector",
-        bond_params=bond_params,
-        angle_params=angle_params,
-        torsion_params=tuple(torsion_terms),
-        connector_atom_roles=dict(fragment.connector_atom_roles),
-        source_prmtop=str(prmtop_path),
-        fragment_atom_count=fragment.mol.GetNumAtoms(),
-    )
-
-
-def parameterize_capped_monomer(
+def load_connector_params(
     polymer: PolymerKind,
     selector_template: SelectorTemplate,
     site: Site,
@@ -334,7 +243,7 @@ def parameterize_capped_monomer(
     monomer_representation: MonomerRepresentation = "natural_oh",
     work_dir: Path | None = None,
 ) -> ConnectorParams:
-    """Parameterize a capped monomer and extract connector bonded terms."""
+    """Parameterize a capped monomer and extract connector owned runtime payloads."""
     if not site:
         raise ValueError("site must be non-empty")
     if selector_template.mol.GetNumAtoms() == 0:
@@ -346,8 +255,14 @@ def parameterize_capped_monomer(
         site=site,
         monomer_representation=monomer_representation,
     )
+    forcefield_mol, source_by_name = _forcefield_fragment_metadata(fragment)
+    atom_name_map = {
+        int(atom.GetIdx()): atom.GetProp("_poly_csp_atom_name")
+        for atom in forcefield_mol.GetAtoms()
+    }
+
     artifacts = parameterize_gaff_fragment(
-        fragment_mol=fragment.mol,
+        fragment_mol=forcefield_mol,
         charge_model=charge_model,
         net_charge=net_charge,
         residue_name="CNN",
@@ -356,7 +271,7 @@ def parameterize_capped_monomer(
         frcmod_name="connector_fragment.frcmod",
         lib_name="connector_fragment.lib",
         work_dir=work_dir,
-        heavy_atom_names=_fragment_heavy_atom_names(fragment),
+        atom_names=atom_name_map,
     )
     prmtop_path = build_fragment_prmtop(
         mol2_path=artifacts["mol2"],
@@ -366,16 +281,277 @@ def parameterize_capped_monomer(
         clean_mol2_name="connector_fragment_clean.mol2",
         work_dir=work_dir,
     )
-    params = extract_linkage_params(prmtop_path=prmtop_path, fragment=fragment)
+
+    prmtop = mmapp.AmberPrmtopFile(str(prmtop_path))
+    system = prmtop.createSystem()
+    prmtop_atoms = list(prmtop.topology.atoms())
+    if len(prmtop_atoms) != forcefield_mol.GetNumAtoms():
+        raise ValueError(
+            "Connector reference atom count changed during AMBER conversion: "
+            f"forcefield={forcefield_mol.GetNumAtoms()}, prmtop={len(prmtop_atoms)}."
+        )
+    prmtop_idx_to_name = {
+        int(atom_idx): atom_name_map[int(atom_idx)]
+        for atom_idx in range(len(prmtop_atoms))
+    }
+
+    nonbonded = None
+    for force_idx in range(system.getNumForces()):
+        force = system.getForce(force_idx)
+        if isinstance(force, mm.NonbondedForce):
+            nonbonded = force
+            break
+    if nonbonded is None:
+        raise ValueError("Connector reference system is missing NonbondedForce.")
+
+    atom_params: dict[str, ConnectorAtomParams] = {}
+    for atom_idx, atom_name in prmtop_idx_to_name.items():
+        if source_by_name[atom_name] != "connector":
+            continue
+        charge, sigma, epsilon = nonbonded.getParticleParameters(int(atom_idx))
+        atom_params[atom_name] = ConnectorAtomParams(
+            atom_name=atom_name,
+            charge_e=float(charge.value_in_unit(unit.elementary_charge)),
+            sigma_nm=float(sigma.value_in_unit(unit.nanometer)),
+            epsilon_kj_per_mol=float(epsilon.value_in_unit(unit.kilojoule_per_mole)),
+        )
+
+    bonds: dict[tuple[ConnectorToken, ConnectorToken], ConnectorBondTemplate] = {}
+    angles: dict[
+        tuple[ConnectorToken, ConnectorToken, ConnectorToken],
+        ConnectorAngleTemplate,
+    ] = {}
+    torsions: list[ConnectorTorsionTemplate] = []
+
+    def _touches_connector(names: Sequence[str]) -> bool:
+        return any(source_by_name[name] == "connector" for name in names)
+
+    for force_idx in range(system.getNumForces()):
+        force = system.getForce(force_idx)
+
+        if isinstance(force, mm.HarmonicBondForce):
+            for bond_idx in range(force.getNumBonds()):
+                a, b, r0, k = force.getBondParameters(bond_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _touches_connector(names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms((str(names[0]), str(names[1])), source_by_name)
+                key = _bond_key((tokens[0], tokens[1]))
+                bonds[key] = ConnectorBondTemplate(
+                    atoms=key,
+                    length_nm=float(r0.value_in_unit(unit.nanometer)),
+                    k_kj_per_mol_nm2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.nanometer**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.HarmonicAngleForce):
+            for angle_idx in range(force.getNumAngles()):
+                a, b, c, theta0, k = force.getAngleParameters(angle_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                    prmtop_idx_to_name.get(int(c)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _touches_connector(names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms(
+                    (str(names[0]), str(names[1]), str(names[2])),
+                    source_by_name,
+                )
+                key = _angle_key((tokens[0], tokens[1], tokens[2]))
+                angles[key] = ConnectorAngleTemplate(
+                    atoms=key,
+                    theta0_rad=float(theta0.value_in_unit(unit.radian)),
+                    k_kj_per_mol_rad2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.radian**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.PeriodicTorsionForce):
+            for torsion_idx in range(force.getNumTorsions()):
+                a, b, c, d, periodicity, phase, k = force.getTorsionParameters(torsion_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                    prmtop_idx_to_name.get(int(c)),
+                    prmtop_idx_to_name.get(int(d)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _touches_connector(names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms(
+                    (str(names[0]), str(names[1]), str(names[2]), str(names[3])),
+                    source_by_name,
+                )
+                _append_unique_torsion(
+                    torsions,
+                    ConnectorTorsionTemplate(
+                        atoms=(tokens[0], tokens[1], tokens[2], tokens[3]),
+                        periodicity=int(periodicity),
+                        phase_rad=float(phase.value_in_unit(unit.radian)),
+                        k_kj_per_mol=float(k.value_in_unit(unit.kilojoule_per_mole)),
+                    ),
+                )
+
+    if not atom_params:
+        raise ValueError("Connector payload extraction produced no connector atom parameters.")
+
     return ConnectorParams(
         polymer=polymer,
         selector_name=selector_template.name,
         site=site,
         monomer_representation=monomer_representation,
-        bond_params=params.bond_params,
-        angle_params=params.angle_params,
-        torsion_params=params.torsion_params,
-        connector_atom_roles=params.connector_atom_roles,
-        source_prmtop=params.source_prmtop,
-        fragment_atom_count=params.fragment_atom_count,
+        atom_params=atom_params,
+        bonds=tuple(sorted(bonds.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        angles=tuple(sorted(angles.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        torsions=tuple(
+            sorted(
+                torsions,
+                key=lambda item: (
+                    _token_tuple_sort_key(item.atoms),
+                    item.periodicity,
+                    item.phase_rad,
+                    item.k_kj_per_mol,
+                ),
+            )
+        ),
+        source_prmtop=str(prmtop_path),
+        fragment_atom_count=forcefield_mol.GetNumAtoms(),
+    )
+
+
+def extract_linkage_params_from_system(
+    ref_system: mm.System,
+    fragment: CappedMonomerFragment,
+    source_prmtop: str | None = None,
+) -> ConnectorParams:
+    """Test helper: extract connector payloads from a prebuilt reference system."""
+    forcefield_mol, source_by_name = _forcefield_fragment_metadata(fragment)
+    atom_name_map = {
+        int(atom.GetIdx()): atom.GetProp("_poly_csp_atom_name")
+        for atom in forcefield_mol.GetAtoms()
+    }
+    idx_to_name = atom_name_map
+
+    atom_params: dict[str, ConnectorAtomParams] = {}
+    bonds: dict[tuple[ConnectorToken, ConnectorToken], ConnectorBondTemplate] = {}
+    angles: dict[
+        tuple[ConnectorToken, ConnectorToken, ConnectorToken],
+        ConnectorAngleTemplate,
+    ] = {}
+    torsions: list[ConnectorTorsionTemplate] = []
+
+    for force_idx in range(ref_system.getNumForces()):
+        force = ref_system.getForce(force_idx)
+        if isinstance(force, mm.NonbondedForce):
+            for atom_idx in range(force.getNumParticles()):
+                atom_name = idx_to_name.get(int(atom_idx))
+                if atom_name is None or source_by_name[atom_name] != "connector":
+                    continue
+                charge, sigma, epsilon = force.getParticleParameters(int(atom_idx))
+                atom_params[atom_name] = ConnectorAtomParams(
+                    atom_name=atom_name,
+                    charge_e=float(charge.value_in_unit(unit.elementary_charge)),
+                    sigma_nm=float(sigma.value_in_unit(unit.nanometer)),
+                    epsilon_kj_per_mol=float(epsilon.value_in_unit(unit.kilojoule_per_mole)),
+                )
+            continue
+
+        if isinstance(force, mm.HarmonicBondForce):
+            for bond_idx in range(force.getNumBonds()):
+                a, b, r0, k = force.getBondParameters(bond_idx)
+                names = (idx_to_name.get(int(a)), idx_to_name.get(int(b)))
+                if any(name is None for name in names):
+                    continue
+                if not any(source_by_name[name] == "connector" for name in names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms((str(names[0]), str(names[1])), source_by_name)
+                key = _bond_key((tokens[0], tokens[1]))
+                bonds[key] = ConnectorBondTemplate(
+                    atoms=key,
+                    length_nm=float(r0.value_in_unit(unit.nanometer)),
+                    k_kj_per_mol_nm2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.nanometer**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.HarmonicAngleForce):
+            for angle_idx in range(force.getNumAngles()):
+                a, b, c, theta0, k = force.getAngleParameters(angle_idx)
+                names = (idx_to_name.get(int(a)), idx_to_name.get(int(b)), idx_to_name.get(int(c)))
+                if any(name is None for name in names):
+                    continue
+                if not any(source_by_name[name] == "connector" for name in names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms(
+                    (str(names[0]), str(names[1]), str(names[2])),
+                    source_by_name,
+                )
+                key = _angle_key((tokens[0], tokens[1], tokens[2]))
+                angles[key] = ConnectorAngleTemplate(
+                    atoms=key,
+                    theta0_rad=float(theta0.value_in_unit(unit.radian)),
+                    k_kj_per_mol_rad2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.radian**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.PeriodicTorsionForce):
+            for torsion_idx in range(force.getNumTorsions()):
+                a, b, c, d, periodicity, phase, k = force.getTorsionParameters(torsion_idx)
+                names = (
+                    idx_to_name.get(int(a)),
+                    idx_to_name.get(int(b)),
+                    idx_to_name.get(int(c)),
+                    idx_to_name.get(int(d)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not any(source_by_name[name] == "connector" for name in names):  # type: ignore[arg-type]
+                    continue
+                tokens = _tokenize_terms(
+                    (str(names[0]), str(names[1]), str(names[2]), str(names[3])),
+                    source_by_name,
+                )
+                _append_unique_torsion(
+                    torsions,
+                    ConnectorTorsionTemplate(
+                        atoms=(tokens[0], tokens[1], tokens[2], tokens[3]),
+                        periodicity=int(periodicity),
+                        phase_rad=float(phase.value_in_unit(unit.radian)),
+                        k_kj_per_mol=float(k.value_in_unit(unit.kilojoule_per_mole)),
+                    ),
+                )
+
+    return ConnectorParams(
+        selector_name="attached_selector",
+        atom_params=atom_params,
+        bonds=tuple(sorted(bonds.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        angles=tuple(sorted(angles.values(), key=lambda item: _token_tuple_sort_key(item.atoms))),
+        torsions=tuple(
+            sorted(
+                torsions,
+                key=lambda item: (
+                    _token_tuple_sort_key(item.atoms),
+                    item.periodicity,
+                    item.phase_rad,
+                    item.k_kj_per_mol,
+                ),
+            )
+        ),
+        source_prmtop=source_prmtop,
+        fragment_atom_count=forcefield_mol.GetNumAtoms(),
     )

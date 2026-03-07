@@ -1,22 +1,8 @@
 # poly_csp/forcefield/gaff.py
-"""Transfer GAFF2 bonded forces from a selector prmtop to the full molecule.
-
-This module solves the per-fragment mapping problem: each selector instance
-in the polymer is an identical copy of the template, so we load the prmtop
-once and replicate its forces for every instance, remapping atom indices
-through the ``_poly_csp_selector_local_idx`` property.
-
-Dummy atom handling
--------------------
-The selector template SMILES includes a ``[*]`` dummy atom at
-``attach_dummy_idx``.  During GAFF2 parameterisation the dummy is replaced
-with H, so the prmtop has the *same atom count* as the original template.
-After attachment to the polymer the dummy atom is **removed**, so the
-corresponding ``local_idx`` is absent from the per-instance mapping.
-Any prmtop force term that involves the dummy index is skipped.
-"""
+"""GAFF2 selector fragment parameterization and runtime payload extraction."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import shutil
 import subprocess
@@ -29,18 +15,54 @@ from rdkit.Chem import rdchem
 
 import openmm as mm
 from openmm import app as mmapp
+from openmm import unit
 
 from poly_csp.structure.hydrogens import complete_with_hydrogens
-from poly_csp.topology.atom_mapping import selector_instance_maps
 from poly_csp.topology.selectors import SelectorTemplate
 from poly_csp.io.pdb import write_pdb_from_rdkit
 
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# AmberTools fragment parameterization helpers
-# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class SelectorAtomParams:
+    atom_name: str
+    charge_e: float
+    sigma_nm: float
+    epsilon_kj_per_mol: float
+
+
+@dataclass(frozen=True)
+class SelectorBondTemplate:
+    atom_names: tuple[str, str]
+    length_nm: float
+    k_kj_per_mol_nm2: float
+
+
+@dataclass(frozen=True)
+class SelectorAngleTemplate:
+    atom_names: tuple[str, str, str]
+    theta0_rad: float
+    k_kj_per_mol_rad2: float
+
+
+@dataclass(frozen=True)
+class SelectorTorsionTemplate:
+    atom_names: tuple[str, str, str, str]
+    periodicity: int
+    phase_rad: float
+    k_kj_per_mol: float
+
+
+@dataclass(frozen=True)
+class SelectorFragmentParams:
+    selector_name: str
+    atom_params: dict[str, SelectorAtomParams]
+    bonds: tuple[SelectorBondTemplate, ...]
+    angles: tuple[SelectorAngleTemplate, ...]
+    torsions: tuple[SelectorTorsionTemplate, ...]
+    source_prmtop: str | None = None
+    fragment_atom_count: int | None = None
 
 
 def _ensure_required_tools(tools: Sequence[str]) -> None:
@@ -69,34 +91,35 @@ def _run_command(cmd: Sequence[str], cwd: Path, log_path: Path) -> None:
         )
 
 
-def _default_heavy_atom_names(fragment_mol: Chem.Mol) -> dict[int, str]:
+def _default_atom_names(fragment_mol: Chem.Mol) -> dict[int, str]:
     names: dict[int, str] = {}
-    serial = 0
+    heavy_serial = 0
+    hydrogen_serial = 1
     for atom in fragment_mol.GetAtoms():
         if atom.GetAtomicNum() <= 1:
+            names[int(atom.GetIdx())] = f"H{hydrogen_serial:03d}"
+            hydrogen_serial += 1
             continue
-        names[int(atom.GetIdx())] = f"A{serial:03d}"
-        serial += 1
+        names[int(atom.GetIdx())] = f"A{heavy_serial:03d}"
+        heavy_serial += 1
     return names
 
 
 def _assign_fragment_pdb_info(
     mol: Chem.Mol,
     residue_name: str,
-    heavy_atom_names: Mapping[int, str] | None = None,
+    atom_names: Mapping[int, str] | None = None,
 ) -> Chem.Mol:
     out = Chem.Mol(mol)
-    resolved_heavy_names = (
-        _default_heavy_atom_names(out)
-        if heavy_atom_names is None
-        else {int(idx): str(name)[:4] for idx, name in heavy_atom_names.items()}
+    resolved_names = (
+        _default_atom_names(out)
+        if atom_names is None
+        else {int(idx): str(name)[:4] for idx, name in atom_names.items()}
     )
-    hydrogen_serial = 1
+    if len(resolved_names) != out.GetNumAtoms():
+        raise ValueError("Fragment atom naming must cover every atom.")
     for atom in out.GetAtoms():
-        atom_name = resolved_heavy_names.get(int(atom.GetIdx()))
-        if atom_name is None:
-            atom_name = f"H{hydrogen_serial:03d}"
-            hydrogen_serial += 1
+        atom_name = resolved_names[int(atom.GetIdx())]
         info = rdchem.AtomPDBResidueInfo()
         if len(atom_name) < 4:
             atom_name = f" {atom_name:<3s}"
@@ -113,23 +136,138 @@ def _assign_fragment_pdb_info(
     return out
 
 
-def selector_heavy_atom_names(selector_template: SelectorTemplate) -> dict[int, str]:
+def _selector_atom_sources(selector_template: SelectorTemplate) -> dict[int, str]:
+    connector_heavy = {int(idx) for idx in selector_template.connector_local_roles}
+    sources: dict[int, str] = {}
+    for atom in selector_template.mol.GetAtoms():
+        idx = int(atom.GetIdx())
+        if selector_template.attach_dummy_idx is not None and idx == selector_template.attach_dummy_idx:
+            sources[idx] = "dummy"
+            continue
+        if idx in connector_heavy:
+            sources[idx] = "connector"
+            continue
+        if atom.GetAtomicNum() == 1 and atom.GetDegree() == 1:
+            parent_idx = int(atom.GetNeighbors()[0].GetIdx())
+            if parent_idx in connector_heavy:
+                sources[idx] = "connector"
+                continue
+        sources[idx] = "selector"
+    return sources
+
+
+def selector_atom_names(selector_template: SelectorTemplate) -> dict[int, str]:
+    hydrogen_by_parent: dict[int, list[int]] = {}
+    for atom in selector_template.mol.GetAtoms():
+        if atom.GetAtomicNum() != 1 or atom.GetDegree() != 1:
+            continue
+        parent_idx = int(atom.GetNeighbors()[0].GetIdx())
+        hydrogen_by_parent.setdefault(parent_idx, []).append(int(atom.GetIdx()))
+    for indices in hydrogen_by_parent.values():
+        indices.sort()
+
     names: dict[int, str] = {}
     for atom in selector_template.mol.GetAtoms():
         idx = int(atom.GetIdx())
-        if idx == selector_template.attach_dummy_idx:
+        if selector_template.attach_dummy_idx is not None and idx == selector_template.attach_dummy_idx:
+            names[idx] = "DUMM"
             continue
-        if atom.GetAtomicNum() <= 1:
+        if atom.GetAtomicNum() > 1:
+            names[idx] = f"S{idx:03d}"
             continue
-        names[idx] = f"S{idx:03d}"
+        if atom.GetDegree() != 1:
+            names[idx] = f"H{idx:03d}"[-4:]
+            continue
+        parent_idx = int(atom.GetNeighbors()[0].GetIdx())
+        siblings = hydrogen_by_parent.get(parent_idx, [idx])
+        serial = siblings.index(idx) + 1 if idx in siblings else 1
+        names[idx] = f"H{parent_idx % 100:02d}{serial}"
     return names
 
 
-def selector_heavy_name_to_local_idx(selector_template: SelectorTemplate) -> dict[str, int]:
-    return {
-        name: idx
-        for idx, name in selector_heavy_atom_names(selector_template).items()
-    }
+def _prepare_selector_reference(
+    selector_template: SelectorTemplate,
+) -> tuple[Chem.Mol, dict[int, str], dict[int, str]]:
+    """Build a dummy-free, hydrogen-complete selector reference fragment.
+
+    The selector template carries the future attachment as a dummy atom. For GAFF
+    extraction we first convert that into a complete standalone molecule, then
+    partition selector vs connector ownership on the finished reference.
+    """
+    original = Chem.Mol(selector_template.mol)
+    original_names = selector_atom_names(selector_template)
+    original_sources = _selector_atom_sources(selector_template)
+
+    working = Chem.RWMol(original)
+    if selector_template.attach_dummy_idx is not None:
+        dummy_idx = int(selector_template.attach_dummy_idx)
+        if dummy_idx < 0 or dummy_idx >= working.GetNumAtoms():
+            raise ValueError(
+                f"Selector dummy index {dummy_idx} is out of range for {selector_template.name!r}."
+            )
+        dummy_atom = working.GetAtomWithIdx(dummy_idx)
+        if dummy_atom.GetDegree() != 1:
+            raise ValueError(
+                f"Selector dummy atom for {selector_template.name!r} must have degree 1."
+            )
+        dummy_atom.SetAtomicNum(1)
+        dummy_atom.SetFormalCharge(0)
+        dummy_atom.SetNoImplicit(True)
+        dummy_atom.SetNumExplicitHs(0)
+    working = working.GetMol()
+    Chem.SanitizeMol(working)
+    prepared = complete_with_hydrogens(working, add_coords=True, optimize="h_only")
+    names_by_idx: dict[int, str] = {}
+    sources_by_idx: dict[int, str] = {}
+    for old_idx in range(original.GetNumAtoms()):
+        if (
+            selector_template.attach_dummy_idx is not None
+            and old_idx == int(selector_template.attach_dummy_idx)
+        ):
+            parent_idx = int(original.GetAtomWithIdx(old_idx).GetNeighbors()[0].GetIdx())
+            siblings = [
+                int(nbr.GetIdx())
+                for nbr in original.GetAtomWithIdx(parent_idx).GetNeighbors()
+                if nbr.GetAtomicNum() == 1 and nbr.GetIdx() != old_idx
+            ]
+            serial = len(siblings) + 1
+            names_by_idx[old_idx] = f"H{parent_idx % 100:02d}{serial}"
+            sources_by_idx[old_idx] = original_sources[parent_idx]
+            continue
+        names_by_idx[old_idx] = original_names[old_idx]
+        sources_by_idx[old_idx] = original_sources[old_idx]
+
+    hydrogen_by_parent: dict[int, list[int]] = {}
+    for atom in prepared.GetAtoms():
+        if atom.GetAtomicNum() != 1 or atom.GetDegree() != 1:
+            continue
+        parent_idx = int(atom.GetNeighbors()[0].GetIdx())
+        hydrogen_by_parent.setdefault(parent_idx, []).append(int(atom.GetIdx()))
+    for indices in hydrogen_by_parent.values():
+        indices.sort()
+
+    for atom in prepared.GetAtoms():
+        idx = int(atom.GetIdx())
+        if idx in names_by_idx:
+            continue
+        if atom.GetAtomicNum() != 1 or atom.GetDegree() != 1:
+            raise ValueError(
+                "Prepared selector reference introduced an unnamed non-hydrogen atom."
+            )
+        parent_idx = int(atom.GetNeighbors()[0].GetIdx())
+        parent_name = names_by_idx.get(parent_idx)
+        if parent_name is None or not parent_name.startswith("S"):
+            raise ValueError("Prepared selector reference is missing a named heavy parent.")
+        local_idx = int(parent_name[1:])
+        siblings = hydrogen_by_parent.get(parent_idx, [idx])
+        serial = siblings.index(idx) + 1 if idx in siblings else 1
+        names_by_idx[idx] = f"H{local_idx % 100:02d}{serial}"
+        sources_by_idx[idx] = sources_by_idx[parent_idx]
+
+    if len(names_by_idx) != prepared.GetNumAtoms():
+        raise ValueError("Prepared selector reference naming did not cover every atom.")
+
+    return prepared, names_by_idx, sources_by_idx
 
 
 def parameterize_gaff_fragment(
@@ -145,10 +283,10 @@ def parameterize_gaff_fragment(
     ensure_tools_fn: Callable[[Sequence[str]], None] = _ensure_required_tools,
     run_command_fn: Callable[[Sequence[str], Path, Path], None] = _run_command,
     write_pdb_fn: Callable[[Chem.Mol, str | Path], None] = write_pdb_from_rdkit,
-    heavy_atom_names: Mapping[int, str] | None = None,
+    atom_names: Mapping[int, str] | None = None,
 ) -> Dict[str, str]:
     """Run antechamber + parmchk2 + tleap saveoff on a single GAFF fragment."""
-    ensure_tools_fn(("antechamber", "parmchk2"))
+    ensure_tools_fn(("antechamber", "parmchk2", "tleap"))
 
     if work_dir is None:
         wd = Path(tempfile.mkdtemp(prefix="polycsp_gaff_"))
@@ -161,8 +299,6 @@ def parameterize_gaff_fragment(
     frcmod_path = wd / frcmod_name
     lib_path = wd / lib_name
 
-    # Replace dummy atoms ([*], atomic number 0) with hydrogen so that
-    # antechamber can perform atom typing and charge derivation.
     clean_mol = Chem.RWMol(fragment_mol)
     for atom in clean_mol.GetAtoms():
         if atom.GetAtomicNum() == 0:
@@ -176,7 +312,7 @@ def parameterize_gaff_fragment(
     prepared = _assign_fragment_pdb_info(
         prepared,
         residue_name=residue_name,
-        heavy_atom_names=heavy_atom_names,
+        atom_names=atom_names,
     )
 
     write_pdb_fn(prepared, pdb_path)
@@ -305,7 +441,6 @@ def _deduplicate_mol2_bonds(src: Path, dst: Path) -> None:
 
 
 def _flush_dedup_bonds(bond_lines: list[str], out_lines: list[str]) -> None:
-    """Deduplicate bond lines and append to out_lines with renumbered IDs."""
     seen: set[tuple[int, int]] = set()
     deduped: list[tuple[int, int, str]] = []
     for raw_line in bond_lines:
@@ -327,7 +462,6 @@ def _flush_dedup_bonds(bond_lines: list[str], out_lines: list[str]) -> None:
 
 
 def _fix_mol2_bond_count(lines: list[str], count_stash: list[str]) -> None:
-    """Fix the bond count in the @<TRIPOS>MOLECULE header."""
     if not count_stash:
         return
     try:
@@ -345,160 +479,30 @@ def _fix_mol2_bond_count(lines: list[str], count_stash: list[str]) -> None:
             break
 
 
-# ---------------------------------------------------------------------------
-# Load GAFF2 forces from prmtop and remap to molecule indices
-# ---------------------------------------------------------------------------
-
-def load_gaff2_selector_forces(
-    selector_prmtop_path: str,
-    mol: Chem.Mol,
-    selector_template: SelectorTemplate,
-) -> list[mm.Force]:
-    """Load GAFF2 bonded forces from the selector prmtop and remap indices.
-
-    Returns a list of OpenMM Force objects (HarmonicBondForce,
-    HarmonicAngleForce, PeriodicTorsionForce) whose particle indices
-    reference the full polymer molecule.
-
-    Parameters
-    ----------
-    selector_prmtop_path
-        Path to an AMBER prmtop file for the standalone selector fragment
-        (with dummy atom replaced by H).
-    mol
-        The full polymer RDKit molecule with selector atoms annotated via
-        ``_poly_csp_selector_instance`` and ``_poly_csp_selector_local_idx``.
-    selector_template
-        The SelectorTemplate that defines ``attach_dummy_idx``.
-
-    Returns
-    -------
-    List of OpenMM Force objects ready to be added to a System.  Typically
-    contains one HarmonicBondForce, one HarmonicAngleForce, and one or two
-    PeriodicTorsionForce objects (proper torsions + impropers). Terms that
-    cross into connector atoms are intentionally absent because
-    ``selector_instance_maps`` includes selector-core atoms only; those
-    linkage terms are handled by connector overlays.
-    """
-    # 1. Load the prmtop and create an OpenMM system to extract the forces.
-    prmtop = mmapp.AmberPrmtopFile(selector_prmtop_path)
-    ref_system = prmtop.createSystem()
-    name_to_local = selector_heavy_name_to_local_idx(selector_template)
-    prmtop_idx_to_local: dict[int, int] = {}
-    for atom_idx, atom in enumerate(prmtop.topology.atoms()):
-        atom_name = atom.name.strip()
-        local_idx = name_to_local.get(atom_name)
-        if local_idx is not None:
-            prmtop_idx_to_local[int(atom_idx)] = int(local_idx)
-
-    # 2. Extract per-instance mappings: {instance_id → {local_idx → global_idx}}.
-    #    local_idx == prmtop atom index (except for the dummy, which is absent).
-    mappings = selector_instance_maps(mol)
-    if not mappings:
-        log.warning("No selector instances found in molecule; returning empty forces.")
-        return []
-
-    n_instances = len(mappings)
-    log.info(
-        "Transferring GAFF2 forces from %s to %d selector instance(s).",
-        selector_prmtop_path, n_instances,
-    )
-
-    # 3. For each force type in the reference system, create a corresponding
-    #    force for the full molecule and replicate every term for each instance.
-    out_forces: list[mm.Force] = []
-
-    for force_idx in range(ref_system.getNumForces()):
-        ref_force = ref_system.getForce(force_idx)
-
-        if isinstance(ref_force, mm.HarmonicBondForce):
-            out_bond = mm.HarmonicBondForce()
-            for inst_map in mappings.values():
-                _transfer_bonds(ref_force, inst_map, prmtop_idx_to_local, out_bond)
-            out_forces.append(out_bond)
-            log.info("  HarmonicBondForce: %d bonds", out_bond.getNumBonds())
-
-        elif isinstance(ref_force, mm.HarmonicAngleForce):
-            out_angle = mm.HarmonicAngleForce()
-            for inst_map in mappings.values():
-                _transfer_angles(ref_force, inst_map, prmtop_idx_to_local, out_angle)
-            out_forces.append(out_angle)
-            log.info("  HarmonicAngleForce: %d angles", out_angle.getNumAngles())
-
-        elif isinstance(ref_force, mm.PeriodicTorsionForce):
-            out_torsion = mm.PeriodicTorsionForce()
-            for inst_map in mappings.values():
-                _transfer_torsions(ref_force, inst_map, prmtop_idx_to_local, out_torsion)
-            out_forces.append(out_torsion)
-            log.info("  PeriodicTorsionForce: %d torsions", out_torsion.getNumTorsions())
-
-        # NonbondedForce, CMMotionRemover, etc. are intentionally skipped —
-        # we use soft repulsion instead.
-
-    return out_forces
+def _bond_key(atom_names: tuple[str, str]) -> tuple[str, str]:
+    a, b = atom_names
+    return (a, b) if a <= b else (b, a)
 
 
-def _remap_idx(
-    prmtop_idx: int,
-    inst_map: Dict[int, int],
-    prmtop_idx_to_local: Mapping[int, int],
-) -> int | None:
-    """Map a prmtop atom index to a heavy-atom selector local index."""
-    local_idx = prmtop_idx_to_local.get(int(prmtop_idx))
-    if local_idx is None:
-        return None
-    return inst_map.get(int(local_idx))
+def _angle_key(atom_names: tuple[str, str, str]) -> tuple[str, str, str]:
+    a, b, c = atom_names
+    return (a, b, c) if a <= c else (c, b, a)
 
 
-def _transfer_bonds(
-    ref_force: mm.HarmonicBondForce,
-    inst_map: Dict[int, int],
-    prmtop_idx_to_local: Mapping[int, int],
-    out_force: mm.HarmonicBondForce,
+def _append_unique_torsion(
+    bucket: list[SelectorTorsionTemplate],
+    template: SelectorTorsionTemplate,
 ) -> None:
-    """Copy bond terms from the reference force, remapping indices."""
-    for bi in range(ref_force.getNumBonds()):
-        p1, p2, r0, k = ref_force.getBondParameters(bi)
-        g1 = _remap_idx(p1, inst_map, prmtop_idx_to_local)
-        g2 = _remap_idx(p2, inst_map, prmtop_idx_to_local)
-        if g1 is None or g2 is None:
+    for existing in bucket:
+        if existing.atom_names != template.atom_names:
             continue
-        out_force.addBond(g1, g2, r0, k)
-
-
-def _transfer_angles(
-    ref_force: mm.HarmonicAngleForce,
-    inst_map: Dict[int, int],
-    prmtop_idx_to_local: Mapping[int, int],
-    out_force: mm.HarmonicAngleForce,
-) -> None:
-    """Copy angle terms from the reference force, remapping indices."""
-    for ai in range(ref_force.getNumAngles()):
-        p1, p2, p3, theta0, k = ref_force.getAngleParameters(ai)
-        g1 = _remap_idx(p1, inst_map, prmtop_idx_to_local)
-        g2 = _remap_idx(p2, inst_map, prmtop_idx_to_local)
-        g3 = _remap_idx(p3, inst_map, prmtop_idx_to_local)
-        if g1 is None or g2 is None or g3 is None:
-            continue
-        out_force.addAngle(g1, g2, g3, theta0, k)
-
-
-def _transfer_torsions(
-    ref_force: mm.PeriodicTorsionForce,
-    inst_map: Dict[int, int],
-    prmtop_idx_to_local: Mapping[int, int],
-    out_force: mm.PeriodicTorsionForce,
-) -> None:
-    """Copy torsion terms from the reference force, remapping indices."""
-    for ti in range(ref_force.getNumTorsions()):
-        p1, p2, p3, p4, periodicity, phase, k = ref_force.getTorsionParameters(ti)
-        g1 = _remap_idx(p1, inst_map, prmtop_idx_to_local)
-        g2 = _remap_idx(p2, inst_map, prmtop_idx_to_local)
-        g3 = _remap_idx(p3, inst_map, prmtop_idx_to_local)
-        g4 = _remap_idx(p4, inst_map, prmtop_idx_to_local)
-        if g1 is None or g2 is None or g3 is None or g4 is None:
-            continue
-        out_force.addTorsion(g1, g2, g3, g4, periodicity, phase, k)
+        if (
+            existing.periodicity == template.periodicity
+            and abs(existing.phase_rad - template.phase_rad) <= 1e-8
+            and abs(existing.k_kj_per_mol - template.k_kj_per_mol) <= 1e-8
+        ):
+            return
+    bucket.append(template)
 
 
 def parameterize_isolated_selector(
@@ -508,8 +512,9 @@ def parameterize_isolated_selector(
     work_dir: str | Path | None = None,
 ) -> Dict[str, str]:
     """Parameterize a standalone selector fragment and return GAFF artifacts."""
+    prepared, atom_names, _ = _prepare_selector_reference(selector_template)
     artifacts = parameterize_gaff_fragment(
-        fragment_mol=selector_template.mol,
+        fragment_mol=prepared,
         charge_model=charge_model,
         net_charge=net_charge,
         residue_name="SEL",
@@ -518,7 +523,7 @@ def parameterize_isolated_selector(
         frcmod_name="selector.frcmod",
         lib_name="selector.lib",
         work_dir=None if work_dir is None else Path(work_dir),
-        heavy_atom_names=selector_heavy_atom_names(selector_template),
+        atom_names=atom_names,
     )
     prmtop = build_fragment_prmtop(
         mol2_path=artifacts["mol2"],
@@ -531,3 +536,166 @@ def parameterize_isolated_selector(
     out = dict(artifacts)
     out["prmtop"] = prmtop
     return out
+
+
+def load_selector_fragment_params(
+    selector_template: SelectorTemplate,
+    charge_model: str = "bcc",
+    net_charge: int = 0,
+    work_dir: str | Path | None = None,
+) -> SelectorFragmentParams:
+    """Extract a reusable GAFF2 selector-core payload from the complete fragment."""
+    prepared, atom_names, sources = _prepare_selector_reference(selector_template)
+    artifacts = parameterize_isolated_selector(
+        selector_template=selector_template,
+        charge_model=charge_model,
+        net_charge=net_charge,
+        work_dir=work_dir,
+    )
+
+    prmtop = mmapp.AmberPrmtopFile(str(artifacts["prmtop"]))
+    system = prmtop.createSystem()
+
+    name_to_idx = {name: idx for idx, name in atom_names.items()}
+    prmtop_atoms = list(prmtop.topology.atoms())
+    if len(prmtop_atoms) != prepared.GetNumAtoms():
+        raise ValueError(
+            "Selector GAFF reference atom count changed during AMBER conversion: "
+            f"prepared={prepared.GetNumAtoms()}, prmtop={len(prmtop_atoms)}."
+        )
+    prmtop_idx_to_name = {
+        int(atom_idx): atom_names[int(atom_idx)]
+        for atom_idx in range(len(prmtop_atoms))
+    }
+
+    selector_atom_names_only = {
+        atom_names[idx]
+        for idx, source in sources.items()
+        if source == "selector"
+    }
+
+    nonbonded = None
+    for force_idx in range(system.getNumForces()):
+        force = system.getForce(force_idx)
+        if isinstance(force, mm.NonbondedForce):
+            nonbonded = force
+            break
+    if nonbonded is None:
+        raise ValueError("Selector GAFF reference system is missing NonbondedForce.")
+
+    atom_params: dict[str, SelectorAtomParams] = {}
+    for atom_idx, atom_name in prmtop_idx_to_name.items():
+        local_idx = name_to_idx[atom_name]
+        if sources.get(local_idx) != "selector":
+            continue
+        charge, sigma, epsilon = nonbonded.getParticleParameters(int(atom_idx))
+        atom_params[atom_name] = SelectorAtomParams(
+            atom_name=atom_name,
+            charge_e=float(charge.value_in_unit(unit.elementary_charge)),
+            sigma_nm=float(sigma.value_in_unit(unit.nanometer)),
+            epsilon_kj_per_mol=float(epsilon.value_in_unit(unit.kilojoule_per_mole)),
+        )
+
+    bonds: dict[tuple[str, str], SelectorBondTemplate] = {}
+    angles: dict[tuple[str, str, str], SelectorAngleTemplate] = {}
+    torsions: list[SelectorTorsionTemplate] = []
+
+    def _all_selector(names: Sequence[str]) -> bool:
+        return all(name in selector_atom_names_only for name in names)
+
+    for force_idx in range(system.getNumForces()):
+        force = system.getForce(force_idx)
+
+        if isinstance(force, mm.HarmonicBondForce):
+            for bond_idx in range(force.getNumBonds()):
+                a, b, r0, k = force.getBondParameters(bond_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _all_selector(names):  # type: ignore[arg-type]
+                    continue
+                key = _bond_key((str(names[0]), str(names[1])))
+                bonds[key] = SelectorBondTemplate(
+                    atom_names=key,
+                    length_nm=float(r0.value_in_unit(unit.nanometer)),
+                    k_kj_per_mol_nm2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.nanometer**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.HarmonicAngleForce):
+            for angle_idx in range(force.getNumAngles()):
+                a, b, c, theta0, k = force.getAngleParameters(angle_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                    prmtop_idx_to_name.get(int(c)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _all_selector(names):  # type: ignore[arg-type]
+                    continue
+                key = _angle_key((str(names[0]), str(names[1]), str(names[2])))
+                angles[key] = SelectorAngleTemplate(
+                    atom_names=key,
+                    theta0_rad=float(theta0.value_in_unit(unit.radian)),
+                    k_kj_per_mol_rad2=float(
+                        k.value_in_unit(unit.kilojoule_per_mole / unit.radian**2)
+                    ),
+                )
+            continue
+
+        if isinstance(force, mm.PeriodicTorsionForce):
+            for torsion_idx in range(force.getNumTorsions()):
+                a, b, c, d, periodicity, phase, k = force.getTorsionParameters(torsion_idx)
+                names = (
+                    prmtop_idx_to_name.get(int(a)),
+                    prmtop_idx_to_name.get(int(b)),
+                    prmtop_idx_to_name.get(int(c)),
+                    prmtop_idx_to_name.get(int(d)),
+                )
+                if any(name is None for name in names):
+                    continue
+                if not _all_selector(names):  # type: ignore[arg-type]
+                    continue
+                _append_unique_torsion(
+                    torsions,
+                    SelectorTorsionTemplate(
+                        atom_names=(str(names[0]), str(names[1]), str(names[2]), str(names[3])),
+                        periodicity=int(periodicity),
+                        phase_rad=float(phase.value_in_unit(unit.radian)),
+                        k_kj_per_mol=float(k.value_in_unit(unit.kilojoule_per_mole)),
+                    ),
+                )
+
+    if set(atom_params) != selector_atom_names_only:
+        missing = sorted(selector_atom_names_only.difference(atom_params))
+        extra = sorted(set(atom_params).difference(selector_atom_names_only))
+        raise ValueError(
+            "Selector GAFF payload atom coverage mismatch. "
+            f"Missing={missing}, extra={extra}."
+        )
+
+    return SelectorFragmentParams(
+        selector_name=selector_template.name,
+        atom_params=atom_params,
+        bonds=tuple(sorted(bonds.values(), key=lambda item: item.atom_names)),
+        angles=tuple(sorted(angles.values(), key=lambda item: item.atom_names)),
+        torsions=tuple(
+            sorted(
+                torsions,
+                key=lambda item: (
+                    item.atom_names,
+                    item.periodicity,
+                    item.phase_rad,
+                    item.k_kj_per_mol,
+                ),
+            )
+        ),
+        source_prmtop=str(artifacts["prmtop"]),
+        fragment_atom_count=prepared.GetNumAtoms(),
+    )

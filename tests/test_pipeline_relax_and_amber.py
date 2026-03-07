@@ -44,6 +44,7 @@ def test_pipeline_qc_production_hard_fails(tmp_path: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         _run_build(
             "topology.backbone.dp=2 topology.selector.enabled=false qc=production "
+            "forcefield.options.enabled=false amber.enabled=false "
             "qc.min_heavy_distance_A=10.0 "
             f"output.dir={outdir}"
         )

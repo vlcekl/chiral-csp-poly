@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Mapping
 
 import numpy as np
 from rdkit import Chem
@@ -10,18 +11,17 @@ from rdkit.Geometry import Point3D
 import openmm as mm
 from openmm import unit
 
-from poly_csp.forcefield.connectors import parameterize_capped_monomer
-from poly_csp.topology.atom_mapping import selector_instance_maps
-from poly_csp.topology.selectors import SelectorTemplate
-from poly_csp.structure.dihedrals import measure_dihedral_rad
 from poly_csp.forcefield.anneal import run_heat_cool_cycle, run_temperature_ramp
-from poly_csp.forcefield.gaff import parameterize_isolated_selector
+from poly_csp.forcefield.runtime_params import RuntimeParams, load_runtime_params
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.forcefield.restraints import (
     add_dihedral_restraints,
     add_hbond_distance_restraints,
     add_positional_restraints,
 )
+from poly_csp.structure.dihedrals import measure_dihedral_rad
+from poly_csp.topology.atom_mapping import selector_instance_maps
+from poly_csp.topology.selectors import SelectorTemplate
 
 
 @dataclass(frozen=True)
@@ -40,37 +40,41 @@ class RelaxSpec:
     anneal_cool_down: bool = True
 
 
-# ---------------------------------------------------------------------------
-# Atom classification helpers
-# ---------------------------------------------------------------------------
+def _manifest_source(atom: Chem.Atom) -> str:
+    if atom.HasProp("_poly_csp_manifest_source"):
+        return str(atom.GetProp("_poly_csp_manifest_source"))
+    return "backbone"
+
 
 def _backbone_heavy_indices(mol: Chem.Mol) -> list[int]:
-    idx: list[int] = []
-    for atom in mol.GetAtoms():
-        if atom.GetAtomicNum() <= 1:
-            continue
-        if atom.HasProp("_poly_csp_selector_instance"):
-            continue
-        idx.append(atom.GetIdx())
-    return idx
+    return [
+        int(atom.GetIdx())
+        for atom in mol.GetAtoms()
+        if atom.GetAtomicNum() > 1 and _manifest_source(atom) == "backbone"
+    ]
 
 
 def _backbone_all_indices(mol: Chem.Mol) -> list[int]:
-    """All backbone atom indices (heavy + hydrogen), preserving order."""
-    idx: list[int] = []
-    for atom in mol.GetAtoms():
-        if atom.HasProp("_poly_csp_selector_instance"):
-            continue
-        idx.append(atom.GetIdx())
-    return idx
+    return [
+        int(atom.GetIdx())
+        for atom in mol.GetAtoms()
+        if _manifest_source(atom) == "backbone"
+    ]
 
 
 def _selector_all_indices(mol: Chem.Mol) -> set[int]:
-    """Set of all selector atom indices."""
     return {
-        atom.GetIdx()
+        int(atom.GetIdx())
         for atom in mol.GetAtoms()
-        if atom.HasProp("_poly_csp_selector_instance")
+        if _manifest_source(atom) == "selector"
+    }
+
+
+def _connector_all_indices(mol: Chem.Mol) -> set[int]:
+    return {
+        int(atom.GetIdx())
+        for atom in mol.GetAtoms()
+        if _manifest_source(atom) == "connector"
     }
 
 
@@ -78,10 +82,9 @@ def _selector_dihedral_targets(
     mol: Chem.Mol,
     selector: SelectorTemplate | None,
 ) -> list[tuple[int, int, int, int, float]]:
-    if selector is None:
+    if selector is None or mol.GetNumConformers() == 0:
         return []
-    if mol.GetNumConformers() == 0:
-        return []
+
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     mappings = selector_instance_maps(mol)
     out: list[tuple[int, int, int, int, float]] = []
@@ -107,10 +110,9 @@ def _hbond_pairs(
     selector: SelectorTemplate | None,
     max_dist_A: float = 3.3,
 ) -> list[tuple[int, int, float]]:
-    if selector is None:
+    if selector is None or mol.GetNumConformers() == 0:
         return []
-    if mol.GetNumConformers() == 0:
-        return []
+
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     donors: list[tuple[int, int]] = []
     acceptors: list[tuple[int, int]] = []
@@ -120,9 +122,9 @@ def _hbond_pairs(
         inst = int(atom.GetIntProp("_poly_csp_selector_instance"))
         local = int(atom.GetIntProp("_poly_csp_selector_local_idx"))
         if local in selector.donors:
-            donors.append((inst, atom.GetIdx()))
+            donors.append((inst, int(atom.GetIdx())))
         if local in selector.acceptors:
-            acceptors.append((inst, atom.GetIdx()))
+            acceptors.append((inst, int(atom.GetIdx())))
 
     pairs: list[tuple[int, int, float]] = []
     max_dist_nm = float(max_dist_A / 10.0)
@@ -143,62 +145,6 @@ def _positions_nm_from_mol(mol: Chem.Mol) -> unit.Quantity:
     return (xyz_A / 10.0) * unit.nanometer
 
 
-def _selector_sites(mol: Chem.Mol) -> list[str]:
-    sites = {
-        atom.GetProp("_poly_csp_site")
-        for atom in mol.GetAtoms()
-        if atom.HasProp("_poly_csp_selector_instance") and atom.HasProp("_poly_csp_site")
-    }
-    return sorted(sites)
-
-
-def _has_connector_atoms(mol: Chem.Mol) -> bool:
-    return any(atom.HasProp("_poly_csp_connector_atom") for atom in mol.GetAtoms())
-
-
-def _connector_params_by_site(
-    mol: Chem.Mol,
-    selector: SelectorTemplate | None,
-    selector_prmtop_path: str | None,
-) -> Dict[str, object] | None:
-    import logging
-
-    log = logging.getLogger(__name__)
-
-    if selector is None or selector_prmtop_path is None:
-        return None
-    if not selector.connector_local_roles or not _has_connector_atoms(mol):
-        return None
-    if not mol.HasProp("_poly_csp_polymer"):
-        log.warning(
-            "Skipping connector parameterization because _poly_csp_polymer metadata is missing."
-        )
-        return None
-
-    polymer = mol.GetProp("_poly_csp_polymer")
-    params_by_site: Dict[str, object] = {}
-    for site in _selector_sites(mol):
-        params_by_site[site] = parameterize_capped_monomer(
-            polymer=polymer,  # type: ignore[arg-type]
-            selector_template=selector,
-            site=site,  # type: ignore[arg-type]
-        )
-    return params_by_site or None
-
-
-def _selector_prmtop_path(
-    selector: SelectorTemplate | None,
-    selector_prmtop_path: str | None,
-) -> str | None:
-    if selector is None:
-        return None
-    if selector_prmtop_path is not None:
-        return selector_prmtop_path
-
-    artifacts = parameterize_isolated_selector(selector_template=selector)
-    return str(artifacts["prmtop"])
-
-
 def _update_rdkit_coords(mol: Chem.Mol, positions_nm: unit.Quantity) -> Chem.Mol:
     xyz_A = positions_nm.value_in_unit(unit.nanometer) * 10.0
     out = Chem.Mol(mol)
@@ -210,96 +156,47 @@ def _update_rdkit_coords(mol: Chem.Mol, positions_nm: unit.Quantity) -> Chem.Mol
     return out
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
+def _require_forcefield_molecule(mol: Chem.Mol) -> None:
+    if not mol.HasProp("_poly_csp_manifest_schema_version"):
+        raise ValueError(
+            "Relaxation requires a forcefield-domain molecule from build_forcefield_molecule()."
+        )
 
-def run_staged_relaxation(
+
+def _prepare_system_for_relaxation(
+    system: mm.System,
     mol: Chem.Mol,
     spec: RelaxSpec,
-    selector: SelectorTemplate | None = None,
-    amber_artifacts: Dict[str, object] | None = None,
-    selector_prmtop_path: str | None = None,
-) -> tuple[Chem.Mol, Dict[str, object]]:
-    if not spec.enabled:
-        return Chem.Mol(mol), {"enabled": False}
-
-    return _run_hybrid_pre_relax(
-        mol=mol, spec=spec, selector=selector,
-        selector_prmtop_path=selector_prmtop_path,
-    )
-
-
-def _run_hybrid_pre_relax(
-    mol: Chem.Mol,
-    spec: RelaxSpec,
-    selector: SelectorTemplate | None = None,
-    selector_prmtop_path: str | None = None,
-) -> tuple[Chem.Mol, Dict[str, object]]:
-    """Relaxation with a shared modular forcefield and optional frozen backbone.
-
-    The base system always starts from the generic RDKit-derived bonded model.
-    When ``selector_prmtop_path`` is provided, pure selector-core terms are
-    overlaid from the isolated selector GAFF2 prmtop and connector terms are
-    overlaid from capped-monomer parameterization. Backbone heavy atoms can be
-    frozen (mass = 0) so only selectors and linkers explore conformational
-    space during restrained minimization and annealing.
-    """
-    import logging
-
-    log = logging.getLogger(__name__)
-
-    # --- Classify atoms. ---
+    selector: SelectorTemplate | None,
+    reference_positions_nm: unit.Quantity,
+) -> None:
     backbone_heavy = _backbone_heavy_indices(mol)
-    backbone_all = _backbone_all_indices(mol)
-    selector_indices = _selector_all_indices(mol)
-    selector_prmtop_path = _selector_prmtop_path(selector, selector_prmtop_path)
-
-    use_gaff2 = selector_prmtop_path is not None and selector is not None and len(selector_indices) > 0
-    gaff_params = None
-    if use_gaff2:
-        gaff_params = {
-            "selector_prmtop_path": selector_prmtop_path,
-            "selector_template": selector,
-        }
-    connector_params = _connector_params_by_site(
-        mol=mol,
-        selector=selector,
-        selector_prmtop_path=selector_prmtop_path,
-    )
-
-    system = create_system(
-        mol=mol,
-        gaff_params=gaff_params,
-        connector_params=connector_params,
-    )
-    positions_nm = _positions_nm_from_mol(mol)
-
-    # --- Freeze backbone heavy atoms. ---
-    #     mass=0 makes them immovable in both minimization and dynamics.
     if spec.freeze_backbone:
         for idx in backbone_heavy:
-            system.setParticleMass(idx, 0.0)
+            system.setParticleMass(int(idx), 0.0)
 
-    # --- Add restraints (selectors only benefit from these). ---
-    pos_force = add_positional_restraints(
+    add_positional_restraints(
         system=system,
         atom_indices=backbone_heavy,
-        reference_positions_nm=positions_nm,
+        reference_positions_nm=reference_positions_nm,
         k_kj_per_mol_nm2=float(spec.positional_k),
     )
-    tors_force = add_dihedral_restraints(
+    add_dihedral_restraints(
         system=system,
         dihedrals=_selector_dihedral_targets(mol, selector),
         k_kj_per_mol=float(spec.dihedral_k),
     )
-    hb_force = add_hbond_distance_restraints(
+    add_hbond_distance_restraints(
         system=system,
         pairs=_hbond_pairs(mol, selector),
         k_kj_per_mol_nm2=float(spec.hbond_k),
     )
 
-    # --- Simulation. ---
+
+def _new_context(
+    system: mm.System,
+    positions_nm: unit.Quantity,
+) -> tuple[mm.Context, mm.LangevinIntegrator]:
     integrator = mm.LangevinIntegrator(
         300.0 * unit.kelvin,
         1.0 / unit.picosecond,
@@ -307,11 +204,21 @@ def _run_hybrid_pre_relax(
     )
     context = mm.Context(system, integrator)
     context.setPositions(positions_nm)
+    return context, integrator
 
-    # --- Staged minimization: release selector restraints gradually. ---
-    stage_factors = np.linspace(1.0, 0.15, max(1, int(spec.n_stages)))
-    stage_energies: list[float] = []
-    for factor in stage_factors:
+
+def _potential_energy_kj_mol(context: mm.Context) -> float:
+    state = context.getState(getEnergy=True)
+    return float(state.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole))
+
+
+def _run_minimization_schedule(
+    context: mm.Context,
+    spec: RelaxSpec,
+    factors: np.ndarray,
+) -> list[float]:
+    energies: list[float] = []
+    for factor in factors:
         context.setParameter("k_pos", float(spec.positional_k) * float(factor))
         context.setParameter("k_tors", float(spec.dihedral_k) * float(factor))
         context.setParameter("k_hb", float(spec.hbond_k) * float(factor))
@@ -320,84 +227,161 @@ def _run_hybrid_pre_relax(
             tolerance=10.0,
             maxIterations=int(spec.max_iterations),
         )
-        state = context.getState(getEnergy=True)
-        stage_energies.append(
-            float(state.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole))
+        energies.append(_potential_energy_kj_mol(context))
+    return energies
+
+
+def _apply_stage2_anneal(
+    context: mm.Context,
+    integrator: mm.LangevinIntegrator,
+    spec: RelaxSpec,
+) -> None:
+    if not spec.anneal_enabled or int(spec.anneal_steps) <= 0:
+        return
+    if spec.anneal_cool_down:
+        run_heat_cool_cycle(
+            context=context,
+            integrator=integrator,
+            t_start_K=float(spec.t_start_K),
+            t_peak_K=float(spec.t_end_K),
+            n_steps=int(spec.anneal_steps),
+            n_segments=10,
+        )
+        return
+    run_temperature_ramp(
+        context=context,
+        integrator=integrator,
+        t_start_K=float(spec.t_start_K),
+        t_end_K=float(spec.t_end_K),
+        n_steps=int(spec.anneal_steps),
+        n_segments=10,
+    )
+
+
+def run_staged_relaxation(
+    mol: Chem.Mol,
+    spec: RelaxSpec,
+    selector: SelectorTemplate | None = None,
+    *,
+    runtime_params: RuntimeParams | None = None,
+    work_dir: str | Path | None = None,
+    mixing_rules_cfg: Mapping[str, object] | None = None,
+) -> tuple[Chem.Mol, Dict[str, object]]:
+    """Run the canonical two-stage runtime relaxation on a forcefield-domain molecule."""
+    if not spec.enabled:
+        return Chem.Mol(mol), {"enabled": False}
+
+    _require_forcefield_molecule(mol)
+
+    runtime = runtime_params
+    if runtime is None:
+        runtime = load_runtime_params(
+            mol,
+            selector_template=selector,
+            work_dir=None if work_dir is None else Path(work_dir),
         )
 
-    # --- Annealing with frozen backbone. ---
+    reference_positions_nm = _positions_nm_from_mol(mol)
+
+    soft_result = create_system(
+        mol,
+        glycam_params=runtime.glycam,
+        selector_params_by_name=runtime.selector_params_by_name,
+        connector_params_by_key=runtime.connector_params_by_key,
+        nonbonded_mode="soft",
+        mixing_rules_cfg=mixing_rules_cfg,
+    )
+    _prepare_system_for_relaxation(
+        soft_result.system,
+        mol,
+        spec,
+        selector,
+        reference_positions_nm,
+    )
+    soft_context, soft_integrator = _new_context(soft_result.system, soft_result.positions_nm)
+    stage_factors = np.linspace(1.0, 0.15, max(1, int(spec.n_stages)))
+    soft_energies = _run_minimization_schedule(soft_context, spec, stage_factors)
+    soft_state = soft_context.getState(getPositions=True)
+    stage1_positions = soft_state.getPositions(asNumpy=True)
+    del soft_context, soft_integrator
+
+    full_result = create_system(
+        mol,
+        glycam_params=runtime.glycam,
+        selector_params_by_name=runtime.selector_params_by_name,
+        connector_params_by_key=runtime.connector_params_by_key,
+        nonbonded_mode="full",
+        mixing_rules_cfg=mixing_rules_cfg,
+    )
+    _prepare_system_for_relaxation(
+        full_result.system,
+        mol,
+        spec,
+        selector,
+        reference_positions_nm,
+    )
+    full_context, full_integrator = _new_context(full_result.system, stage1_positions)
+    final_factor = float(stage_factors[-1])
+    full_context.setParameter("k_pos", float(spec.positional_k) * final_factor)
+    full_context.setParameter("k_tors", float(spec.dihedral_k) * final_factor)
+    full_context.setParameter("k_hb", float(spec.hbond_k) * final_factor)
+
+    stage2_energies = []
+    mm.LocalEnergyMinimizer.minimize(
+        full_context,
+        tolerance=10.0,
+        maxIterations=int(spec.max_iterations),
+    )
+    stage2_energies.append(_potential_energy_kj_mol(full_context))
+
     if spec.anneal_enabled and int(spec.anneal_steps) > 0:
-        if spec.anneal_cool_down:
-            run_heat_cool_cycle(
-                context=context,
-                integrator=integrator,
-                t_start_K=float(spec.t_start_K),
-                t_peak_K=float(spec.t_end_K),
-                n_steps=int(spec.anneal_steps),
-                n_segments=10,
-            )
-        else:
-            run_temperature_ramp(
-                context=context,
-                integrator=integrator,
-                t_start_K=float(spec.t_start_K),
-                t_end_K=float(spec.t_end_K),
-                n_steps=int(spec.anneal_steps),
-                n_segments=10,
-            )
+        _apply_stage2_anneal(full_context, full_integrator, spec)
         mm.LocalEnergyMinimizer.minimize(
-            context,
+            full_context,
             tolerance=10.0,
             maxIterations=int(spec.max_iterations),
         )
-        state = context.getState(getEnergy=True)
-        stage_energies.append(
-            float(state.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole))
-        )
+        stage2_energies.append(_potential_energy_kj_mol(full_context))
 
-    final_state = context.getState(getPositions=True, getEnergy=True)
+    final_state = full_context.getState(getPositions=True, getEnergy=True)
     final_positions = final_state.getPositions(asNumpy=True)
 
-    # Sanity check: detect structure explosion.
-    final_xyz_A = np.asarray(
-        final_positions.value_in_unit(unit.nanometer)
-    ) * 10.0
+    final_xyz_A = np.asarray(final_positions.value_in_unit(unit.nanometer)) * 10.0
     span = final_xyz_A.max(axis=0) - final_xyz_A.min(axis=0)
-    if np.any(span > 500.0):
-        log.warning(
-            "Relaxed structure has excessive span (%.0f x %.0f x %.0f Å). "
-            "Bonded forces may be insufficient.",
-            *span,
-        )
 
-    # Verify backbone didn't move.
-    if spec.freeze_backbone:
-        init_backbone_xyz = np.asarray(
-            positions_nm.value_in_unit(unit.nanometer)
-        )[backbone_heavy] * 10.0
+    backbone_heavy = _backbone_heavy_indices(mol)
+    backbone_all = _backbone_all_indices(mol)
+    selector_indices = _selector_all_indices(mol)
+    connector_indices = _connector_all_indices(mol)
+    backbone_drift = 0.0
+    if spec.freeze_backbone and backbone_heavy:
+        init_backbone_xyz = (
+            np.asarray(reference_positions_nm.value_in_unit(unit.nanometer))[backbone_heavy]
+            * 10.0
+        )
         final_backbone_xyz = final_xyz_A[backbone_heavy]
-        backbone_drift = np.max(np.abs(final_backbone_xyz - init_backbone_xyz))
-        if backbone_drift > 0.01:
-            log.warning(
-                "Backbone drifted by %.4f Å despite freeze_backbone=True.",
-                backbone_drift,
-            )
+        backbone_drift = float(np.max(np.abs(final_backbone_xyz - init_backbone_xyz)))
 
     out = _update_rdkit_coords(mol, final_positions)
     summary: Dict[str, object] = {
         "enabled": True,
-        "force_model": (
-            "modular_gaff2_connectors"
-            if use_gaff2 and connector_params
-            else ("gaff2_selectors" if use_gaff2 else "hybrid_frozen_backbone")
-        ),
-        "n_stages": int(spec.n_stages),
-        "stage_energies_kj_mol": stage_energies,
+        "protocol": "two_stage_runtime",
+        "stage1_nonbonded_mode": soft_result.nonbonded_mode,
+        "stage1_energies_kj_mol": soft_energies,
+        "stage2_nonbonded_mode": full_result.nonbonded_mode,
+        "stage2_energies_kj_mol": stage2_energies,
         "anneal_enabled": bool(spec.anneal_enabled),
         "anneal_cool_down": bool(spec.anneal_cool_down),
         "freeze_backbone": bool(spec.freeze_backbone),
         "n_backbone_atoms": len(backbone_all),
-        "n_backbone_heavy_frozen": len(backbone_heavy),
+        "n_backbone_heavy_frozen": len(backbone_heavy) if spec.freeze_backbone else 0,
         "n_selector_atoms": len(selector_indices),
+        "n_connector_atoms": len(connector_indices),
+        "component_counts": dict(full_result.component_counts),
+        "soft_exception_summary": dict(soft_result.exception_summary),
+        "full_exception_summary": dict(full_result.exception_summary),
+        "source_manifest": dict(full_result.source_manifest),
+        "span_A": [float(value) for value in span.tolist()],
+        "backbone_drift_A": float(backbone_drift),
     }
     return out, summary

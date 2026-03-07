@@ -200,20 +200,25 @@ poly_csp/
         │   ├── backbone.py
         │   ├── reactions.py
         │   ├── atom_mapping.py
+        │   ├── residue_state.py
         │   └── selectors.py
         │
         ├── structure/        # Deterministic all-atom geometry handoff
         │   ├── matrix.py
-        │   ├── build_helix.py
+        │   ├── backbone_builder.py
+        │   ├── templates.py
+        │   ├── naming.py
         │   ├── local_frames.py
         │   ├── dihedrals.py
         │   └── alignment.py
         │
         ├── forcefield/       # All-atom parameter assignment and OpenMM assembly
+        │   ├── amber_export.py
         │   ├── system_builder.py
         │   ├── relaxation.py
         │   ├── gaff.py
         │   ├── glycam.py
+        │   ├── glycam_mapping.py
         │   ├── exceptions.py
         │   └── restraints.py
         │
@@ -284,8 +289,8 @@ conf/
 │       └── cellulose_i.yaml
 ├── forcefield/
 │   ├── options/
-│   │   ├── vacuum.yaml
-│   │   └── vacuum_stiff_backbone.yaml
+│   │   ├── runtime.yaml
+│   │   └── runtime_relax.yaml
 │   └── mixing_rules.yaml
 ├── ordering/
 │   └── basic.yaml
@@ -302,7 +307,7 @@ defaults:
   - topology/backbone: amylose
   - topology/selector: dmpc_35
   - structure/helix: chiralpak_ad
-  - forcefield/options: vacuum_stiff_backbone
+  - forcefield/options: runtime
   - ordering: basic
   - forcefield: mixing_rules
   - qc: basic
@@ -370,7 +375,58 @@ Containing:
 
 ---
 
-## 3. Override parameters
+## 3. Build a backbone helix only
+
+This builds only the explicit-H amylose backbone, with selectors and AMBER export disabled:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  topology.backbone.dp=12 \
+  topology.selector.enabled=false \
+  forcefield.options.enabled=false \
+  amber.enabled=false \
+  output.export_formats=[pdb,sdf]
+```
+
+---
+
+## 4. Pure-backbone GLYCAM runtime mode
+
+The canonical runtime presets now cover the supported selector-bearing slice:
+
+* polymer: `amylose` or `cellulose`
+* representation: `anhydro`
+* end mode: `open`
+* selectors: built-in templates only
+* caps: none
+
+Example:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  forcefield/options=runtime \
+  amber.enabled=false
+```
+
+This path:
+
+* builds the explicit-H backbone first,
+* maps backbone atoms into GLYCAM identities,
+* maps selector and connector atoms into GAFF/capped-fragment identities when present,
+* builds a real OpenMM runtime `System`,
+* fails fast on unsupported chemistry instead of falling back.
+
+Use `forcefield/options=runtime_relax` to run the canonical two-stage `soft -> full` relaxation on that same runtime system family.
+
+The build report now records:
+
+* `forcefield_enabled`
+* `forcefield_mode`
+* `forcefield_summary`
+
+---
+
+## 5. Override parameters
 
 Change helix:
 
@@ -392,7 +448,7 @@ python -m poly_csp.pipelines.build_csp topology.selector.sites=[C6]
 
 ---
 
-## 4. SDF export
+## 6. SDF export
 
 The pipeline supports SDF output with full bond topology (bond orders, aromaticity, stereochemistry). Enable via `output.export_formats`:
 
@@ -406,7 +462,7 @@ Supported export formats: `pdb`, `sdf`, `amber`.
 
 ---
 
-## 5. Multi-start selector optimization
+## 7. Multi-start selector optimization
 
 The default ordering optimizer runs a single deterministic coordinate-descent pass. Multi-start mode runs N independent optimizations with different random seeds, producing diverse local minima for scoring:
 
@@ -467,6 +523,7 @@ Each build produces:
 * Optional selector torsion initialization
 * SDF output with proper bond topology (bond orders, aromaticity)
 * Multi-start ranked structures with scores (when `multi_opt.enabled=true`)
+* Forcefield-mode metadata in `build_report.json`
 * QC metrics:
 
   * Symmetry RMSD
@@ -477,22 +534,27 @@ Each build produces:
 
 # Model Validity And Current Forcefield Status
 
-The relaxation pipeline is controlled by `forcefield.options.enabled` in `conf/forcefield/options/vacuum_stiff_backbone.yaml`:
+The current forcefield presets are:
 
 1. `forcefield.options.enabled=false`
-   - No OpenMM relaxation; output stays as deterministic construction + ordering result.
+   - No runtime OpenMM system is built.
+   - Output stays as deterministic construction + optional ordering result.
 
-2. `forcefield.options.enabled=true` (default)
-   - The architectural target is an all-atom GLYCAM/GAFF/connector OpenMM system.
-   - The intended optimization protocol is two-stage:
-     1. realistic bonded terms + soft repulsion for overlap resolution,
-     2. full realistic nonbonded interactions for final refinement.
-   - Hydrogens belong in the structure and forcefield domains for that path.
+2. `forcefield/options=runtime`
+   - Builds the canonical runtime system for the supported `anhydro`, `open` slice.
+   - Backbone atoms get GLYCAM parameters.
+   - Selector atoms get GAFF-derived selector-core parameters.
+   - Connector atoms get capped-fragment parameters.
+   - The resulting system has real bonded terms, explicit charges, explicit Lennard-Jones parameters, and a real `NonbondedForce`.
 
-Current implementation note:
+3. `forcefield/options=runtime_relax`
+   - Uses the same canonical runtime parameter sources.
+   - Runs the intended two-stage relaxation:
+     - stage 1: real bonded terms plus soft repulsion,
+     - stage 2: real bonded terms plus full nonbonded interactions.
+   - No generic bonded fallback is used in this path.
 
-* The repository still contains intermediate migration code and should be treated as an incremental forcefield workflow, not yet the finished all-atom endpoint.
-* The guiding target is the domain model described above, not any temporary heavy-atom fallback that may still exist in the current implementation.
+AMBER export remains available, but it is now a downstream artifact path rather than the runtime source of backbone parameters.
 
 ---
 
@@ -561,21 +623,23 @@ Used in chiral chromatography systems such as Chiralpak AD.
 
 # Status
 
-Migrated to a domain-oriented code layout (`topology/`, `structure/`, `forcefield/`, `ordering/`) with deterministic construction, selector attachment, ordering, QC, SDF export, multi-start optimization, and an in-progress forcefield refactor.
+The codebase now has:
 
-What is already true:
+* deterministic topology and explicit-H structure construction,
+* a clean topology/structure/forcefield domain split,
+* a validated forcefield-domain molecule with stable naming/manifest metadata,
+* runtime GLYCAM extraction from complete reference systems,
+* deterministic GLYCAM mapping for the supported pure-backbone slice,
+* a pure-backbone GLYCAM OpenMM builder with a real `NonbondedForce`,
+* separate AMBER export utilities,
+* selector ordering, QC, SDF export, and multi-start optimization.
 
-* deterministic topology and structure construction,
-* domain-oriented code layout,
-* explicit hydrogen handling for derived all-atom outputs and fragment parameterization,
-* modular connector/selector parameterization groundwork.
+What remains for later phases:
 
-What remains the target and should guide future work:
-
-* topology may remain hydrogen-suppressed but chemically unambiguous,
-* structure domain should be explicit-H before force assignment,
-* forcefield domain should be explicit-H GLYCAM/GAFF/connector assembly in OpenMM,
-* optimization should be two-stage:
+* full selector GAFF2 nonbonded transfer in the runtime system,
+* connector nonbonded transfer,
+* mixed GLYCAM/GAFF/connector OpenMM assembly,
+* the intended two-stage forcefield refinement path:
   1. real bonded + soft-repulsion nonbonded overlap cleanup,
   2. full realistic nonbonded refinement,
-* AMBER-format all-atom artifacts should be downstream products of that chemically complete model.
+* migration of selector-bearing relaxation away from the legacy generic builder.

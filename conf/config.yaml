@@ -2,7 +2,7 @@ defaults:
   - topology/backbone: amylose
   - topology/selector: dmpc_35
   - structure/helix: chiralpak_ad
-  - forcefield/options: vacuum_stiff_backbone
+  - forcefield/options: runtime
   - ordering: basic
   - forcefield: mixing_rules
   - qc: basic

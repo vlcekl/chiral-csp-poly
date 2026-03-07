@@ -8,8 +8,7 @@ from .relaxation import RelaxSpec, run_staged_relaxation
 from .system_builder import (
     SystemBuildResult,
     build_backbone_glycam_system,
-    build_bonded_relaxation_system,
-    build_relaxation_system,
+    create_system,
     exclusion_pairs_from_mol,
 )
 
@@ -21,8 +20,7 @@ __all__ = [
     "SystemBuildResult",
     "build_backbone_glycam_system",
     "build_forcefield_molecule",
-    "build_bonded_relaxation_system",
-    "build_relaxation_system",
+    "create_system",
     "exclusion_pairs_from_mol",
     "load_glycam_params",
     "map_backbone_to_glycam",

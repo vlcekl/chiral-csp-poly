@@ -20,6 +20,12 @@ _GLYCAM_HYDROGEN_ALIASES = {
     "HO6": "H6O",
 }
 
+_SUBSTITUTED_SITE_ALLOWED_MISSING = {
+    "O2": "H2O",
+    "O3": "H3O",
+    "O6": "H6O",
+}
+
 
 @dataclass(frozen=True)
 class GlycamAtomAssignment:
@@ -59,11 +65,36 @@ def _generic_to_glycam_name(atom_name: str) -> str:
     return _GLYCAM_HYDROGEN_ALIASES.get(atom_name, atom_name)
 
 
+def _allowed_missing_hydrogens_by_residue(mol: Chem.Mol) -> dict[int, set[str]]:
+    out: dict[int, set[str]] = {}
+    for atom in mol.GetAtoms():
+        if not atom.HasProp("_poly_csp_manifest_source"):
+            continue
+        if atom.GetProp("_poly_csp_manifest_source") != "backbone":
+            continue
+        if not atom.HasProp("_poly_csp_atom_name") or not atom.HasProp("_poly_csp_residue_index"):
+            continue
+        atom_name = atom.GetProp("_poly_csp_atom_name")
+        if atom_name not in _SUBSTITUTED_SITE_ALLOWED_MISSING:
+            continue
+        residue_index = int(atom.GetIntProp("_poly_csp_residue_index"))
+        if any(
+            nbr.GetAtomicNum() > 1
+            and nbr.HasProp("_poly_csp_manifest_source")
+            and nbr.GetProp("_poly_csp_manifest_source") != "backbone"
+            for nbr in atom.GetNeighbors()
+        ):
+            out.setdefault(residue_index, set()).add(
+                _SUBSTITUTED_SITE_ALLOWED_MISSING[atom_name]
+            )
+    return out
+
+
 def map_backbone_to_glycam(
     mol: Chem.Mol,
     glycam_params: GlycamParams,
 ) -> GlycamMappingResult:
-    """Map a supported pure-backbone forcefield-domain molecule onto GLYCAM names."""
+    """Map the backbone subset of a forcefield-domain molecule onto GLYCAM names."""
     if not mol.HasProp("_poly_csp_manifest_schema_version"):
         raise ValueError(
             "GLYCAM mapping requires a forcefield-domain molecule from build_forcefield_molecule()."
@@ -91,6 +122,7 @@ def map_backbone_to_glycam(
         raise ValueError("Forcefield-domain molecule is missing _poly_csp_dp.")
     dp = int(mol.GetIntProp("_poly_csp_dp"))
     residue_roles = glycam_residue_roles_for_dp(dp)
+    allowed_missing = _allowed_missing_hydrogens_by_residue(mol)
 
     observed_glycam_names: dict[int, set[str]] = {}
     assignments: list[GlycamAtomAssignment] = []
@@ -100,10 +132,7 @@ def map_backbone_to_glycam(
                 f"Atom {atom.GetIdx()} is missing _poly_csp_manifest_source; expected forcefield manifest metadata."
             )
         if atom.GetProp("_poly_csp_manifest_source") != "backbone":
-            raise ValueError(
-                "Phase 2 GLYCAM mapping supports pure backbone molecules only; "
-                f"atom {atom.GetIdx()} has source {atom.GetProp('_poly_csp_manifest_source')!r}."
-            )
+            continue
         if not atom.HasProp("_poly_csp_atom_name"):
             raise ValueError(
                 f"Atom {atom.GetIdx()} is missing _poly_csp_atom_name; expected forcefield manifest metadata."
@@ -153,8 +182,12 @@ def map_backbone_to_glycam(
         observed = observed_glycam_names.get(residue_index, set())
         expected = set(residue_template.atom_names)
         if observed != expected:
-            missing = sorted(expected.difference(observed))
+            missing_set = expected.difference(observed)
             extra = sorted(observed.difference(expected))
+            residue_allowed_missing = allowed_missing.get(residue_index, set())
+            if missing_set.issubset(residue_allowed_missing) and not extra:
+                continue
+            missing = sorted(missing_set)
             raise ValueError(
                 "Backbone residue does not match the supported GLYCAM atom set for "
                 f"residue {residue_index} ({residue_role}). Missing={missing}, extra={extra}."
@@ -167,4 +200,3 @@ def map_backbone_to_glycam(
         end_mode=end_mode,
         assignments=tuple(assignments),
     )
-
