@@ -1,2 +1,4 @@
 enabled: true
 relax_enabled: false
+cache_enabled: true
+cache_dir: .cache/poly_csp/runtime_params

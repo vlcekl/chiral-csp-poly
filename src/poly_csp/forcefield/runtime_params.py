@@ -9,6 +9,27 @@ from rdkit import Chem
 from poly_csp.forcefield.connectors import ConnectorParams, load_connector_params
 from poly_csp.forcefield.gaff import SelectorFragmentParams, load_selector_fragment_params
 from poly_csp.forcefield.glycam import GlycamParams, load_glycam_params
+from poly_csp.forcefield.payload_cache import (
+    connector_cache_dir,
+    load_cached_connector_params,
+    load_cached_selector_params,
+    resolve_runtime_cache_dir,
+    selector_cache_dir,
+    store_cached_connector_params,
+    store_cached_selector_params,
+)
+
+
+@dataclass(frozen=True)
+class RuntimeParamCacheSummary:
+    enabled: bool
+    cache_dir: str | None
+    glycam_hits: int = 0
+    glycam_misses: int = 0
+    selector_hits: int = 0
+    selector_misses: int = 0
+    connector_hits: int = 0
+    connector_misses: int = 0
 
 
 @dataclass(frozen=True)
@@ -16,12 +37,90 @@ class RuntimeParams:
     glycam: GlycamParams
     selector_params_by_name: dict[str, SelectorFragmentParams]
     connector_params_by_key: dict[tuple[str, str], ConnectorParams]
+    cache_summary: RuntimeParamCacheSummary
+
+
+def _load_or_build_selector_params(
+    *,
+    selector_template,
+    work_dir: Path | None,
+    cache_enabled: bool,
+    cache_dir: str | Path | None,
+) -> tuple[SelectorFragmentParams, int, int]:
+    if not cache_enabled:
+        return (
+            load_selector_fragment_params(
+                selector_template=selector_template,
+                work_dir=None if work_dir is None else work_dir / "selector",
+            ),
+            0,
+            0,
+        )
+
+    entry_dir, identity = selector_cache_dir(cache_dir, selector_template)
+    cached = load_cached_selector_params(entry_dir)
+    if cached is not None:
+        return cached, 1, 0
+
+    params = load_selector_fragment_params(
+        selector_template=selector_template,
+        work_dir=entry_dir,
+    )
+    store_cached_selector_params(entry_dir, identity=identity, params=params)
+    return params, 0, 1
+
+
+def _load_or_build_connector_params(
+    *,
+    polymer: str,
+    selector_template,
+    site: str,
+    work_dir: Path | None,
+    cache_enabled: bool,
+    cache_dir: str | Path | None,
+) -> tuple[ConnectorParams, int, int]:
+    if not cache_enabled:
+        return (
+            load_connector_params(
+                polymer=polymer,  # type: ignore[arg-type]
+                selector_template=selector_template,
+                site=site,  # type: ignore[arg-type]
+                monomer_representation="natural_oh",
+                work_dir=None if work_dir is None else work_dir / f"connector_{site.lower()}",
+            ),
+            0,
+            0,
+        )
+
+    entry_dir, identity = connector_cache_dir(
+        cache_dir,
+        polymer=polymer,  # type: ignore[arg-type]
+        selector_template=selector_template,
+        site=site,  # type: ignore[arg-type]
+        monomer_representation="natural_oh",
+    )
+    cached = load_cached_connector_params(entry_dir)
+    if cached is not None:
+        return cached, 1, 0
+
+    params = load_connector_params(
+        polymer=polymer,  # type: ignore[arg-type]
+        selector_template=selector_template,
+        site=site,  # type: ignore[arg-type]
+        monomer_representation="natural_oh",
+        work_dir=entry_dir,
+    )
+    store_cached_connector_params(entry_dir, identity=identity, params=params)
+    return params, 0, 1
 
 
 def load_runtime_params(
     mol: Chem.Mol,
     selector_template=None,
     work_dir: Path | None = None,
+    *,
+    cache_enabled: bool = True,
+    cache_dir: str | Path | None = None,
 ) -> RuntimeParams:
     if not mol.HasProp("_poly_csp_polymer"):
         raise ValueError("Forcefield-domain molecule is missing _poly_csp_polymer.")
@@ -39,10 +138,37 @@ def load_runtime_params(
         representation=representation,  # type: ignore[arg-type]
         end_mode=end_mode,  # type: ignore[arg-type]
         work_dir=None if work_dir is None else work_dir / "glycam",
+        cache_enabled=cache_enabled,
+        cache_dir=cache_dir,
+    )
+    resolved_cache_dir = (
+        str(resolve_runtime_cache_dir(cache_dir)) if cache_enabled else None
+    )
+    glycam_provenance = (
+        glycam.provenance if isinstance(getattr(glycam, "provenance", None), dict) else {}
+    )
+    glycam_cache_meta = (
+        glycam_provenance.get("cache", {})
+        if isinstance(glycam_provenance.get("cache", {}), dict)
+        else {}
+    )
+    glycam_hit_count = (
+        1
+        if cache_enabled and bool(glycam_cache_meta.get("hit"))
+        else 0
+    )
+    glycam_miss_count = (
+        1
+        if cache_enabled and not bool(glycam_cache_meta.get("hit"))
+        else 0
     )
 
     selector_params_by_name: dict[str, SelectorFragmentParams] = {}
     connector_params_by_key: dict[tuple[str, str], ConnectorParams] = {}
+    selector_hit_count = 0
+    selector_miss_count = 0
+    connector_hit_count = 0
+    connector_miss_count = 0
 
     selector_instance_atoms = [
         atom for atom in mol.GetAtoms() if atom.HasProp("_poly_csp_selector_instance")
@@ -52,6 +178,12 @@ def load_runtime_params(
             glycam=glycam,
             selector_params_by_name=selector_params_by_name,
             connector_params_by_key=connector_params_by_key,
+            cache_summary=RuntimeParamCacheSummary(
+                enabled=bool(cache_enabled),
+                cache_dir=resolved_cache_dir,
+                glycam_hits=glycam_hit_count,
+                glycam_misses=glycam_miss_count,
+            ),
         )
 
     if selector_template is None:
@@ -59,10 +191,15 @@ def load_runtime_params(
             "Selector-bearing runtime parameter loading requires the SelectorTemplate."
         )
 
-    selector_params_by_name[selector_template.name] = load_selector_fragment_params(
+    selector_params, selector_hits, selector_misses = _load_or_build_selector_params(
         selector_template=selector_template,
-        work_dir=None if work_dir is None else work_dir / "selector",
+        work_dir=work_dir,
+        cache_enabled=cache_enabled,
+        cache_dir=cache_dir,
     )
+    selector_params_by_name[selector_template.name] = selector_params
+    selector_hit_count += selector_hits
+    selector_miss_count += selector_misses
 
     sites = sorted(
         {
@@ -72,17 +209,30 @@ def load_runtime_params(
         }
     )
     for site in sites:
-        connector_params_by_key[(selector_template.name, site)] = load_connector_params(
-            polymer=polymer,  # type: ignore[arg-type]
+        connector_params, connector_hits, connector_misses = _load_or_build_connector_params(
+            polymer=polymer,
             selector_template=selector_template,
-            site=site,  # type: ignore[arg-type]
-            monomer_representation="natural_oh",
-            work_dir=None if work_dir is None else work_dir / f"connector_{site.lower()}",
+            site=site,
+            work_dir=work_dir,
+            cache_enabled=cache_enabled,
+            cache_dir=cache_dir,
         )
+        connector_params_by_key[(selector_template.name, site)] = connector_params
+        connector_hit_count += connector_hits
+        connector_miss_count += connector_misses
 
     return RuntimeParams(
         glycam=glycam,
         selector_params_by_name=selector_params_by_name,
         connector_params_by_key=connector_params_by_key,
+        cache_summary=RuntimeParamCacheSummary(
+            enabled=bool(cache_enabled),
+            cache_dir=resolved_cache_dir,
+            glycam_hits=glycam_hit_count,
+            glycam_misses=glycam_miss_count,
+            selector_hits=selector_hit_count,
+            selector_misses=selector_miss_count,
+            connector_hits=connector_hit_count,
+            connector_misses=connector_miss_count,
+        ),
     )
-

@@ -1,7 +1,7 @@
 """Runtime GLYCAM reference extraction for pure polysaccharide backbones."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,6 +9,12 @@ import tempfile
 from typing import Dict, List, Literal, Sequence
 
 from poly_csp.config.schema import EndMode, MonomerRepresentation, PolymerKind
+from poly_csp.forcefield.payload_cache import (
+    glycam_cache_dir,
+    glycam_cache_identity,
+    load_cached_glycam_params,
+    store_cached_glycam_params,
+)
 
 
 ResidueRole = Literal["terminal_reducing", "internal", "terminal_nonreducing"]
@@ -598,7 +604,27 @@ def _validate_extracted_templates(
         )
 
 
-_GLYCAM_PARAMS_CACHE: dict[tuple[str, str, str], GlycamParams] = {}
+_GLYCAM_PARAMS_CACHE: dict[tuple[str, str, str, str | None], GlycamParams] = {}
+
+
+def _with_cache_provenance(
+    params: GlycamParams,
+    *,
+    cache_enabled: bool,
+    cache_entry_dir: Path | None,
+    cache_hit: bool,
+    cache_kind: str,
+) -> GlycamParams:
+    provenance = dict(params.provenance)
+    provenance["cache"] = {
+        "enabled": bool(cache_enabled),
+        "entry_dir": (
+            str(cache_entry_dir.resolve()) if cache_entry_dir is not None else None
+        ),
+        "hit": bool(cache_hit),
+        "kind": str(cache_kind),
+    }
+    return replace(params, provenance=provenance)
 
 
 def load_glycam_params(
@@ -606,20 +632,70 @@ def load_glycam_params(
     representation: MonomerRepresentation = "anhydro",
     end_mode: EndMode = "open",
     work_dir: Path | None = None,
+    *,
+    cache_enabled: bool = False,
+    cache_dir: str | Path | None = None,
 ) -> GlycamParams:
     """Extract reusable GLYCAM templates for the supported pure-backbone slice."""
-    cache_key = (str(polymer), str(representation), str(end_mode))
-    if work_dir is None:
-        cached = _GLYCAM_PARAMS_CACHE.get(cache_key)
-        if cached is not None:
-            return cached
-
     if representation != "anhydro":
         raise ValueError(
             "Phase 2 GLYCAM loading currently supports only the anhydro backbone representation."
         )
     if end_mode != "open":
         raise ValueError("Phase 2 GLYCAM loading currently supports only open chains.")
+
+    cache_entry_dir: Path | None = None
+    cache_identity: dict[str, object] | None = None
+    if cache_enabled:
+        if cache_dir is not None or work_dir is None:
+            cache_entry_dir, cache_identity = glycam_cache_dir(
+                cache_dir,
+                polymer=polymer,
+                representation=representation,
+                end_mode=end_mode,
+            )
+        else:
+            cache_entry_dir = Path(work_dir)
+            _, cache_identity = glycam_cache_identity(
+                polymer=polymer,
+                representation=representation,
+                end_mode=end_mode,
+            )
+
+    memory_cache_key: tuple[str, str, str, str | None] | None = None
+    if cache_enabled and cache_entry_dir is not None:
+        memory_cache_key = (
+            str(polymer),
+            str(representation),
+            str(end_mode),
+            str(cache_entry_dir.resolve()),
+        )
+    elif not cache_enabled and work_dir is None:
+        memory_cache_key = (str(polymer), str(representation), str(end_mode), None)
+
+    if memory_cache_key is not None:
+        cached = _GLYCAM_PARAMS_CACHE.get(memory_cache_key)
+        if cached is not None:
+            return _with_cache_provenance(
+                cached,
+                cache_enabled=cache_enabled,
+                cache_entry_dir=cache_entry_dir,
+                cache_hit=True,
+                cache_kind="memory",
+            )
+
+    if cache_enabled and cache_entry_dir is not None:
+        cached = load_cached_glycam_params(cache_entry_dir)
+        if cached is not None:
+            if memory_cache_key is not None:
+                _GLYCAM_PARAMS_CACHE[memory_cache_key] = cached
+            return _with_cache_provenance(
+                cached,
+                cache_enabled=True,
+                cache_entry_dir=cache_entry_dir,
+                cache_hit=True,
+                cache_kind="disk",
+            )
 
     _ensure_required_tools(("tleap",))
 
@@ -628,7 +704,11 @@ def load_glycam_params(
     linkage_terms: dict[tuple[ResidueRole, ResidueRole], dict[str, object]] = {}
     reference_runs: list[dict[str, object]] = []
 
-    base_dir = None if work_dir is None else Path(work_dir)
+    base_dir = (
+        cache_entry_dir
+        if cache_enabled and cache_entry_dir is not None
+        else (None if work_dir is None else Path(work_dir))
+    )
     for reference_dp in (2, 4):
         ref_dir = None if base_dir is None else base_dir / f"dp{reference_dp}"
         reference = _build_reference_prmtop(
@@ -697,7 +777,18 @@ def load_glycam_params(
             ],
         },
     )
-    if work_dir is None:
-        _GLYCAM_PARAMS_CACHE[cache_key] = params
-    return params
-
+    if cache_enabled and cache_entry_dir is not None and cache_identity is not None:
+        store_cached_glycam_params(
+            cache_entry_dir,
+            identity=cache_identity,
+            params=params,
+        )
+    if memory_cache_key is not None:
+        _GLYCAM_PARAMS_CACHE[memory_cache_key] = params
+    return _with_cache_provenance(
+        params,
+        cache_enabled=cache_enabled,
+        cache_entry_dir=cache_entry_dir,
+        cache_hit=False,
+        cache_kind="build" if cache_enabled else "disabled",
+    )

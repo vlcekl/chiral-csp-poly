@@ -233,6 +233,24 @@ def _forcefield_enabled(cfg: DictConfig) -> bool:
     )
 
 
+def _runtime_cache_settings(cfg: DictConfig) -> tuple[bool, str | None]:
+    options = (
+        cfg.forcefield.options
+        if "forcefield" in cfg
+        and cfg.forcefield is not None
+        and "options" in cfg.forcefield
+        and cfg.forcefield.options is not None
+        else {}
+    )
+    cache_enabled = bool(options.cache_enabled if "cache_enabled" in options else True)
+    cache_dir = (
+        str(options.cache_dir)
+        if "cache_dir" in options and options.cache_dir is not None
+        else None
+    )
+    return cache_enabled, cache_dir
+
+
 def _cfg_to_qc_spec(cfg: DictConfig) -> QcSpec:
     qc_cfg = cfg.qc if "qc" in cfg and cfg.qc is not None else {}
     return QcSpec(
@@ -505,6 +523,7 @@ def main(cfg: DictConfig) -> None:
     forcefield_summary: dict[str, object] = {"enabled": False, "mode": "none"}
     runtime_params = None
     runtime_mol = build_forcefield_molecule(mol_poly).mol
+    runtime_cache_enabled, runtime_cache_dir = _runtime_cache_settings(cfg)
 
     # ---- Stage 4a: optional runtime forcefield build.
     if forcefield_enabled:
@@ -512,6 +531,8 @@ def main(cfg: DictConfig) -> None:
             runtime_mol,
             selector_template=selector,
             work_dir=outdir / "runtime_params",
+            cache_enabled=runtime_cache_enabled,
+            cache_dir=runtime_cache_dir,
         )
         built_system = create_system(
             runtime_mol,
@@ -536,6 +557,7 @@ def main(cfg: DictConfig) -> None:
             "component_counts": dict(built_system.component_counts),
             "exception_summary": dict(built_system.exception_summary),
             "source_manifest": dict(built_system.source_manifest),
+            "runtime_param_cache": asdict(runtime_params.cache_summary),
         }
 
     # ---- Stage 5: optional restrained relaxation.

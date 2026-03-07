@@ -54,3 +54,5 @@ Thumbs.db
 *.pdf
 *.pdb
 *.sdf
+
+.cache/

@@ -1,5 +1,7 @@
 enabled: true
 relax_enabled: true
+cache_enabled: true
+cache_dir: .cache/poly_csp/runtime_params
 
 # Restrained relaxation controls
 positional_k: 5000.0
