@@ -20,7 +20,7 @@ def test_load_glycam_params_reuses_persistent_cache(
 
     monkeypatch.setattr(glycam_mod, "_ensure_required_tools", lambda tools: None)
 
-    def fake_build_reference_prmtop(polymer, dp, work_dir=None):
+    def fake_build_reference_prmtop(polymer, dp, end_mode, work_dir=None):
         build_calls.append(int(dp))
         outdir = Path(work_dir) if work_dir is not None else tmp_path / f"dp{dp}"
         outdir.mkdir(parents=True, exist_ok=True)
@@ -36,18 +36,23 @@ def test_load_glycam_params_reuses_persistent_cache(
             "tleap_input": str(tleap_input),
             "tleap_log": str(tleap_log),
             "reference_dp": int(dp),
-            "sequence": glycam_mod.build_glycam_sequence(polymer=polymer, dp=dp),
+            "sequence": glycam_mod.build_glycam_sequence(
+                polymer=polymer,
+                dp=dp,
+                end_mode=end_mode,
+            ),
         }
 
     def fake_partition_reference_terms(
         prmtop_path,
         dp,
+        end_mode,
         atom_params,
         residue_terms,
         linkage_terms,
     ):
         partition_calls.append(int(dp))
-        roles = glycam_mod.glycam_residue_roles_for_dp(dp)
+        roles = glycam_mod.glycam_residue_roles_for_dp(dp, end_mode=end_mode)
         for role in set(roles):
             residue_name = glycam_mod.GLYCAM_RESIDUE_NAMES[("amylose", role)]
             bucket = residue_terms.setdefault(

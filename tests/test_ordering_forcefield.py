@@ -68,6 +68,32 @@ def test_optimize_selector_ordering_supports_cellulose_runtime_systems() -> None
     assert summary["final_energy_kj_mol"] is not None
 
 
+def test_optimize_selector_ordering_supports_periodic_runtime_systems() -> None:
+    selector = make_35_dmpc_template()
+    mol = build_forcefield_mol(
+        polymer="amylose",
+        dp=4,
+        selector=selector,
+        site="C6",
+        end_mode="periodic",
+    )
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
+
+    out, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C6"],
+        dp=4,
+        spec=_ordering_spec(repeat_residues=4, max_candidates=4),
+        runtime_params=runtime_params,
+    )
+
+    assert out.HasProp("_poly_csp_manifest_schema_version")
+    assert summary["stage1_nonbonded_mode"] == "soft"
+    assert summary["stage2_nonbonded_mode"] == "full"
+    assert summary["final_energy_kj_mol"] is not None
+
+
 def test_ordering_seeded_determinism_and_metadata() -> None:
     selector = make_35_dmpc_template()
     mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C6")

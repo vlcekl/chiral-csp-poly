@@ -43,7 +43,7 @@ def test_pipeline_capped_mode_runs_with_explicit_caps(tmp_path: Path) -> None:
 def test_pipeline_periodic_natural_oh_runs(tmp_path: Path) -> None:
     outdir = tmp_path / "periodic_out"
     _run_build(
-        "topology.backbone.dp=3 topology.selector.enabled=false "
+        "topology.backbone.dp=4 topology.selector.enabled=false "
         "topology.backbone.monomer_representation=natural_oh "
         "topology.backbone.end_mode=periodic "
         "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "

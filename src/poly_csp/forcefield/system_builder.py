@@ -20,6 +20,7 @@ from poly_csp.forcefield.gaff import SelectorFragmentParams
 from poly_csp.forcefield.glycam import GlycamParams
 from poly_csp.forcefield.glycam_mapping import GlycamMappingResult, map_backbone_to_glycam
 from poly_csp.forcefield.selector_mapping import map_selector_instances
+from poly_csp.structure.pbc import get_box_vectors_A, get_box_vectors_nm
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class SystemBuildResult:
 class _ResolvedSystemInputs:
     component_counts: dict[str, int]
     positions_nm: unit.Quantity
+    end_mode: str
     selector_params_by_name: dict[str, SelectorFragmentParams]
     connector_params_by_key: dict[tuple[str, str], ConnectorParams]
     backbone_mapping: GlycamMappingResult
@@ -280,11 +282,18 @@ def _validate_runtime_support_boundary(mol: Chem.Mol) -> None:
             "Canonical runtime system currently supports only anhydro forcefield-domain "
             f"molecules; got {representation!r}."
         )
-    if end_mode != "open":
+    if end_mode not in {"open", "periodic"}:
         raise ValueError(
-            "Canonical runtime system currently supports only open-ended forcefield-domain "
-            f"molecules; got {end_mode!r}."
+            "Canonical runtime system currently supports only open and periodic "
+            f"forcefield-domain molecules; got {end_mode!r}."
         )
+    if end_mode == "periodic":
+        if not mol.HasProp("_poly_csp_dp") or int(mol.GetIntProp("_poly_csp_dp")) < 2:
+            raise ValueError("Periodic runtime system requires dp >= 2.")
+        if get_box_vectors_nm(mol) is None:
+            raise ValueError(
+                "Periodic runtime system requires box vectors on the forcefield-domain molecule."
+            )
 
 
 def _set_or_add_bond(force: mm.HarmonicBondForce, a: int, b: int, r0, k) -> None:
@@ -504,6 +513,7 @@ def _resolve_system_inputs(
     _validate_runtime_support_boundary(mol)
     component_counts = _component_counts(mol)
     positions_nm = _positions_nm_from_mol(mol)
+    end_mode = _require_mol_prop(mol, "_poly_csp_end_mode").strip().lower()
 
     resolved_selector_params = dict(selector_params_by_name or {})
     resolved_connector_params = dict(connector_params_by_key or {})
@@ -598,6 +608,7 @@ def _resolve_system_inputs(
     return _ResolvedSystemInputs(
         component_counts=component_counts,
         positions_nm=positions_nm,
+        end_mode=end_mode,
         selector_params_by_name=resolved_selector_params,
         connector_params_by_key=resolved_connector_params,
         backbone_mapping=backbone_mapping,
@@ -621,8 +632,12 @@ def _resolve_backbone_tokens(
     tokens,
 ) -> tuple[int, ...] | None:
     resolved: list[int] = []
+    residue_count = len(inputs.residue_roles)
     for token in tokens:
-        key = (int(anchor_residue + token.residue_offset), token.atom_name)
+        residue_index = int(anchor_residue + token.residue_offset)
+        if inputs.end_mode == "periodic":
+            residue_index %= residue_count
+        key = (residue_index, token.atom_name)
         if key not in inputs.atom_index_by_backbone_name:
             if key in inputs.missing_backbone_atom_keys:
                 return None
@@ -682,8 +697,15 @@ def _materialize_backbone_terms(
                 owner=f"backbone:{residue_role}",
             )
 
-    for left_residue in range(max(0, len(inputs.residue_roles) - 1)):
-        pair = (inputs.residue_roles[left_residue], inputs.residue_roles[left_residue + 1])
+    residue_count = len(inputs.residue_roles)
+    if inputs.end_mode == "periodic":
+        linkage_indices = range(residue_count)
+    else:
+        linkage_indices = range(max(0, residue_count - 1))
+
+    for left_residue in linkage_indices:
+        right_residue = (left_residue + 1) % residue_count
+        pair = (inputs.residue_roles[left_residue], inputs.residue_roles[right_residue])
         linkage_template = glycam_params.linkage_templates.get(pair)
         if linkage_template is None:
             raise ValueError(
@@ -823,6 +845,7 @@ def _add_nonbonded_force(
     *,
     assigned_nonbonded: Sequence[tuple[float, float, float]],
     nonbonded_mode: str,
+    periodic: bool,
     mixing_rules_cfg: Mapping[str, object] | None,
     repulsion_k_kj_per_mol_nm2: float,
     repulsion_cutoff_nm: float,
@@ -835,10 +858,31 @@ def _add_nonbonded_force(
 
     if nonbonded_mode == "full":
         nonbonded = mm.NonbondedForce()
-        nonbonded.setNonbondedMethod(mm.NonbondedForce.NoCutoff)
+        if periodic:
+            cutoff_nm = _periodic_cutoff_nm(mol)
+            nonbonded.setNonbondedMethod(mm.NonbondedForce.CutoffPeriodic)
+            nonbonded.setCutoffDistance(float(cutoff_nm) * unit.nanometer)
+        else:
+            cutoff_nm = None
+            nonbonded.setNonbondedMethod(mm.NonbondedForce.NoCutoff)
         for charge_e, sigma_nm, epsilon_kj in assigned_nonbonded:
             nonbonded.addParticle(float(charge_e), float(sigma_nm), float(epsilon_kj))
         nonbonded.createExceptionsFromBonds(bonds, 1.0, 1.0)
+        for exception_idx in range(nonbonded.getNumExceptions()):
+            atom_a, atom_b, charge_prod, sigma, epsilon = nonbonded.getExceptionParameters(
+                exception_idx
+            )
+            pair = _bond_key(int(atom_a), int(atom_b))
+            if pair not in excluded:
+                continue
+            nonbonded.setExceptionParameters(
+                exception_idx,
+                atom_a,
+                atom_b,
+                charge_prod * 0.0,
+                sigma,
+                epsilon * 0.0,
+            )
         system.addForce(nonbonded)
         exception_summary = apply_mixing_rules(
             nonbonded=nonbonded,
@@ -852,6 +896,8 @@ def _add_nonbonded_force(
                 "num_bonds": len(bonds),
                 "num_exclusions": len(excluded),
                 "num_particles": len(assigned_nonbonded),
+                "periodic": bool(periodic),
+                "cutoff_nm": (None if cutoff_nm is None else float(cutoff_nm)),
             }
         )
         return excluded, exception_summary
@@ -862,8 +908,14 @@ def _add_nonbonded_force(
     )
     repulsive.addGlobalParameter("k_rep", float(repulsion_k_kj_per_mol_nm2))
     repulsive.addPerParticleParameter("sigma")
-    repulsive.setNonbondedMethod(mm.CustomNonbondedForce.CutoffNonPeriodic)
-    repulsive.setCutoffDistance(float(repulsion_cutoff_nm) * unit.nanometer)
+    if periodic:
+        cutoff_nm = _periodic_cutoff_nm(mol)
+        repulsive.setNonbondedMethod(mm.CustomNonbondedForce.CutoffPeriodic)
+        repulsive.setCutoffDistance(float(cutoff_nm) * unit.nanometer)
+    else:
+        cutoff_nm = float(repulsion_cutoff_nm)
+        repulsive.setNonbondedMethod(mm.CustomNonbondedForce.CutoffNonPeriodic)
+        repulsive.setCutoffDistance(float(cutoff_nm) * unit.nanometer)
     for atom_idx in range(mol.GetNumAtoms()):
         repulsive.addParticle([_soft_sigma_nm(assigned_nonbonded, atom_idx)])
     for i, j in sorted(excluded):
@@ -875,8 +927,9 @@ def _add_nonbonded_force(
         "num_bonds": len(bonds),
         "num_exclusions": len(excluded),
         "num_particles": len(assigned_nonbonded),
+        "periodic": bool(periodic),
         "repulsion_k_kj_per_mol_nm2": float(repulsion_k_kj_per_mol_nm2),
-        "repulsion_cutoff_nm": float(repulsion_cutoff_nm),
+        "repulsion_cutoff_nm": float(cutoff_nm),
     }
 
 
@@ -897,6 +950,32 @@ def _soft_sigma_nm(
 ) -> float:
     params = assigned_nonbonded[atom_idx]
     return float(params[1])
+
+
+def _periodic_cutoff_nm(mol: Chem.Mol) -> float:
+    box_vectors_A = get_box_vectors_A(mol)
+    if box_vectors_A is None:
+        raise ValueError(
+            "Periodic runtime system requires box vectors on the forcefield-domain molecule."
+        )
+    min_length_A = min(float(length) for length in box_vectors_A)
+    return float(0.49 * (min_length_A / 10.0))
+
+
+def _configure_periodic_system(
+    system: mm.System,
+    mol: Chem.Mol,
+    bonded_assembly: _BondedAssembly,
+) -> None:
+    box_vectors_nm = get_box_vectors_nm(mol)
+    if box_vectors_nm is None:
+        raise ValueError(
+            "Periodic runtime system requires box vectors on the forcefield-domain molecule."
+        )
+    system.setDefaultPeriodicBoxVectors(*box_vectors_nm)
+    bonded_assembly.bond_force.setUsesPeriodicBoundaryConditions(True)
+    bonded_assembly.angle_force.setUsesPeriodicBoundaryConditions(True)
+    bonded_assembly.torsion_force.setUsesPeriodicBoundaryConditions(True)
 
 
 def create_system(
@@ -925,12 +1004,15 @@ def create_system(
         selector_params_by_name=selector_params_by_name,
         connector_params_by_key=connector_params_by_key,
     )
+    periodic = bool(inputs.end_mode == "periodic")
 
     system = mm.System()
     for atom in mol.GetAtoms():
         system.addParticle(_atomic_mass_dalton(atom.GetAtomicNum()) * unit.dalton)
 
     bonded_assembly = _materialize_bonded_terms(inputs, glycam_params)
+    if periodic:
+        _configure_periodic_system(system, mol, bonded_assembly)
     system.addForce(bonded_assembly.bond_force)
     system.addForce(bonded_assembly.angle_force)
     if bonded_assembly.torsion_force.getNumTorsions() > 0:
@@ -941,6 +1023,7 @@ def create_system(
         mol,
         assigned_nonbonded=inputs.assigned_nonbonded,
         nonbonded_mode=nonbonded_mode,
+        periodic=periodic,
         mixing_rules_cfg=mixing_rules_cfg,
         repulsion_k_kj_per_mol_nm2=float(repulsion_k_kj_per_mol_nm2),
         repulsion_cutoff_nm=float(repulsion_cutoff_nm),

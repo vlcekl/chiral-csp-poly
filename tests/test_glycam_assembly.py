@@ -13,7 +13,7 @@ from poly_csp.forcefield.glycam import (
 
 
 def test_glycam_sequence_amylose_dp4() -> None:
-    seq = build_glycam_sequence("amylose", dp=4)
+    seq = build_glycam_sequence("amylose", dp=4, end_mode="open")
     assert len(seq) == 4
     assert seq[0] == "4GA"
     assert seq[-1] == "0GA"
@@ -21,15 +21,20 @@ def test_glycam_sequence_amylose_dp4() -> None:
 
 
 def test_glycam_sequence_cellulose_dp2() -> None:
-    seq = build_glycam_sequence("cellulose", dp=2)
+    seq = build_glycam_sequence("cellulose", dp=2, end_mode="open")
     assert len(seq) == 2
     assert seq[0] == "4GB"
     assert seq[1] == "0GB"
 
 
 def test_glycam_sequence_dp1() -> None:
-    seq = build_glycam_sequence("amylose", dp=1)
+    seq = build_glycam_sequence("amylose", dp=1, end_mode="open")
     assert seq == ["0GA"]
+
+
+def test_glycam_sequence_periodic_uses_internal_roles() -> None:
+    seq = build_glycam_sequence("amylose", dp=4, end_mode="periodic")
+    assert seq == ["4GA", "4GA", "4GA", "4GA"]
 
 
 def test_glycam_sequence_rejects_dp0() -> None:
@@ -38,7 +43,7 @@ def test_glycam_sequence_rejects_dp0() -> None:
 
 
 def test_tleap_script_backbone_only() -> None:
-    script = build_tleap_script(polymer="amylose", dp=4)
+    script = build_tleap_script(polymer="amylose", dp=4, end_mode="open")
     assert "GLYCAM_06j" in script
     assert "0GA" in script
     assert "4GA" in script
@@ -51,7 +56,7 @@ def test_tleap_script_backbone_only() -> None:
 
 
 def test_tleap_script_uses_model_name_for_outputs() -> None:
-    script = build_tleap_script(polymer="amylose", dp=2, model_name="amylose_ref")
+    script = build_tleap_script(polymer="amylose", dp=2, end_mode="open", model_name="amylose_ref")
     assert "saveamberparm mol amylose_ref.prmtop amylose_ref.inpcrd" in script
 
 
@@ -59,19 +64,20 @@ def test_tleap_script_periodic_includes_bond_and_box() -> None:
     script = build_tleap_script(
         polymer="amylose",
         dp=4,
-        periodic=True,
+        end_mode="periodic",
         box_vectors_A=(50.0, 50.0, 30.0),
     )
     assert "bond mol.1.C1 mol.4.O4" in script
     assert "setBox" in script
     assert "50.0000" in script
+    assert "sequence { 4GA 4GA 4GA 4GA }" in script
 
 
 def test_tleap_script_periodic_with_linkage_frcmod() -> None:
     script = build_tleap_script(
         polymer="amylose",
         dp=4,
-        periodic=True,
+        end_mode="periodic",
         box_vectors_A=(50.0, 50.0, 30.0),
         linkage_frcmod_path="/tmp/linkage.frcmod",
     )

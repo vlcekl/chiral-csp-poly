@@ -167,13 +167,43 @@ def test_pipeline_runtime_multi_opt_writes_ranked_export_bundles(tmp_path: Path)
         assert (rank_dir / "model.inpcrd").exists()
 
 
-def test_pipeline_runtime_rejects_periodic_mode(tmp_path: Path) -> None:
-    outdir = tmp_path / "periodic_reject"
+def test_pipeline_runtime_supports_periodic_mode(tmp_path: Path) -> None:
+    outdir = tmp_path / "periodic_runtime"
+    _run_build(
+        "topology/backbone=amylose_periodic "
+        "topology.selector.enabled=false "
+        "forcefield/options=runtime "
+        "output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["end_mode"] == "periodic"
+    assert report["forcefield_mode"] == "runtime"
+    assert report["forcefield_summary"]["exception_summary"]["periodic"] is True
+    assert report["amber_enabled"] is False
+    assert report["docking_enabled"] is False
+
+
+def test_pipeline_runtime_rejects_periodic_pdbqt_export(tmp_path: Path) -> None:
+    outdir = tmp_path / "periodic_pdbqt_reject"
     with pytest.raises(subprocess.CalledProcessError):
         _run_build(
             "topology/backbone=amylose_periodic "
             "topology.selector.enabled=false "
             "forcefield/options=runtime "
-            "output.export_formats=[pdb,sdf] "
+            "output.export_formats=[pdb,pdbqt] "
+            f"output.dir={outdir}"
+        )
+
+
+def test_pipeline_runtime_rejects_periodic_amber_export(tmp_path: Path) -> None:
+    outdir = tmp_path / "periodic_amber_reject"
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_build(
+            "topology/backbone=amylose_periodic "
+            "topology.selector.enabled=false "
+            "forcefield/options=runtime "
+            "output.export_formats=[pdb,amber] "
             f"output.dir={outdir}"
         )

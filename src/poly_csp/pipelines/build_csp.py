@@ -415,6 +415,17 @@ def main(cfg: DictConfig) -> None:
             + ", ".join(sorted(set(unsupported_formats)))
         )
 
+    if end_mode == "periodic" and "pdbqt" in output_export_formats:
+        raise ValueError(
+            "Periodic builds do not support pdbqt/vina export because the current docking "
+            "handoff is defined only for finite non-periodic receptors."
+        )
+    if end_mode == "periodic" and "amber" in output_export_formats:
+        raise ValueError(
+            "Periodic builds do not yet support amber export because the current AMBER "
+            "handoff does not preserve the periodic closure model reliably."
+        )
+
     helix = _cfg_to_helixspec(cfg)
     backbone = BackboneSpec(
         polymer=polymer_kind,

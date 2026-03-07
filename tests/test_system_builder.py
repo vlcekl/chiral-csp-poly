@@ -28,6 +28,7 @@ from poly_csp.forcefield.glycam import (
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
+from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
 from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
 from poly_csp.structure.selector_library.tmb import make_tmb_template
 from poly_csp.topology.backbone import polymerize
@@ -81,6 +82,14 @@ def _build_forcefield_mol(
         representation="anhydro",
     )
     structure = build_backbone_structure(topology, _helix()).mol
+    if end_mode == "periodic":
+        Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(
+            structure,
+            _helix(),
+            dp=dp,
+            padding_A=30.0,
+        )
+        set_box_vectors(structure, Lx_A, Ly_A, Lz_A)
     if selector is not None:
         for residue_index in range(dp):
             structure = attach_selector(
@@ -174,17 +183,20 @@ def _fake_glycam_params(mol: Chem.Mol) -> GlycamParams:
     representation = mol.GetProp("_poly_csp_representation")
     end_mode = mol.GetProp("_poly_csp_end_mode")
     dp = int(mol.GetIntProp("_poly_csp_dp"))
-    residue_roles = glycam_residue_roles_for_dp(dp)
+    role_end_mode = end_mode if end_mode in {"open", "periodic"} else "open"
+    residue_roles = glycam_residue_roles_for_dp(dp, end_mode=role_end_mode)  # type: ignore[arg-type]
     residue_names = {
         "amylose": {
             "terminal_reducing": "4GA",
             "internal": "4GA",
             "terminal_nonreducing": "0GA",
+            "periodic": "4GA",
         },
         "cellulose": {
             "terminal_reducing": "4GB",
             "internal": "4GB",
             "terminal_nonreducing": "0GB",
+            "periodic": "4GB",
         },
     }[polymer]
 
@@ -253,8 +265,12 @@ def _fake_glycam_params(mol: Chem.Mol) -> GlycamParams:
                 )
                 continue
 
-            left_residue = min(res_i, res_j)
-            right_residue = max(res_i, res_j)
+            if end_mode == "periodic" and {res_i, res_j} == {0, dp - 1}:
+                left_residue = dp - 1
+                right_residue = 0
+            else:
+                left_residue = min(res_i, res_j)
+                right_residue = max(res_i, res_j)
             left_token = GlycamAtomToken(
                 residue_offset=0,
                 atom_name=name_i if res_i == left_residue else name_j,
@@ -651,16 +667,29 @@ def test_create_system_rejects_missing_connector_payloads_early() -> None:
         raise AssertionError("Expected missing connector payloads to fail.")
 
 
-def test_create_system_rejects_periodic_forcefield_molecule_early() -> None:
-    mol = _build_forcefield_mol(polymer="amylose", dp=2, end_mode="periodic")
+def test_create_system_supports_periodic_forcefield_molecule() -> None:
+    mol = _build_forcefield_mol(polymer="amylose", dp=4, end_mode="periodic")
     glycam = _fake_glycam_params(mol)
 
-    try:
-        create_system(mol, glycam_params=glycam, nonbonded_mode="full")
-    except ValueError as exc:
-        assert "open-ended" in str(exc)
-    else:
-        raise AssertionError("Expected periodic runtime build to fail.")
+    result = create_system(mol, glycam_params=glycam, nonbonded_mode="full")
+    nonbonded = next(
+        force for force in (result.system.getForce(i) for i in range(result.system.getNumForces()))
+        if isinstance(force, mm.NonbondedForce)
+    )
+    bond_force = next(
+        force for force in (result.system.getForce(i) for i in range(result.system.getNumForces()))
+        if isinstance(force, mm.HarmonicBondForce)
+    )
+
+    assert nonbonded.getNonbondedMethod() == mm.NonbondedForce.CutoffPeriodic
+    assert result.exception_summary["periodic"] is True
+    assert result.exception_summary["cutoff_nm"] > 0.0
+    assert bond_force.usesPeriodicBoundaryConditions() is True
+    assert all(
+        entry.get("glycam_residue_role") == "periodic"
+        for entry in result.topology_manifest
+        if "glycam_residue_role" in entry
+    )
 
 
 def test_create_system_rejects_capped_forcefield_molecule_early() -> None:
@@ -675,6 +704,24 @@ def test_create_system_rejects_capped_forcefield_molecule_early() -> None:
     try:
         create_system(mol, glycam_params=glycam, nonbonded_mode="soft")
     except ValueError as exc:
-        assert "open-ended" in str(exc)
+        assert "open and periodic" in str(exc)
     else:
         raise AssertionError("Expected capped runtime build to fail.")
+
+
+def test_create_system_rejects_periodic_forcefield_molecule_without_box() -> None:
+    mol = _build_forcefield_mol(polymer="amylose", dp=4, end_mode="periodic")
+    for key in (
+        "_poly_csp_box_a_A",
+        "_poly_csp_box_b_A",
+        "_poly_csp_box_c_A",
+    ):
+        mol.ClearProp(key)
+    glycam = _fake_glycam_params(mol)
+
+    try:
+        create_system(mol, glycam_params=glycam, nonbonded_mode="soft")
+    except ValueError as exc:
+        assert "box vectors" in str(exc)
+    else:
+        raise AssertionError("Expected periodic runtime build without box vectors to fail.")

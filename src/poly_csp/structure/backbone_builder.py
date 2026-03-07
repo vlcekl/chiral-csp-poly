@@ -10,6 +10,7 @@ from rdkit.Geometry import Point3D
 from poly_csp.config.schema import HelixSpec
 from poly_csp.structure.matrix import ScrewTransform
 from poly_csp.structure.naming import AtomManifestEntry, build_atom_manifest
+from poly_csp.structure.pbc import get_box_vectors_A
 from poly_csp.structure.templates import (
     ExplicitResidueTemplate,
     build_residue_variant,
@@ -34,6 +35,7 @@ _CLASH_CUTOFF_A = 1.55
 _POSE_RADIUS_BOUNDS = (0.8, 2.4)
 _POSE_TILT_BOUNDS = (-1.4, 1.4)
 _POSE_PHASE_BOUNDS = (-math.pi, math.pi)
+_PERIODIC_COMMENSURABILITY_TOL_RAD = 1e-4
 
 
 @dataclass(frozen=True)
@@ -209,6 +211,40 @@ def _rotation_y(theta_rad: float) -> np.ndarray:
 def _wrap_angle(theta_rad: float) -> float:
     wrapped = (float(theta_rad) + math.pi) % (2.0 * math.pi) - math.pi
     return float(wrapped)
+
+
+def _validate_periodic_helix(topology_mol: Chem.Mol, helix_spec: HelixSpec) -> None:
+    end_mode = (
+        str(topology_mol.GetProp("_poly_csp_end_mode"))
+        if topology_mol.HasProp("_poly_csp_end_mode")
+        else "open"
+    ).strip().lower()
+    if end_mode != "periodic":
+        return
+    dp = int(topology_mol.GetIntProp("_poly_csp_dp")) if topology_mol.HasProp("_poly_csp_dp") else 0
+    if dp < 2:
+        raise ValueError("Periodic backbone construction requires dp >= 2.")
+    total_rotation = _wrap_angle(float(helix_spec.theta_rad) * float(dp))
+    if abs(total_rotation) > _PERIODIC_COMMENSURABILITY_TOL_RAD:
+        raise ValueError(
+            "Periodic end mode requires a helix/DP combination that closes the screw "
+            "rotation over the simulation cell."
+        )
+
+
+def _minimum_image_delta_A(
+    delta: np.ndarray,
+    box_vectors_A: tuple[float, float, float] | None,
+) -> np.ndarray:
+    out = np.asarray(delta, dtype=float).copy()
+    if box_vectors_A is None:
+        return out
+    for axis, box_length in enumerate(box_vectors_A):
+        length = float(box_length)
+        if length <= 1e-12:
+            continue
+        out[axis] -= length * np.round(out[axis] / length)
+    return out
 
 
 def _explicit_template_coords(template: ExplicitResidueTemplate) -> np.ndarray:
@@ -390,6 +426,7 @@ def inspect_backbone_linkages(mol: Chem.Mol) -> list[BackboneLinkageMetrics]:
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     linkage_pairs = [(residue_index, residue_index + 1) for residue_index in range(len(maps) - 1)]
     end_mode = str(mol.GetProp("_poly_csp_end_mode")) if mol.HasProp("_poly_csp_end_mode") else "open"
+    box_vectors_A = get_box_vectors_A(mol)
     if end_mode == "periodic" and len(maps) > 1:
         linkage_pairs.append((len(maps) - 1, 0))
 
@@ -410,20 +447,37 @@ def inspect_backbone_linkages(mol: Chem.Mol) -> list[BackboneLinkageMetrics]:
 
         donor_o4 = int(donor["O4"])
         acceptor_c1 = int(acceptor["C1"])
+        donor_o4_xyz = np.asarray(xyz[donor_o4], dtype=float)
+        acceptor_shift = np.zeros(3, dtype=float)
+        if (
+            end_mode == "periodic"
+            and donor_residue_index == len(maps) - 1
+            and acceptor_residue_index == 0
+            and box_vectors_A is not None
+        ):
+            acceptor_delta = _minimum_image_delta_A(
+                np.asarray(xyz[acceptor_c1], dtype=float) - donor_o4_xyz,
+                box_vectors_A,
+            )
+            acceptor_shift = donor_o4_xyz + acceptor_delta - np.asarray(
+                xyz[acceptor_c1],
+                dtype=float,
+            )
+
         donor_angle = _bond_angle_deg(
             xyz[int(donor["C4"])],
-            xyz[donor_o4],
-            xyz[acceptor_c1],
+            donor_o4_xyz,
+            np.asarray(xyz[acceptor_c1], dtype=float) + acceptor_shift,
         )
         acceptor_angle = _bond_angle_deg(
-            xyz[donor_o4],
-            xyz[acceptor_c1],
-            xyz[int(acceptor["O5"])],
+            donor_o4_xyz,
+            np.asarray(xyz[acceptor_c1], dtype=float) + acceptor_shift,
+            np.asarray(xyz[int(acceptor["O5"])], dtype=float) + acceptor_shift,
         )
         acceptor_angle_c2 = _bond_angle_deg(
-            xyz[donor_o4],
-            xyz[acceptor_c1],
-            xyz[int(acceptor["C2"])],
+            donor_o4_xyz,
+            np.asarray(xyz[acceptor_c1], dtype=float) + acceptor_shift,
+            np.asarray(xyz[int(acceptor["C2"])], dtype=float) + acceptor_shift,
         )
 
         c1_atom = mol.GetAtomWithIdx(acceptor_c1)
@@ -435,14 +489,24 @@ def inspect_backbone_linkages(mol: Chem.Mol) -> list[BackboneLinkageMetrics]:
         o4_h1_distance = (
             None
             if not h1_neighbors
-            else float(np.linalg.norm(xyz[donor_o4] - xyz[h1_neighbors[0]]))
+            else float(
+                np.linalg.norm(
+                    donor_o4_xyz
+                    - (np.asarray(xyz[h1_neighbors[0]], dtype=float) + acceptor_shift)
+                )
+            )
         )
 
         out.append(
             BackboneLinkageMetrics(
                 donor_residue_index=donor_residue_index,
                 acceptor_residue_index=acceptor_residue_index,
-                bond_length_A=float(np.linalg.norm(xyz[donor_o4] - xyz[acceptor_c1])),
+                bond_length_A=float(
+                    np.linalg.norm(
+                        donor_o4_xyz
+                        - (np.asarray(xyz[acceptor_c1], dtype=float) + acceptor_shift)
+                    )
+                ),
                 donor_angle_deg=donor_angle,
                 acceptor_angle_deg=acceptor_angle,
                 acceptor_angle_c2_deg=acceptor_angle_c2,
@@ -873,6 +937,7 @@ def build_backbone_structure(
     helix_spec: HelixSpec,
 ) -> BackboneBuildResult:
     """Build the canonical structure-domain all-atom backbone from heavy topology metadata."""
+    _validate_periodic_helix(topology_mol, helix_spec)
     residue_states = resolve_residue_template_states(topology_mol)
     if not residue_states:
         raise ValueError("Backbone construction requires at least one residue state.")

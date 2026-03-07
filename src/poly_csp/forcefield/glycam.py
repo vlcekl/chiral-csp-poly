@@ -17,7 +17,7 @@ from poly_csp.forcefield.payload_cache import (
 )
 
 
-ResidueRole = Literal["terminal_reducing", "internal", "terminal_nonreducing"]
+ResidueRole = Literal["terminal_reducing", "internal", "terminal_nonreducing", "periodic"]
 
 
 # GLYCAM06j residue codes for poly_csp residue order.
@@ -27,9 +27,11 @@ GLYCAM_RESIDUE_NAMES = {
     ("amylose", "terminal_reducing"): "4GA",
     ("amylose", "internal"): "4GA",
     ("amylose", "terminal_nonreducing"): "0GA",
+    ("amylose", "periodic"): "4GA",
     ("cellulose", "terminal_reducing"): "4GB",
     ("cellulose", "internal"): "4GB",
     ("cellulose", "terminal_nonreducing"): "0GB",
+    ("cellulose", "periodic"): "4GB",
 }
 
 
@@ -100,18 +102,31 @@ class GlycamParams:
     provenance: dict[str, object]
 
 
-def glycam_residue_roles_for_dp(dp: int) -> list[ResidueRole]:
+def glycam_residue_roles_for_dp(
+    dp: int,
+    end_mode: EndMode = "open",
+) -> list[ResidueRole]:
     if dp < 1:
         raise ValueError(f"dp must be >= 1, got {dp}")
+    if end_mode == "periodic":
+        if dp < 2:
+            raise ValueError("Periodic GLYCAM roles require dp >= 2.")
+        return ["periodic"] * dp
+    if end_mode != "open":
+        raise ValueError(f"Unsupported GLYCAM end mode {end_mode!r}.")
     if dp == 1:
         return ["terminal_nonreducing"]
     return ["terminal_reducing", *["internal"] * (dp - 2), "terminal_nonreducing"]
 
 
-def build_glycam_sequence(polymer: str, dp: int) -> List[str]:
+def build_glycam_sequence(
+    polymer: str,
+    dp: int,
+    end_mode: EndMode = "open",
+) -> List[str]:
     """Build the GLYCAM residue-code sequence for the poly_csp residue order."""
     key_base = polymer.lower()
-    roles = glycam_residue_roles_for_dp(dp)
+    roles = glycam_residue_roles_for_dp(dp, end_mode=end_mode)
     try:
         return [GLYCAM_RESIDUE_NAMES[(key_base, role)] for role in roles]
     except KeyError as exc:
@@ -152,16 +167,17 @@ def _run_command(cmd: Sequence[str], cwd: Path, log_path: Path) -> None:
 def build_tleap_script(
     polymer: str,
     dp: int,
+    end_mode: EndMode = "open",
     linkage_frcmod_path: str | None = None,
     model_name: str = "model",
     prmtop_name: str | None = None,
     inpcrd_name: str | None = None,
-    periodic: bool = False,
     box_vectors_A: tuple[float, float, float] | None = None,
 ) -> str:
     """Generate a tleap script for pure-backbone GLYCAM reference assembly."""
     prmtop_name = prmtop_name or f"{model_name}.prmtop"
     inpcrd_name = inpcrd_name or f"{model_name}.inpcrd"
+    periodic = bool(end_mode == "periodic")
 
     lines: List[str] = [
         "# poly_csp GLYCAM06j backbone reference assembly",
@@ -170,7 +186,7 @@ def build_tleap_script(
     if linkage_frcmod_path:
         lines.append(f"loadamberparams {linkage_frcmod_path}")
 
-    seq_str = " ".join(build_glycam_sequence(polymer, dp))
+    seq_str = " ".join(build_glycam_sequence(polymer, dp, end_mode=end_mode))
     lines.append(f"mol = sequence {{ {seq_str} }}")
 
     if periodic and dp > 1:
@@ -392,6 +408,7 @@ def _new_linkage_bucket() -> dict[str, object]:
 def _partition_reference_terms(
     prmtop_path: str | Path,
     dp: int,
+    end_mode: EndMode,
     atom_params: dict[tuple[ResidueRole, str], GlycamAtomParams],
     residue_terms: dict[ResidueRole, dict[str, object]],
     linkage_terms: dict[tuple[ResidueRole, ResidueRole], dict[str, object]],
@@ -402,7 +419,7 @@ def _partition_reference_terms(
 
     prmtop = mmapp.AmberPrmtopFile(str(prmtop_path))
     ref_system = prmtop.createSystem()
-    roles = glycam_residue_roles_for_dp(dp)
+    roles = glycam_residue_roles_for_dp(dp, end_mode=end_mode)
     residues = list(prmtop.topology.residues())
     if len(residues) != len(roles):
         raise ValueError(
@@ -459,6 +476,14 @@ def _partition_reference_terms(
             left_idx, right_idx = unique_residues
             tokens = _tokenized_atoms(atom_names, residue_indices)
             return "linkage", (roles[left_idx], roles[right_idx]), tokens
+
+        if end_mode == "periodic" and unique_residues == [0, dp - 1]:
+            normalized_residue_indices = [
+                dp if residue_idx == 0 else residue_idx
+                for residue_idx in residue_indices
+            ]
+            tokens = _tokenized_atoms(atom_names, normalized_residue_indices)
+            return "linkage", (roles[dp - 1], roles[0]), tokens
 
         raise ValueError(
             "GLYCAM reference term spans unsupported residue topology: "
@@ -533,6 +558,7 @@ def _partition_reference_terms(
 def _build_reference_prmtop(
     polymer: PolymerKind,
     dp: int,
+    end_mode: EndMode,
     work_dir: Path | None = None,
 ) -> dict[str, object]:
     outdir = (
@@ -547,6 +573,7 @@ def _build_reference_prmtop(
     script = build_tleap_script(
         polymer=polymer,
         dp=dp,
+        end_mode=end_mode,
         linkage_frcmod_path=str(linkage_frcmod.resolve()),
         model_name=model_name,
         prmtop_name=f"{model_name}.prmtop",
@@ -554,7 +581,7 @@ def _build_reference_prmtop(
     )
     result = run_tleap_assembly(script, outdir=outdir, model_name=model_name)
     result["reference_dp"] = dp
-    result["sequence"] = build_glycam_sequence(polymer=polymer, dp=dp)
+    result["sequence"] = build_glycam_sequence(polymer=polymer, dp=dp, end_mode=end_mode)
     return result
 
 
@@ -577,12 +604,27 @@ def _sorted_torsions(
 def _validate_extracted_templates(
     residue_templates: dict[ResidueRole, GlycamResidueTemplate],
     linkage_templates: dict[tuple[ResidueRole, ResidueRole], GlycamLinkageTemplate],
+    *,
+    end_mode: EndMode,
 ) -> None:
-    required_roles = {
-        "terminal_reducing",
-        "internal",
-        "terminal_nonreducing",
-    }
+    if end_mode == "periodic":
+        required_roles = {"periodic"}
+        required_pairs = {("periodic", "periodic")}
+    elif end_mode == "open":
+        required_roles = {
+            "terminal_reducing",
+            "internal",
+            "terminal_nonreducing",
+        }
+        required_pairs = {
+            ("terminal_reducing", "terminal_nonreducing"),
+            ("terminal_reducing", "internal"),
+            ("internal", "internal"),
+            ("internal", "terminal_nonreducing"),
+        }
+    else:
+        raise ValueError(f"Unsupported GLYCAM template validation end mode {end_mode!r}.")
+
     missing_roles = sorted(required_roles.difference(residue_templates))
     if missing_roles:
         raise ValueError(
@@ -590,12 +632,6 @@ def _validate_extracted_templates(
             + ", ".join(missing_roles)
         )
 
-    required_pairs = {
-        ("terminal_reducing", "terminal_nonreducing"),
-        ("terminal_reducing", "internal"),
-        ("internal", "internal"),
-        ("internal", "terminal_nonreducing"),
-    }
     missing_pairs = sorted(required_pairs.difference(linkage_templates))
     if missing_pairs:
         raise ValueError(
@@ -641,8 +677,10 @@ def load_glycam_params(
         raise ValueError(
             "Phase 2 GLYCAM loading currently supports only the anhydro backbone representation."
         )
-    if end_mode != "open":
-        raise ValueError("Phase 2 GLYCAM loading currently supports only open chains.")
+    if end_mode not in {"open", "periodic"}:
+        raise ValueError(
+            "Canonical GLYCAM loading currently supports only open and periodic chains."
+        )
 
     cache_entry_dir: Path | None = None
     cache_identity: dict[str, object] | None = None
@@ -714,12 +752,14 @@ def load_glycam_params(
         reference = _build_reference_prmtop(
             polymer=polymer,
             dp=reference_dp,
+            end_mode=end_mode,
             work_dir=ref_dir,
         )
         reference_runs.append(reference)
         _partition_reference_terms(
             prmtop_path=reference["prmtop"],
             dp=reference_dp,
+            end_mode=end_mode,
             atom_params=atom_params,
             residue_terms=residue_terms,
             linkage_terms=linkage_terms,
@@ -745,7 +785,20 @@ def load_glycam_params(
         )
         for roles, data in linkage_terms.items()
     }
-    _validate_extracted_templates(residue_templates, linkage_templates)
+    _validate_extracted_templates(
+        residue_templates,
+        linkage_templates,
+        end_mode=end_mode,
+    )
+
+    if end_mode == "periodic":
+        supported_roles: tuple[ResidueRole, ...] = ("periodic",)
+    else:
+        supported_roles = (
+            "terminal_reducing",
+            "internal",
+            "terminal_nonreducing",
+        )
 
     params = GlycamParams(
         polymer=polymer,
@@ -756,11 +809,7 @@ def load_glycam_params(
         linkage_templates=linkage_templates,
         supported_states=tuple(
             (str(polymer), str(representation), str(end_mode), str(role))
-            for role in (
-                "terminal_reducing",
-                "internal",
-                "terminal_nonreducing",
-            )
+            for role in supported_roles
         ),
         provenance={
             "parameter_backend": "glycam_reference_extract",

@@ -19,6 +19,7 @@ from poly_csp.forcefield.glycam_mapping import map_backbone_to_glycam
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import build_backbone_glycam_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
+from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
 from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
@@ -45,7 +46,7 @@ def _helix() -> HelixSpec:
     )
 
 
-def _forcefield_backbone_mol(polymer: str, dp: int):
+def _forcefield_backbone_mol(polymer: str, dp: int, *, end_mode: str = "open"):
     template = make_glucose_template(polymer, monomer_representation="anhydro")
     topology = polymerize(
         template=template,
@@ -55,11 +56,19 @@ def _forcefield_backbone_mol(polymer: str, dp: int):
     )
     topology = apply_terminal_mode(
         mol=topology,
-        mode="open",
+        mode=end_mode,  # type: ignore[arg-type]
         caps={},
         representation="anhydro",
     )
     structure = build_backbone_structure(topology, _helix()).mol
+    if end_mode == "periodic":
+        Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(
+            structure,
+            _helix(),
+            dp=dp,
+            padding_A=30.0,
+        )
+        set_box_vectors(structure, Lx_A, Ly_A, Lz_A)
     return build_forcefield_molecule(structure).mol
 
 
@@ -69,6 +78,7 @@ def _reference_total_charge(polymer: str, dp: int, work_dir) -> float:
     script = build_tleap_script(
         polymer=polymer,
         dp=dp,
+        end_mode="open",
         linkage_frcmod_path=str(linkage_frcmod.resolve()),
         model_name="reference",
     )
@@ -106,6 +116,19 @@ def test_load_glycam_params_extracts_residue_roles_and_hydroxyl_names(tmp_path) 
     assert "H4O" not in params.residue_templates["internal"].atom_names
     assert "H4O" in params.residue_templates["terminal_nonreducing"].atom_names
     assert ("terminal_reducing", "terminal_nonreducing") in params.linkage_templates
+
+
+def test_load_glycam_params_extracts_periodic_role_templates(tmp_path) -> None:
+    params = load_glycam_params(
+        polymer="amylose",
+        representation="anhydro",
+        end_mode="periodic",
+        work_dir=tmp_path / "amylose_periodic_ref",
+    )
+
+    assert set(params.residue_templates) == {"periodic"}
+    assert set(params.linkage_templates) == {("periodic", "periodic")}
+    assert params.residue_templates["periodic"].residue_name == "4GA"
 
 
 def test_build_backbone_glycam_system_builds_real_nonbonded_system(tmp_path) -> None:
@@ -154,6 +177,30 @@ def test_build_backbone_glycam_system_supports_cellulose(tmp_path) -> None:
     residue_names = {entry["glycam_residue_name"] for entry in result.topology_manifest}
     assert residue_names == {"4GB", "0GB"}
     assert result.system.getNumParticles() == mol.GetNumAtoms()
+
+
+def test_build_backbone_glycam_system_supports_periodic_backbone(tmp_path) -> None:
+    mol = _forcefield_backbone_mol("amylose", dp=4, end_mode="periodic")
+    params = load_glycam_params(
+        polymer="amylose",
+        representation="anhydro",
+        end_mode="periodic",
+        work_dir=tmp_path / "amylose_periodic_system",
+    )
+
+    result = build_backbone_glycam_system(mol, params)
+    nonbonded = next(
+        force for force in (result.system.getForce(i) for i in range(result.system.getNumForces()))
+        if isinstance(force, openmm.NonbondedForce)
+    )
+
+    assert all(
+        entry["glycam_residue_role"] == "periodic"
+        for entry in result.topology_manifest
+        if "glycam_residue_role" in entry
+    )
+    assert nonbonded.getNonbondedMethod() == openmm.NonbondedForce.CutoffPeriodic
+    assert result.exception_summary["periodic"] is True
 
 
 def test_map_backbone_to_glycam_ignores_selector_atoms(tmp_path) -> None:

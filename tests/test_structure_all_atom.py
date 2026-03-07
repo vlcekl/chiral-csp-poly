@@ -11,6 +11,7 @@ from poly_csp.structure.backbone_builder import (
     build_backbone_structure,
     inspect_backbone_linkages,
 )
+from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
 from tests.support import build_backbone_coords
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
@@ -41,6 +42,19 @@ def _expected_heavy_coords(template, topology_mol, dp: int) -> np.ndarray:
         keep_mask[np.asarray(removed, dtype=int)] = False
         coords = coords[keep_mask]
     return coords
+
+
+def _periodic_helix() -> HelixSpec:
+    return HelixSpec(
+        name="periodic_test_helix",
+        theta_rad=-4.71238898038469,
+        rise_A=3.7,
+        repeat_residues=4,
+        repeat_turns=3,
+        residues_per_turn=4.0 / 3.0,
+        pitch_A=4.933333333333334,
+        handedness="left",
+    )
 
 
 def test_select_residue_templates_detects_substitution_and_termini() -> None:
@@ -244,3 +258,39 @@ def test_build_backbone_structure_assigns_coordinates_without_input_conformer() 
     out = build_backbone_structure(topology, _helix()).mol
     assert out.GetNumConformers() == 1
     assert out.GetNumAtoms() > topology.GetNumAtoms()
+
+
+def test_build_backbone_structure_rejects_non_commensurate_periodic_helix() -> None:
+    template = make_glucose_template("amylose", monomer_representation="anhydro")
+    topology = polymerize(template=template, dp=3, linkage="1-4", anomer="alpha")
+    topology = apply_terminal_mode(
+        topology,
+        mode="periodic",
+        caps={},
+        representation="anhydro",
+    )
+
+    with pytest.raises(ValueError, match="closes the screw rotation"):
+        build_backbone_structure(topology, _periodic_helix())
+
+
+def test_inspect_backbone_linkages_uses_minimum_image_for_periodic_closure() -> None:
+    template = make_glucose_template("amylose", monomer_representation="anhydro")
+    topology = polymerize(template=template, dp=4, linkage="1-4", anomer="alpha")
+    topology = apply_terminal_mode(
+        topology,
+        mode="periodic",
+        caps={},
+        representation="anhydro",
+    )
+    out = build_backbone_structure(topology, _periodic_helix()).mol
+    Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(out, _periodic_helix(), dp=4, padding_A=30.0)
+    set_box_vectors(out, Lx_A, Ly_A, Lz_A)
+
+    metrics = inspect_backbone_linkages(out)
+
+    assert len(metrics) == 4
+    closure = metrics[-1]
+    assert closure.donor_residue_index == 3
+    assert closure.acceptor_residue_index == 0
+    assert closure.bond_length_A < 2.0

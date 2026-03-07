@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from rdkit import Chem
+from openmm import unit
 
 from poly_csp.forcefield.export_bundle import ExportBundle
 from poly_csp.forcefield.gaff import build_fragment_prmtop, parameterize_gaff_fragment
@@ -72,12 +73,23 @@ def export_amber_artifacts(
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
 
+    amber_box = None
+    if bundle.box_vectors_nm is not None:
+        amber_box = [
+            float(bundle.box_vectors_nm[0][0].value_in_unit(unit.nanometer)) * 10.0,
+            float(bundle.box_vectors_nm[1][1].value_in_unit(unit.nanometer)) * 10.0,
+            float(bundle.box_vectors_nm[2][2].value_in_unit(unit.nanometer)) * 10.0,
+            90.0,
+            90.0,
+            90.0,
+        ]
+
     pmd_openmm = _load_parmed()
     structure = pmd_openmm.load_topology(
         bundle.topology,
         system=bundle.system_build.system,
         xyz=bundle.positions_nm,
-        box=bundle.box_vectors_nm,
+        box=amber_box,
     )
 
     prmtop_path = out / f"{model_name}.prmtop"

@@ -121,7 +121,7 @@ def map_backbone_to_glycam(
     if not mol.HasProp("_poly_csp_dp"):
         raise ValueError("Forcefield-domain molecule is missing _poly_csp_dp.")
     dp = int(mol.GetIntProp("_poly_csp_dp"))
-    residue_roles = glycam_residue_roles_for_dp(dp)
+    residue_roles = glycam_residue_roles_for_dp(dp, end_mode=end_mode)  # type: ignore[arg-type]
     allowed_missing = _allowed_missing_hydrogens_by_residue(mol)
 
     observed_glycam_names: dict[int, set[str]] = {}

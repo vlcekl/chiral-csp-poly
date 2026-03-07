@@ -36,6 +36,7 @@ from poly_csp.forcefield.glycam import (
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.runtime_params import RuntimeParamCacheSummary, RuntimeParams
 from poly_csp.structure.backbone_builder import build_backbone_heavy_coords, build_backbone_structure
+from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
 from poly_csp.topology.monomers import GlucoseMonomerTemplate, make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.reactions import attach_selector
@@ -117,6 +118,14 @@ def build_forcefield_mol(
         representation="anhydro",
     )
     structure = build_backbone_structure(topology, test_helix()).mol
+    if end_mode == "periodic":
+        Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(
+            structure,
+            test_helix(),
+            dp=dp,
+            padding_A=30.0,
+        )
+        set_box_vectors(structure, Lx_A, Ly_A, Lz_A)
     if selector is not None:
         for residue_index in range(dp):
             structure = attach_selector(
@@ -184,17 +193,20 @@ def _fake_glycam_params(mol: Chem.Mol) -> GlycamParams:
     representation = mol.GetProp("_poly_csp_representation")
     end_mode = mol.GetProp("_poly_csp_end_mode")
     dp = int(mol.GetIntProp("_poly_csp_dp"))
-    residue_roles = glycam_residue_roles_for_dp(dp)
+    role_end_mode = end_mode if end_mode in {"open", "periodic"} else "open"
+    residue_roles = glycam_residue_roles_for_dp(dp, end_mode=role_end_mode)  # type: ignore[arg-type]
     residue_names = {
         "amylose": {
             "terminal_reducing": "4GA",
             "internal": "4GA",
             "terminal_nonreducing": "0GA",
+            "periodic": "4GA",
         },
         "cellulose": {
             "terminal_reducing": "4GB",
             "internal": "4GB",
             "terminal_nonreducing": "0GB",
+            "periodic": "4GB",
         },
     }[polymer]
 
@@ -268,8 +280,12 @@ def _fake_glycam_params(mol: Chem.Mol) -> GlycamParams:
                 )
                 continue
 
-            left_residue = min(res_i, res_j)
-            right_residue = max(res_i, res_j)
+            if end_mode == "periodic" and {res_i, res_j} == {0, dp - 1}:
+                left_residue = dp - 1
+                right_residue = 0
+            else:
+                left_residue = min(res_i, res_j)
+                right_residue = max(res_i, res_j)
             left_token = GlycamAtomToken(
                 residue_offset=0,
                 atom_name=name_i if res_i == left_residue else name_j,

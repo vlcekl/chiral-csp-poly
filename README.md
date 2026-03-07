@@ -484,6 +484,14 @@ The pipeline supports `pdb`, `sdf`, `pdbqt`, and `amber` export.
 * `vina_box.txt` is generated automatically from the central helical segment
 * `model.prmtop` / `model.inpcrd` are written downstream from the same runtime system via ParmEd
 
+Current end-mode boundary:
+
+* `open`: `pdb`, `sdf`, `pdbqt`, and `amber` are supported
+* `periodic`: `pdb` and `sdf` are supported on the canonical runtime path
+* `periodic`: `pdbqt` is rejected because the docking handoff is defined only for finite non-periodic receptors
+* `periodic`: `amber` is currently rejected because the present AMBER export handoff does not preserve the periodic closure model reliably
+* `capped`: runtime support is still out of scope
+
 Example:
 
 ```bash
@@ -727,7 +735,8 @@ The codebase now has:
 
 What remains for later phases:
 
-* widening the supported chemistry slice beyond built-in selectors and open `anhydro` chains,
-* capped and periodic runtime support,
+* widening the supported chemistry slice beyond built-in selectors and the current `open`/`periodic` `anhydro` backbone slice,
+* capped runtime support,
+* periodic AMBER export from the canonical runtime model,
 * richer runtime diagnostics and ordering metrics on the final forcefield,
 * broader integration coverage for slow AmberTools-dependent reference builds.
