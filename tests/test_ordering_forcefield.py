@@ -44,6 +44,8 @@ def test_optimize_selector_ordering_returns_forcefield_summary() -> None:
     assert summary["stage2_nonbonded_mode"] == "full"
     assert summary["final_score"] == -summary["final_energy_kj_mol"]
     assert "final_hbond_geometric_fraction" in summary
+    assert "final_hbond_like_donor_occupancy_fraction" in summary
+    assert "baseline_hbond_like_donor_occupancy_fraction" in summary
     assert "final_class_min_distance_A" in summary
     assert "selected_pose_by_site" in summary
     assert "C6" in summary["selected_pose_by_site"]
@@ -137,6 +139,8 @@ def test_ordering_seeded_determinism_and_metadata() -> None:
     )
     assert summary1["seed"] == summary2["seed"] == 42
     assert summary3["seed"] == 99
+    assert summary1["initialization_mode"] == "seeded_random_assignment"
+    assert "C6" in summary1["initial_pose_by_site"]
 
 
 def test_ordering_repeat_unit_summary_uses_repeat_positions() -> None:

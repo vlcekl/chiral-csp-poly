@@ -77,10 +77,15 @@ def test_hbond_metrics_distance_pass_geometric_fail() -> None:
         min_acceptor_angle_deg=120.0,
     )
     assert metrics.total_pairs == 1
+    assert metrics.donor_count == 1
     assert metrics.like_satisfied_pairs == 1
     assert metrics.geometric_satisfied_pairs == 0
+    assert metrics.like_satisfied_donors == 1
+    assert metrics.geometric_satisfied_donors == 0
     assert metrics.like_fraction == 1.0
     assert metrics.geometric_fraction == 0.0
+    assert metrics.like_donor_occupancy_fraction == 1.0
+    assert metrics.geometric_donor_occupancy_fraction == 0.0
 
 
 def test_hbond_metrics_geometric_pass() -> None:
@@ -105,10 +110,15 @@ def test_hbond_metrics_geometric_pass() -> None:
         min_acceptor_angle_deg=90.0,
     )
     assert metrics.total_pairs == 1
+    assert metrics.donor_count == 1
     assert metrics.like_satisfied_pairs == 1
     assert metrics.geometric_satisfied_pairs == 1
+    assert metrics.like_satisfied_donors == 1
+    assert metrics.geometric_satisfied_donors == 1
     assert metrics.like_fraction == 1.0
     assert metrics.geometric_fraction == 1.0
+    assert metrics.like_donor_occupancy_fraction == 1.0
+    assert metrics.geometric_donor_occupancy_fraction == 1.0
 
 
 def test_hbond_metrics_no_conformer_returns_zeroes() -> None:
@@ -117,10 +127,15 @@ def test_hbond_metrics_no_conformer_returns_zeroes() -> None:
     mol.RemoveAllConformers()
     metrics = compute_hbond_metrics(mol=mol, selector=selector)
     assert metrics.total_pairs == 0
+    assert metrics.donor_count == 0
     assert metrics.like_satisfied_pairs == 0
     assert metrics.geometric_satisfied_pairs == 0
+    assert metrics.like_satisfied_donors == 0
+    assert metrics.geometric_satisfied_donors == 0
     assert metrics.like_fraction == 0.0
     assert metrics.geometric_fraction == 0.0
+    assert metrics.like_donor_occupancy_fraction == 0.0
+    assert metrics.geometric_donor_occupancy_fraction == 0.0
 
 
 def test_hbond_metrics_periodic_wrap_detects_last_first_neighbor_pair() -> None:
@@ -183,6 +198,10 @@ def test_hbond_metrics_periodic_wrap_detects_last_first_neighbor_pair() -> None:
     )
 
     assert metrics.total_pairs == 1
+    assert metrics.donor_count == 1
     assert metrics.like_satisfied_pairs == 1
     assert metrics.geometric_satisfied_pairs == 1
+    assert metrics.like_satisfied_donors == 1
+    assert metrics.geometric_satisfied_donors == 1
     assert metrics.mean_like_distance_A == pytest.approx(1.4)
+    assert metrics.like_donor_occupancy_fraction == 1.0

@@ -37,7 +37,7 @@ from poly_csp.topology.selectors import SelectorTemplate
 @dataclass(frozen=True)
 class OrderingSpec:
     enabled: bool = False
-    repeat_residues: int = 1
+    repeat_residues: int = 4
     max_candidates: int = 64
     positional_k: float = 5000.0
     freeze_backbone: bool = True
@@ -45,6 +45,11 @@ class OrderingSpec:
     soft_max_iterations: int = 60
     full_max_iterations: int = 120
     final_restraint_factor: float = 0.15
+    max_site_sweeps: int = 3
+    randomize_initial_assignment: bool = True
+    randomize_site_order: bool = True
+    randomize_residue_order: bool = True
+    randomize_pose_order: bool = True
     hbond_max_distance_A: float = 3.3
     hbond_neighbor_window: int = 1
     hbond_min_donor_angle_deg: float = 100.0
@@ -80,6 +85,10 @@ def _heavy_mask(mol: Chem.Mol) -> np.ndarray:
 
 def _finite_or_none(value: float) -> float | None:
     return float(value) if np.isfinite(value) else None
+
+
+def _copy_pose(pose: Mapping[str, float]) -> Dict[str, float]:
+    return {str(name): float(value) for name, value in pose.items()}
 
 
 def _ordering_diagnostics(
@@ -187,10 +196,12 @@ def optimize_selector_ordering(
     mixing_rules_cfg: Mapping[str, object] | None = None,
 ) -> tuple[Chem.Mol, Dict[str, object]]:
     """
-    Deterministic selector ordering on the canonical all-atom forcefield molecule.
+    Seeded selector ordering on the canonical all-atom forcefield molecule.
 
     Candidates are evaluated by short two-stage minimization on shared soft/full
-    runtime systems. Final ranking is by the stage-2 full-system potential energy.
+    runtime systems. When a seed is provided, the search uses a randomized
+    repeat-class initialization and randomized sweep order before greedy
+    refinement. Final ranking is by the stage-2 full-system potential energy.
     """
     _require_forcefield_molecule(mol)
 
@@ -211,18 +222,39 @@ def optimize_selector_ordering(
             "baseline_energy_kj_mol": None,
             "baseline_hbond_like_fraction": hb.like_fraction,
             "baseline_hbond_geometric_fraction": hb.geometric_fraction,
+            "baseline_hbond_donor_count": hb.donor_count,
+            "baseline_hbond_like_satisfied_donors": hb.like_satisfied_donors,
+            "baseline_hbond_geometric_satisfied_donors": hb.geometric_satisfied_donors,
+            "baseline_hbond_like_donor_occupancy_fraction": hb.like_donor_occupancy_fraction,
+            "baseline_hbond_geometric_donor_occupancy_fraction": hb.geometric_donor_occupancy_fraction,
             "baseline_min_heavy_distance_A": dmin,
             "baseline_class_min_distance_A": {
                 k: _finite_or_none(v) for k, v in class_min.items()
             },
+            "initialization_mode": "disabled",
+            "site_sweep_count": 0,
+            "initial_energy_kj_mol": None,
+            "initial_hbond_like_fraction": hb.like_fraction,
+            "initial_hbond_geometric_fraction": hb.geometric_fraction,
+            "initial_hbond_donor_count": hb.donor_count,
+            "initial_hbond_like_satisfied_donors": hb.like_satisfied_donors,
+            "initial_hbond_geometric_satisfied_donors": hb.geometric_satisfied_donors,
+            "initial_hbond_like_donor_occupancy_fraction": hb.like_donor_occupancy_fraction,
+            "initial_hbond_geometric_donor_occupancy_fraction": hb.geometric_donor_occupancy_fraction,
             "final_energy_kj_mol": None,
             "final_score": None,
             "final_hbond_like_fraction": hb.like_fraction,
             "final_hbond_geometric_fraction": hb.geometric_fraction,
+            "final_hbond_donor_count": hb.donor_count,
+            "final_hbond_like_satisfied_donors": hb.like_satisfied_donors,
+            "final_hbond_geometric_satisfied_donors": hb.geometric_satisfied_donors,
+            "final_hbond_like_donor_occupancy_fraction": hb.like_donor_occupancy_fraction,
+            "final_hbond_geometric_donor_occupancy_fraction": hb.geometric_donor_occupancy_fraction,
             "final_min_heavy_distance_A": dmin,
             "final_class_min_distance_A": {
                 k: _finite_or_none(v) for k, v in class_min.items()
             },
+            "initial_pose_by_site": {},
             "selected_pose_by_site": {},
         }
 
@@ -240,8 +272,8 @@ def optimize_selector_ordering(
             max_candidates=min(grid_spec.max_candidates, int(spec.max_candidates)),
         )
     pose_library = enumerate_pose_library(grid_spec)
-    if seed is not None:
-        rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(seed) if seed is not None else None
+    if rng is not None:
         order = rng.permutation(len(pose_library))
         pose_library = [pose_library[int(i)] for i in order]
 
@@ -251,24 +283,82 @@ def optimize_selector_ordering(
         prepared=prepared,
         spec=spec,
     )
-    work = baseline.mol
-    current = baseline
-    selected: Dict[str, Dict[int, Dict[str, float]]] = {}
-    evaluation_count = 1
 
     repeat = max(1, min(int(spec.repeat_residues), int(dp)))
     residues = list(range(int(dp)))
+    site_keys = [str(site) for site in sites]
+    selected: Dict[str, Dict[int, Dict[str, float]]] = {
+        site: {residue_in_repeat: {} for residue_in_repeat in range(repeat)}
+        for site in site_keys
+    }
+    initial_pose_by_site: Dict[str, Dict[int, Dict[str, float]]] = {
+        site: {residue_in_repeat: {} for residue_in_repeat in range(repeat)}
+        for site in site_keys
+    }
+    evaluation_count = 1
+    initialization_mode = "baseline_minimized"
+    work = baseline.mol
+    current = baseline
 
-    for site in [str(site) for site in sites]:
-        per_residue_poses: Dict[int, Dict[str, float]] = {
-            residue_in_repeat: {} for residue_in_repeat in range(repeat)
-        }
-        for _ in range(3):
-            improved = False
-            for residue_in_repeat in range(repeat):
+    if bool(spec.randomize_initial_assignment) and rng is not None and pose_library:
+        randomized = Chem.Mol(baseline.mol)
+        site_iter = list(site_keys)
+        if bool(spec.randomize_site_order):
+            rng.shuffle(site_iter)
+        for site in site_iter:
+            residue_iter = list(range(repeat))
+            if bool(spec.randomize_residue_order):
+                rng.shuffle(residue_iter)
+            for residue_in_repeat in residue_iter:
+                pose = pose_library[int(rng.integers(len(pose_library)))]
+                pose_payload = _copy_pose(pose.dihedral_targets_deg)
+                for residue_index in residues:
+                    if residue_index % repeat != residue_in_repeat:
+                        continue
+                    randomized = apply_selector_pose_dihedrals(
+                        mol=randomized,
+                        residue_index=residue_index,
+                        site=site,  # type: ignore[arg-type]
+                        pose_spec=pose,
+                        selector=selector,
+                    )
+                selected[site][residue_in_repeat] = dict(pose_payload)
+                initial_pose_by_site[site][residue_in_repeat] = dict(pose_payload)
+        current = _evaluate_runtime_candidate(
+            randomized,
+            selector=selector,
+            prepared=prepared,
+            spec=spec,
+        )
+        evaluation_count += 1
+        work = current.mol
+        initialization_mode = "seeded_random_assignment"
+
+    initial = current
+
+    sweep_count = 0
+    for _ in range(max(1, int(spec.max_site_sweeps))):
+        improved = False
+        sweep_count += 1
+        site_iter = list(site_keys)
+        if rng is not None and bool(spec.randomize_site_order):
+            rng.shuffle(site_iter)
+        for site in site_iter:
+            per_residue_poses = selected[site]
+            residue_iter = list(range(repeat))
+            if rng is not None and bool(spec.randomize_residue_order):
+                rng.shuffle(residue_iter)
+            for residue_in_repeat in residue_iter:
                 best_eval = current
                 best_pose = dict(per_residue_poses[residue_in_repeat])
-                for pose in pose_library:
+                candidate_poses = pose_library
+                if rng is not None and bool(spec.randomize_pose_order):
+                    pose_order = rng.permutation(len(pose_library))
+                    candidate_poses = [pose_library[int(i)] for i in pose_order]
+                for pose in candidate_poses:
+                    pose_payload = _copy_pose(pose.dihedral_targets_deg)
+                    if pose_payload == best_pose:
+                        continue
                     trial = Chem.Mol(work)
                     for residue_index in residues:
                         if residue_index % repeat != residue_in_repeat:
@@ -289,20 +379,23 @@ def optimize_selector_ordering(
                     evaluation_count += 1
                     if trial_eval.score > best_eval.score + 1e-9:
                         best_eval = trial_eval
-                        best_pose = dict(pose.dihedral_targets_deg)
+                        best_pose = dict(pose_payload)
                 if best_eval is not current:
                     work = best_eval.mol
                     current = best_eval
                     per_residue_poses[residue_in_repeat] = best_pose
                     improved = True
-            if not improved:
-                break
-        selected[site] = per_residue_poses
+        if not improved:
+            break
 
     final = current
     selected_summary: Dict[str, object] = {
         site_key: {str(residue): pose for residue, pose in residue_poses.items()}
         for site_key, residue_poses in selected.items()
+    }
+    initial_pose_summary: Dict[str, object] = {
+        site_key: {str(residue): pose for residue, pose in residue_poses.items()}
+        for site_key, residue_poses in initial_pose_by_site.items()
     }
     summary: Dict[str, object] = {
         "enabled": True,
@@ -312,26 +405,59 @@ def optimize_selector_ordering(
         "repeat_residues": repeat,
         "candidate_count": len(pose_library),
         "evaluation_count": evaluation_count,
+        "initialization_mode": initialization_mode,
+        "site_sweep_count": sweep_count,
         "seed": seed,
         "baseline_energy_kj_mol": baseline.final_energy_kj_mol,
         "baseline_stage1_energies_kj_mol": list(baseline.stage1_energies_kj_mol),
         "baseline_stage2_energies_kj_mol": list(baseline.stage2_energies_kj_mol),
         "baseline_hbond_like_fraction": baseline.hbond_metrics.like_fraction,
         "baseline_hbond_geometric_fraction": baseline.hbond_metrics.geometric_fraction,
+        "baseline_hbond_donor_count": baseline.hbond_metrics.donor_count,
+        "baseline_hbond_like_satisfied_donors": baseline.hbond_metrics.like_satisfied_donors,
+        "baseline_hbond_geometric_satisfied_donors": baseline.hbond_metrics.geometric_satisfied_donors,
+        "baseline_hbond_like_donor_occupancy_fraction": (
+            baseline.hbond_metrics.like_donor_occupancy_fraction
+        ),
+        "baseline_hbond_geometric_donor_occupancy_fraction": (
+            baseline.hbond_metrics.geometric_donor_occupancy_fraction
+        ),
         "baseline_min_heavy_distance_A": baseline.min_heavy_distance_A,
         "baseline_class_min_distance_A": {
             k: _finite_or_none(v) for k, v in baseline.class_min_distance_A.items()
         },
+        "initial_energy_kj_mol": initial.final_energy_kj_mol,
+        "initial_hbond_like_fraction": initial.hbond_metrics.like_fraction,
+        "initial_hbond_geometric_fraction": initial.hbond_metrics.geometric_fraction,
+        "initial_hbond_donor_count": initial.hbond_metrics.donor_count,
+        "initial_hbond_like_satisfied_donors": initial.hbond_metrics.like_satisfied_donors,
+        "initial_hbond_geometric_satisfied_donors": initial.hbond_metrics.geometric_satisfied_donors,
+        "initial_hbond_like_donor_occupancy_fraction": (
+            initial.hbond_metrics.like_donor_occupancy_fraction
+        ),
+        "initial_hbond_geometric_donor_occupancy_fraction": (
+            initial.hbond_metrics.geometric_donor_occupancy_fraction
+        ),
         "final_energy_kj_mol": final.final_energy_kj_mol,
         "final_score": final.score,
         "final_stage1_energies_kj_mol": list(final.stage1_energies_kj_mol),
         "final_stage2_energies_kj_mol": list(final.stage2_energies_kj_mol),
         "final_hbond_like_fraction": final.hbond_metrics.like_fraction,
         "final_hbond_geometric_fraction": final.hbond_metrics.geometric_fraction,
+        "final_hbond_donor_count": final.hbond_metrics.donor_count,
+        "final_hbond_like_satisfied_donors": final.hbond_metrics.like_satisfied_donors,
+        "final_hbond_geometric_satisfied_donors": final.hbond_metrics.geometric_satisfied_donors,
+        "final_hbond_like_donor_occupancy_fraction": (
+            final.hbond_metrics.like_donor_occupancy_fraction
+        ),
+        "final_hbond_geometric_donor_occupancy_fraction": (
+            final.hbond_metrics.geometric_donor_occupancy_fraction
+        ),
         "final_min_heavy_distance_A": final.min_heavy_distance_A,
         "final_class_min_distance_A": {
             k: _finite_or_none(v) for k, v in final.class_min_distance_A.items()
         },
+        "initial_pose_by_site": initial_pose_summary,
         "selected_pose_by_site": selected_summary,
     }
     return final.mol, summary

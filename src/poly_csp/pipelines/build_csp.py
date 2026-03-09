@@ -165,6 +165,11 @@ class BuildReport:
     qc_hbond_like_satisfied_pairs: int
     qc_hbond_geometric_satisfied_pairs: int
     qc_hbond_total_pairs: int
+    qc_hbond_donor_count: int
+    qc_hbond_like_satisfied_donors: int
+    qc_hbond_geometric_satisfied_donors: int
+    qc_hbond_like_donor_occupancy_fraction: float
+    qc_hbond_geometric_donor_occupancy_fraction: float
     qc_selector_torsion_stats_deg: dict[str, dict[str, float]]
     qc_selector_aromatic_ring_planarity_A: dict[str, object]
     qc_periodic_closure_metrics: dict[str, object]
@@ -867,6 +872,11 @@ def main(cfg: DictConfig) -> None:
     qc_hbond_like_satisfied_pairs = 0
     qc_hbond_geometric_satisfied_pairs = 0
     qc_hbond_total_pairs = 0
+    qc_hbond_donor_count = 0
+    qc_hbond_like_satisfied_donors = 0
+    qc_hbond_geometric_satisfied_donors = 0
+    qc_hbond_like_donor_occupancy_fraction = 0.0
+    qc_hbond_geometric_donor_occupancy_fraction = 0.0
     qc_selector_torsions: dict[str, dict[str, float]] = {}
     qc_selector_ring_planarity: dict[str, object] = {}
     qc_periodic_closure_metrics: dict[str, object] = {}
@@ -885,6 +895,15 @@ def main(cfg: DictConfig) -> None:
         qc_hbond_like_satisfied_pairs = int(hb.like_satisfied_pairs)
         qc_hbond_geometric_satisfied_pairs = int(hb.geometric_satisfied_pairs)
         qc_hbond_total_pairs = int(hb.total_pairs)
+        qc_hbond_donor_count = int(hb.donor_count)
+        qc_hbond_like_satisfied_donors = int(hb.like_satisfied_donors)
+        qc_hbond_geometric_satisfied_donors = int(hb.geometric_satisfied_donors)
+        qc_hbond_like_donor_occupancy_fraction = float(
+            hb.like_donor_occupancy_fraction
+        )
+        qc_hbond_geometric_donor_occupancy_fraction = float(
+            hb.geometric_donor_occupancy_fraction
+        )
         qc_selector_torsions = selector_torsion_stats(
             mol=qc_mol,
             selector_dihedrals=selector.dihedrals,
@@ -1106,6 +1125,13 @@ def main(cfg: DictConfig) -> None:
         qc_hbond_like_satisfied_pairs=qc_hbond_like_satisfied_pairs,
         qc_hbond_geometric_satisfied_pairs=qc_hbond_geometric_satisfied_pairs,
         qc_hbond_total_pairs=qc_hbond_total_pairs,
+        qc_hbond_donor_count=qc_hbond_donor_count,
+        qc_hbond_like_satisfied_donors=qc_hbond_like_satisfied_donors,
+        qc_hbond_geometric_satisfied_donors=qc_hbond_geometric_satisfied_donors,
+        qc_hbond_like_donor_occupancy_fraction=qc_hbond_like_donor_occupancy_fraction,
+        qc_hbond_geometric_donor_occupancy_fraction=(
+            qc_hbond_geometric_donor_occupancy_fraction
+        ),
         qc_selector_torsion_stats_deg=qc_selector_torsions,
         qc_selector_aromatic_ring_planarity_A=qc_selector_ring_planarity,
         qc_periodic_closure_metrics=qc_periodic_closure_metrics,
@@ -1227,6 +1253,11 @@ def main(cfg: DictConfig) -> None:
     print(f"  screw symmetry RMSD (A):      {qc_sym_rmsd:.3f}")
     print(f"  hbond-like fraction:          {qc_hbond_like_fraction:.3f}")
     print(f"  hbond-geometric fraction:     {qc_hbond_geometric_fraction:.3f}")
+    print(
+        "  hbond donor occupancy:       "
+        f"{qc_hbond_like_donor_occupancy_fraction:.3f} like / "
+        f"{qc_hbond_geometric_donor_occupancy_fraction:.3f} geom"
+    )
     if qc_selector_ring_planarity:
         print(
             "  selector ring max OOP (A):   "

@@ -43,6 +43,10 @@ def test_compute_hbond_metrics_runs_on_selector_decorated_polymer() -> None:
 
     metrics = compute_hbond_metrics(mol=mol, selector=selector, max_distance_A=3.5)
     assert metrics.total_pairs >= 0
+    assert metrics.donor_count == dp
     assert 0.0 <= metrics.like_fraction <= 1.0
     assert 0.0 <= metrics.geometric_fraction <= 1.0
+    assert 0.0 <= metrics.like_donor_occupancy_fraction <= 1.0
+    assert 0.0 <= metrics.geometric_donor_occupancy_fraction <= 1.0
     assert metrics.geometric_satisfied_pairs <= metrics.like_satisfied_pairs
+    assert metrics.geometric_satisfied_donors <= metrics.like_satisfied_donors

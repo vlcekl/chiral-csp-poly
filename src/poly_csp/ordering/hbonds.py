@@ -16,8 +16,13 @@ class HbondMetrics:
     like_satisfied_pairs: int
     geometric_satisfied_pairs: int
     total_pairs: int
+    donor_count: int
+    like_satisfied_donors: int
+    geometric_satisfied_donors: int
     like_fraction: float
     geometric_fraction: float
+    like_donor_occupancy_fraction: float
+    geometric_donor_occupancy_fraction: float
     mean_like_distance_A: float
     mean_geometric_distance_A: float
 
@@ -119,12 +124,12 @@ def compute_hbond_metrics(
     - hbond-geometric: distance + donor/acceptor proxy angle thresholds
     """
     if mol.GetNumConformers() == 0:
-        return HbondMetrics(0, 0, 0, 0.0, 0.0, 0.0, 0.0)
+        return HbondMetrics(0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     donors = _selector_atom_records(mol, selector.donors)
     acceptors = _selector_atom_records(mol, selector.acceptors)
     if not donors or not acceptors:
-        return HbondMetrics(0, 0, 0, 0.0, 0.0, 0.0, 0.0)
+        return HbondMetrics(0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     periodic_mode = bool(
         periodic
@@ -144,6 +149,9 @@ def compute_hbond_metrics(
     total = 0
     satisfied_like = 0
     satisfied_geom = 0
+    donor_records = {(int(d_res), int(d_idx)) for d_res, d_idx in donors}
+    like_satisfied_donors: set[tuple[int, int]] = set()
+    geometric_satisfied_donors: set[tuple[int, int]] = set()
     like_distances: List[float] = []
     geom_distances: List[float] = []
 
@@ -186,6 +194,7 @@ def compute_hbond_metrics(
                 continue
 
             satisfied_like += 1
+            like_satisfied_donors.add((int(d_res), int(d_idx)))
             like_distances.append(dist)
 
             a_proxy = _first_heavy_neighbor_except(
@@ -225,16 +234,29 @@ def compute_hbond_metrics(
                 and acceptor_angle >= float(min_acceptor_angle_deg)
             ):
                 satisfied_geom += 1
+                geometric_satisfied_donors.add((int(d_res), int(d_idx)))
                 geom_distances.append(dist)
 
     like_fraction = float(satisfied_like / total) if total > 0 else 0.0
     geometric_fraction = float(satisfied_geom / total) if total > 0 else 0.0
+    donor_count = len(donor_records)
+    like_donor_occupancy = (
+        float(len(like_satisfied_donors) / donor_count) if donor_count > 0 else 0.0
+    )
+    geometric_donor_occupancy = (
+        float(len(geometric_satisfied_donors) / donor_count) if donor_count > 0 else 0.0
+    )
     return HbondMetrics(
         like_satisfied_pairs=satisfied_like,
         geometric_satisfied_pairs=satisfied_geom,
         total_pairs=total,
+        donor_count=donor_count,
+        like_satisfied_donors=len(like_satisfied_donors),
+        geometric_satisfied_donors=len(geometric_satisfied_donors),
         like_fraction=like_fraction,
         geometric_fraction=geometric_fraction,
+        like_donor_occupancy_fraction=like_donor_occupancy,
+        geometric_donor_occupancy_fraction=geometric_donor_occupancy,
         mean_like_distance_A=float(np.mean(like_distances)) if like_distances else 0.0,
         mean_geometric_distance_A=float(np.mean(geom_distances))
         if geom_distances

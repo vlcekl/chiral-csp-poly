@@ -47,5 +47,7 @@ def test_pipeline_ordering_enabled_writes_summary(tmp_path: Path) -> None:
     assert data["ordering_summary"]["stage1_nonbonded_mode"] == "soft"
     assert data["ordering_summary"]["stage2_nonbonded_mode"] == "full"
     assert "final_hbond_geometric_fraction" in data["ordering_summary"]
+    assert "final_hbond_like_donor_occupancy_fraction" in data["ordering_summary"]
+    assert "qc_hbond_like_donor_occupancy_fraction" in data
     assert "qc_selector_aromatic_ring_planarity_A" in data
     assert "max_selector_aromatic_ring_max_deviation_A" in data["qc_thresholds"]
