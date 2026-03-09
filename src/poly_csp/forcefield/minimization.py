@@ -22,6 +22,9 @@ from poly_csp.topology.atom_mapping import selector_instance_maps
 from poly_csp.topology.selectors import SelectorTemplate
 
 
+HELIX_CORE_BACKBONE_ATOM_NAMES = frozenset({"C1", "C2", "C3", "C4", "C5", "O4", "O5"})
+
+
 @dataclass(frozen=True)
 class RuntimeRestraintSpec:
     positional_k: float = 0.0
@@ -62,10 +65,19 @@ def manifest_source(atom: Chem.Atom) -> str:
 
 
 def backbone_heavy_indices(mol: Chem.Mol) -> list[int]:
+    return helix_core_backbone_heavy_indices(mol)
+
+
+def helix_core_backbone_heavy_indices(mol: Chem.Mol) -> list[int]:
     return [
         int(atom.GetIdx())
         for atom in mol.GetAtoms()
-        if atom.GetAtomicNum() > 1 and manifest_source(atom) == "backbone"
+        if (
+            atom.GetAtomicNum() > 1
+            and manifest_source(atom) == "backbone"
+            and atom.HasProp("_poly_csp_atom_name")
+            and atom.GetProp("_poly_csp_atom_name") in HELIX_CORE_BACKBONE_ATOM_NAMES
+        )
     ]
 
 

@@ -181,6 +181,9 @@ def test_pipeline_runtime_supports_periodic_mode(tmp_path: Path) -> None:
     assert report["end_mode"] == "periodic"
     assert report["forcefield_mode"] == "runtime"
     assert report["forcefield_summary"]["exception_summary"]["periodic"] is True
+    assert report["qc_periodic_closure_metrics"]["donor_residue_index"] == 3
+    assert report["qc_periodic_closure_metrics"]["acceptor_residue_index"] == 0
+    assert report["qc_periodic_closure_metrics"]["bond_length_A"] < 2.0
     assert report["amber_enabled"] is False
     assert report["docking_enabled"] is False
 

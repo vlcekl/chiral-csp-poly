@@ -28,7 +28,7 @@ from poly_csp.forcefield.glycam import (
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
-from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
+from poly_csp.structure.pbc import ensure_periodic_box_vectors
 from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
 from poly_csp.structure.selector_library.tmb import make_tmb_template
 from poly_csp.topology.backbone import polymerize
@@ -82,14 +82,6 @@ def _build_forcefield_mol(
         representation="anhydro",
     )
     structure = build_backbone_structure(topology, _helix()).mol
-    if end_mode == "periodic":
-        Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(
-            structure,
-            _helix(),
-            dp=dp,
-            padding_A=30.0,
-        )
-        set_box_vectors(structure, Lx_A, Ly_A, Lz_A)
     if selector is not None:
         for residue_index in range(dp):
             structure = attach_selector(
@@ -98,6 +90,13 @@ def _build_forcefield_mol(
                 site=site,  # type: ignore[arg-type]
                 selector=selector,
             )
+    if end_mode == "periodic":
+        ensure_periodic_box_vectors(
+            structure,
+            _helix(),
+            dp=dp,
+            padding_A=30.0,
+        )
     return build_forcefield_molecule(structure).mol
 
 

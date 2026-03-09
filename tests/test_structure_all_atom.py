@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pytest
+from rdkit.Geometry import Point3D
 
 from poly_csp.config.schema import HelixSpec
 from poly_csp.structure.backbone_builder import (
@@ -11,7 +12,12 @@ from poly_csp.structure.backbone_builder import (
     build_backbone_structure,
     inspect_backbone_linkages,
 )
-from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
+from poly_csp.structure.pbc import (
+    compute_helical_box_vectors,
+    ensure_periodic_box_vectors,
+    get_box_vectors_A,
+    set_box_vectors,
+)
 from tests.support import build_backbone_coords
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
@@ -272,6 +278,62 @@ def test_build_backbone_structure_rejects_non_commensurate_periodic_helix() -> N
 
     with pytest.raises(ValueError, match="closes the screw rotation"):
         build_backbone_structure(topology, _periodic_helix())
+
+
+def test_ensure_periodic_box_vectors_uses_selector_bearing_extent() -> None:
+    template = make_glucose_template("amylose", monomer_representation="anhydro")
+    topology = polymerize(template=template, dp=4, linkage="1-4", anomer="alpha")
+    topology = apply_terminal_mode(
+        topology,
+        mode="periodic",
+        caps={},
+        representation="anhydro",
+    )
+    structure = build_backbone_structure(topology, _periodic_helix()).mol
+    selector = make_35_dmpc_template()
+
+    backbone_box = compute_helical_box_vectors(
+        structure,
+        _periodic_helix(),
+        dp=4,
+        padding_A=5.0,
+    )
+
+    for residue_index in range(4):
+        structure = attach_selector(
+            mol_polymer=structure,
+            residue_index=residue_index,
+            site="C6",
+            selector=selector,
+        )
+
+    conf = structure.GetConformer(0)
+    for atom in structure.GetAtoms():
+        if not atom.HasProp("_poly_csp_selector_instance"):
+            continue
+        if int(atom.GetIntProp("_poly_csp_selector_instance")) != 1:
+            continue
+        pos = conf.GetAtomPosition(atom.GetIdx())
+        conf.SetAtomPosition(
+            atom.GetIdx(),
+            Point3D(float(pos.x + 120.0), float(pos.y), float(pos.z)),
+        )
+
+    full_box = ensure_periodic_box_vectors(
+        structure,
+        _periodic_helix(),
+        dp=4,
+        padding_A=5.0,
+    )
+
+    assert get_box_vectors_A(structure) == pytest.approx(full_box)
+    assert full_box[2] == pytest.approx(backbone_box[2])
+    assert full_box[0] >= backbone_box[0]
+    assert full_box[1] >= backbone_box[1]
+    assert (
+        full_box[0] > backbone_box[0] + 1e-6
+        or full_box[1] > backbone_box[1] + 1e-6
+    )
 
 
 def test_inspect_backbone_linkages_uses_minimum_image_for_periodic_closure() -> None:

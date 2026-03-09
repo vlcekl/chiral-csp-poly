@@ -30,6 +30,7 @@ from poly_csp.ordering.scoring import (
     min_interatomic_distance_fast,
 )
 from poly_csp.structure.alignment import apply_selector_pose_dihedrals
+from poly_csp.structure.pbc import get_box_vectors_A
 from poly_csp.topology.selectors import SelectorTemplate
 
 
@@ -86,6 +87,7 @@ def _ordering_diagnostics(
     selector: SelectorTemplate,
     spec: OrderingSpec,
 ) -> tuple[HbondMetrics, float, dict[str, float]]:
+    box_vectors_A = get_box_vectors_A(mol)
     hb = compute_hbond_metrics(
         mol=mol,
         selector=selector,
@@ -93,12 +95,26 @@ def _ordering_diagnostics(
         neighbor_window=spec.hbond_neighbor_window,
         min_donor_angle_deg=spec.hbond_min_donor_angle_deg,
         min_acceptor_angle_deg=spec.hbond_min_acceptor_angle_deg,
+        box_vectors_A=box_vectors_A,
     )
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     excluded = bonded_exclusion_pairs(mol, max_path_length=2)
     heavy_mask = _heavy_mask(mol)
-    dmin = float(min_interatomic_distance_fast(xyz, heavy_mask, excluded))
-    class_min = min_distance_by_class_fast(mol, xyz, heavy_mask, excluded)
+    dmin = float(
+        min_interatomic_distance_fast(
+            xyz,
+            heavy_mask,
+            excluded,
+            box_vectors_A=box_vectors_A,
+        )
+    )
+    class_min = min_distance_by_class_fast(
+        mol,
+        xyz,
+        heavy_mask,
+        excluded,
+        box_vectors_A=box_vectors_A,
+    )
     return hb, dmin, class_min
 
 

@@ -4,6 +4,8 @@ Functions
 ---------
 compute_helical_box_vectors
     Derive orthorhombic box dimensions from helix geometry and structure.
+ensure_periodic_box_vectors
+    Recompute and store periodic box vectors on the current molecule geometry.
 get_box_vectors_nm
     Retrieve stored box vectors from an RDKit Mol as OpenMM Vec3 triples.
 set_box_vectors
@@ -64,6 +66,28 @@ def compute_helical_box_vectors(
         Lx = Ly = 100.0
 
     return Lx, Ly, Lz
+
+
+def ensure_periodic_box_vectors(
+    mol: Chem.Mol,
+    helix: "HelixSpec",
+    dp: int,
+    padding_A: float = 30.0,
+) -> tuple[float, float, float]:
+    """Recompute and store periodic box vectors on *mol*.
+
+    The axial box length remains tied to the commensurate helical repeat
+    (`dp * rise_A`), while the transverse dimensions are refreshed from the
+    current selector-bearing coordinates.
+    """
+    Lx_A, Ly_A, Lz_A = compute_helical_box_vectors(
+        mol=mol,
+        helix=helix,
+        dp=dp,
+        padding_A=padding_A,
+    )
+    set_box_vectors(mol, Lx_A, Ly_A, Lz_A)
+    return Lx_A, Ly_A, Lz_A
 
 
 def set_box_vectors(mol: Chem.Mol, Lx_A: float, Ly_A: float, Lz_A: float) -> None:

@@ -109,10 +109,41 @@ def bonded_exclusion_pairs(mol: Chem.Mol, max_path_length: int = 2) -> set[tuple
     return excluded
 
 
+def minimum_image_delta_A(
+    delta: np.ndarray,
+    box_vectors_A: tuple[float, float, float] | None,
+) -> np.ndarray:
+    out = np.asarray(delta, dtype=float).copy()
+    if box_vectors_A is None:
+        return out
+    for axis, box_length in enumerate(box_vectors_A):
+        length = float(box_length)
+        if length <= 1e-12:
+            continue
+        out[..., axis] -= length * np.round(out[..., axis] / length)
+    return out
+
+
+def _wrap_coords_A(
+    coords: np.ndarray,
+    box_vectors_A: tuple[float, float, float] | None,
+) -> np.ndarray:
+    out = np.asarray(coords, dtype=float).copy()
+    if box_vectors_A is None:
+        return out
+    for axis, box_length in enumerate(box_vectors_A):
+        length = float(box_length)
+        if length <= 1e-12:
+            continue
+        out[:, axis] = np.mod(out[:, axis], length)
+    return out
+
+
 def min_interatomic_distance(
     coords: np.ndarray,
     heavy_mask: np.ndarray,
     excluded_pairs: set[tuple[int, int]] | None = None,
+    box_vectors_A: tuple[float, float, float] | None = None,
 ) -> float:
     idx = np.where(heavy_mask)[0]
     if idx.size < 2:
@@ -124,7 +155,7 @@ def min_interatomic_distance(
         tail = idx[pos_i + 1 :]
         if tail.size == 0:
             continue
-        diffs = coords[tail] - coords[i]
+        diffs = minimum_image_delta_A(coords[tail] - coords[i], box_vectors_A)
         d2 = np.sum(diffs * diffs, axis=1)
         for k, j in enumerate(tail):
             pair = (int(i), int(j)) if i < j else (int(j), int(i))
@@ -149,6 +180,7 @@ def min_distance_by_class(
     coords: np.ndarray,
     heavy_mask: np.ndarray,
     excluded_pairs: set[tuple[int, int]] | None = None,
+    box_vectors_A: tuple[float, float, float] | None = None,
 ) -> Dict[str, float]:
     idx = np.where(heavy_mask)[0]
     excluded = excluded_pairs or set()
@@ -172,7 +204,11 @@ def min_distance_by_class(
                 key = "selector_selector"
             else:
                 key = "backbone_selector"
-            d = float(np.linalg.norm(coords[int(i)] - coords[int(j)]))
+            delta = minimum_image_delta_A(
+                coords[int(j)] - coords[int(i)],
+                box_vectors_A,
+            )
+            d = float(np.linalg.norm(delta))
             if d < out[key]:
                 out[key] = d
     return out
@@ -183,13 +219,19 @@ def min_interatomic_distance_fast(
     heavy_mask: np.ndarray,
     excluded_pairs: set[tuple[int, int]] | None = None,
     cutoff: float = 2.0,
+    box_vectors_A: tuple[float, float, float] | None = None,
 ) -> float:
     """cKDTree-accelerated minimum distance (sub-cutoff pairs only)."""
     idx = np.where(heavy_mask)[0]
     if idx.size < 2:
         return float("inf")
     excluded = excluded_pairs or set()
-    tree = cKDTree(coords[idx])
+    coords_idx = np.asarray(coords[idx], dtype=float)
+    if box_vectors_A is not None:
+        box = np.asarray(box_vectors_A, dtype=float)
+        tree = cKDTree(_wrap_coords_A(coords_idx, box_vectors_A), boxsize=box)
+    else:
+        tree = cKDTree(coords_idx)
     pairs = tree.query_pairs(r=cutoff)
     if not pairs:
         return cutoff
@@ -199,7 +241,8 @@ def min_interatomic_distance_fast(
         pair = (min(i, j), max(i, j))
         if pair in excluded:
             continue
-        d = float(np.linalg.norm(coords[i] - coords[j]))
+        delta = minimum_image_delta_A(coords[j] - coords[i], box_vectors_A)
+        d = float(np.linalg.norm(delta))
         dmin = min(dmin, d)
     return dmin
 
@@ -210,6 +253,7 @@ def min_distance_by_class_fast(
     heavy_mask: np.ndarray,
     excluded_pairs: set[tuple[int, int]] | None = None,
     cutoff: float = 2.0,
+    box_vectors_A: tuple[float, float, float] | None = None,
 ) -> Dict[str, float]:
     """cKDTree-accelerated class-aware minimum distances."""
     idx = np.where(heavy_mask)[0]
@@ -225,7 +269,12 @@ def min_distance_by_class_fast(
     # pre-compute classes for heavy atoms
     classes = np.array([_atom_class(mol.GetAtomWithIdx(int(i))) for i in idx])
 
-    tree = cKDTree(coords[idx])
+    coords_idx = np.asarray(coords[idx], dtype=float)
+    if box_vectors_A is not None:
+        box = np.asarray(box_vectors_A, dtype=float)
+        tree = cKDTree(_wrap_coords_A(coords_idx, box_vectors_A), boxsize=box)
+    else:
+        tree = cKDTree(coords_idx)
     pairs = tree.query_pairs(r=cutoff)
     for i_pos, j_pos in pairs:
         i, j = int(idx[i_pos]), int(idx[j_pos])
@@ -239,7 +288,8 @@ def min_distance_by_class_fast(
             key = "selector_selector"
         else:
             key = "backbone_selector"
-        d = float(np.linalg.norm(coords[i] - coords[j]))
+        delta = minimum_image_delta_A(coords[j] - coords[i], box_vectors_A)
+        d = float(np.linalg.norm(delta))
         if d < out[key]:
             out[key] = d
     return out

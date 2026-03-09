@@ -12,6 +12,7 @@ from openmm import unit
 
 from poly_csp.forcefield.anneal import run_heat_cool_cycle, run_temperature_ramp
 from poly_csp.forcefield.minimization import (
+    HELIX_CORE_BACKBONE_ATOM_NAMES,
     PreparedRuntimeOptimizationBundle,
     RuntimeRestraintSpec,
     TwoStageMinimizationProtocol,
@@ -195,17 +196,17 @@ def run_staged_relaxation(
     final_xyz_A = np.asarray(final_positions.value_in_unit(unit.nanometer)) * 10.0
     span = final_xyz_A.max(axis=0) - final_xyz_A.min(axis=0)
 
-    backbone_heavy = backbone_heavy_indices(mol)
+    helix_core_heavy = backbone_heavy_indices(mol)
     backbone_all = backbone_all_indices(mol)
     selector_indices = selector_all_indices(mol)
     connector_indices = connector_all_indices(mol)
     backbone_drift = 0.0
-    if spec.freeze_backbone and backbone_heavy:
+    if spec.freeze_backbone and helix_core_heavy:
         init_backbone_xyz = (
-            np.asarray(bundle.reference_positions_nm.value_in_unit(unit.nanometer))[backbone_heavy]
+            np.asarray(bundle.reference_positions_nm.value_in_unit(unit.nanometer))[helix_core_heavy]
             * 10.0
         )
-        final_backbone_xyz = final_xyz_A[backbone_heavy]
+        final_backbone_xyz = final_xyz_A[helix_core_heavy]
         backbone_drift = float(np.max(np.abs(final_backbone_xyz - init_backbone_xyz)))
 
     out = update_rdkit_coords(mol, final_positions)
@@ -235,7 +236,9 @@ def run_staged_relaxation(
         },
         "freeze_backbone": bool(spec.freeze_backbone),
         "n_backbone_atoms": len(backbone_all),
-        "n_backbone_heavy_frozen": len(backbone_heavy) if spec.freeze_backbone else 0,
+        "helix_core_atom_names": sorted(HELIX_CORE_BACKBONE_ATOM_NAMES),
+        "n_backbone_heavy_frozen": len(helix_core_heavy) if spec.freeze_backbone else 0,
+        "n_helix_core_heavy_frozen": len(helix_core_heavy) if spec.freeze_backbone else 0,
         "n_selector_atoms": len(selector_indices),
         "n_connector_atoms": len(connector_indices),
         "component_counts": dict(bundle.full.component_counts),

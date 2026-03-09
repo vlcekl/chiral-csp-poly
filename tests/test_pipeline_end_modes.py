@@ -57,6 +57,30 @@ def test_pipeline_periodic_natural_oh_runs(tmp_path: Path) -> None:
     assert (outdir / "model.pdb").exists()
 
 
+def test_pipeline_periodic_selector_build_reports_periodic_box(tmp_path: Path) -> None:
+    selector_out = tmp_path / "periodic_selector_out"
+
+    _run_build(
+        "topology/backbone=amylose_periodic "
+        "topology.selector.enabled=true "
+        "topology.selector.sites=[C6] "
+        "ordering.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
+        f"output.dir={selector_out}"
+    )
+
+    selector_report = json.loads(
+        (selector_out / "build_report.json").read_text(encoding="utf-8")
+    )
+
+    selector_box = selector_report["periodic_box_A"]
+    assert selector_box is not None
+    assert selector_report["end_mode"] == "periodic"
+    assert selector_report["selector_enabled"] is True
+    assert len(selector_box) == 3
+    assert selector_box[2] == pytest.approx(14.8)
+
+
 def test_pipeline_writes_all_atom_model_by_default(tmp_path: Path) -> None:
     outdir = tmp_path / "all_atom_out"
     _run_build(

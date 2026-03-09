@@ -9,10 +9,12 @@ from openmm import unit
 
 from poly_csp.config.schema import HelixSpec
 from poly_csp.forcefield.minimization import (
+    HELIX_CORE_BACKBONE_ATOM_NAMES,
     PreparedRuntimeOptimizationBundle,
     RuntimeRestraintSpec,
     TwoStageMinimizationProtocol,
     TwoStageMinimizationResult,
+    helix_core_backbone_heavy_indices,
 )
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.relaxation import RelaxSpec, run_staged_relaxation
@@ -211,3 +213,19 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
     assert summary["source_manifest"] == {"fake": True}
     assert summary["soft_force_inventory"]["counts"]["CustomNonbondedForce"] == 1
     assert summary["full_force_inventory"]["counts"]["NonbondedForce"] == 1
+
+
+def test_helix_core_backbone_heavy_indices_exclude_exocyclic_site_atoms() -> None:
+    mol, _ = _forcefield_selector_mol()
+    indices = helix_core_backbone_heavy_indices(mol)
+    atom_names = {
+        mol.GetAtomWithIdx(idx).GetProp("_poly_csp_atom_name")
+        for idx in indices
+    }
+
+    assert HELIX_CORE_BACKBONE_ATOM_NAMES.issubset(atom_names)
+    assert "C6" not in atom_names
+    assert "O1" not in atom_names
+    assert "O2" not in atom_names
+    assert "O3" not in atom_names
+    assert "O6" not in atom_names

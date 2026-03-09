@@ -28,7 +28,10 @@ from omegaconf import DictConfig, OmegaConf
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.export_bundle import prepare_export_bundle
 from poly_csp.forcefield.runtime_params import load_runtime_params
-from poly_csp.structure.backbone_builder import build_backbone_structure
+from poly_csp.structure.backbone_builder import (
+    build_backbone_structure,
+    inspect_backbone_linkages,
+)
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.terminals import apply_terminal_mode
@@ -47,7 +50,7 @@ from poly_csp.io.pdb import write_pdb_from_rdkit
 from poly_csp.io.pdbqt import write_receptor_pdbqt
 from poly_csp.io.rdkit_io import write_sdf
 from poly_csp.io.vina import VinaBoxSpec, build_vina_box, write_vina_box
-from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
+from poly_csp.structure.pbc import ensure_periodic_box_vectors, get_box_vectors_A
 from poly_csp.ordering.hbonds import compute_hbond_metrics
 from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
@@ -118,6 +121,7 @@ class BuildReport:
     rise_A: float
     residues_per_turn: float
     pitch_A: float
+    periodic_box_A: Optional[List[float]]
     selector_enabled: bool
     selector_name: Optional[str]
     selector_sites: List[str]
@@ -140,6 +144,7 @@ class BuildReport:
     qc_hbond_total_pairs: int
     qc_selector_torsion_stats_deg: dict[str, dict[str, float]]
     qc_selector_aromatic_ring_planarity_A: dict[str, object]
+    qc_periodic_closure_metrics: dict[str, object]
     qc_thresholds: dict[str, object]
     qc_pass: bool
     qc_fail_reasons: List[str]
@@ -494,16 +499,8 @@ def main(cfg: DictConfig) -> None:
     )
     mol_poly = build_backbone_structure(topology_mol, helix_spec=helix).mol
 
-    # ---- Stage 2b: compute and store PBC box vectors for periodic mode.
-    is_periodic = str(backbone.end_mode) == "periodic"
-    if is_periodic:
-        Lx, Ly, Lz = compute_helical_box_vectors(
-            mol=mol_poly, helix=helix, dp=backbone.dp, padding_A=30.0,
-        )
-        set_box_vectors(mol_poly, Lx, Ly, Lz)
-        print(f"  PBC box: {Lx:.1f} x {Ly:.1f} x {Lz:.1f} Å")
-
     # ---- Stage 3: optional selector attachment and deterministic pose setup.
+    is_periodic = str(backbone.end_mode) == "periodic"
     selector_enabled = _selector_enabled(cfg)
     selector_name: Optional[str] = None
     selector_sites: List[Site] = []
@@ -549,6 +546,16 @@ def main(cfg: DictConfig) -> None:
                         pose_spec=selector_pose,
                         selector=selector,
                     )
+
+    # ---- Stage 3a: compute/store the periodic box on the full selector-bearing model.
+    if is_periodic:
+        Lx, Ly, Lz = ensure_periodic_box_vectors(
+            mol=mol_poly,
+            helix=helix,
+            dp=backbone.dp,
+            padding_A=30.0,
+        )
+        print(f"  PBC box: {Lx:.1f} x {Ly:.1f} x {Lz:.1f} Å")
 
     amber_summary: dict[str, object] = {"enabled": False}
     docking_summary: dict[str, object] = {"enabled": False}
@@ -616,6 +623,15 @@ def main(cfg: DictConfig) -> None:
     else:
         ranked_results = None
 
+    # ---- Stage 3c: refresh the periodic box after any ordering-time geometry changes.
+    if is_periodic:
+        ensure_periodic_box_vectors(
+            mol=runtime_mol,
+            helix=helix,
+            dp=backbone.dp,
+            padding_A=30.0,
+        )
+
     # ---- Stage 4a: optional runtime forcefield build.
     if forcefield_enabled:
         if runtime_params is None:
@@ -676,6 +692,15 @@ def main(cfg: DictConfig) -> None:
         )
         relax_enabled = True
 
+    # ---- Stage 5a: refresh the periodic box after final runtime relaxation.
+    if is_periodic:
+        ensure_periodic_box_vectors(
+            mol=runtime_mol,
+            helix=helix,
+            dp=backbone.dp,
+            padding_A=30.0,
+        )
+
     # ---- Stage 6: QC metrics and threshold evaluation.
     qc_mol = runtime_mol
     conf = qc_mol.GetConformer(0)
@@ -688,8 +713,22 @@ def main(cfg: DictConfig) -> None:
         if qc_spec.enabled
         else set()
     )
-    qc_min_dist = float(min_interatomic_distance(xyz, heavy_mask, excluded_pairs))
-    qc_class_dist_raw = min_distance_by_class(qc_mol, xyz, heavy_mask, excluded_pairs)
+    box_vectors_A = get_box_vectors_A(qc_mol)
+    qc_min_dist = float(
+        min_interatomic_distance(
+            xyz,
+            heavy_mask,
+            excluded_pairs,
+            box_vectors_A=box_vectors_A,
+        )
+    )
+    qc_class_dist_raw = min_distance_by_class(
+        qc_mol,
+        xyz,
+        heavy_mask,
+        excluded_pairs,
+        box_vectors_A=box_vectors_A,
+    )
     qc_class_dist = {k: _finite_or_none(v) for k, v in qc_class_dist_raw.items()}
 
     k = int(helix.repeat_residues) if helix.repeat_residues else 1
@@ -702,6 +741,7 @@ def main(cfg: DictConfig) -> None:
     qc_hbond_total_pairs = 0
     qc_selector_torsions: dict[str, dict[str, float]] = {}
     qc_selector_ring_planarity: dict[str, object] = {}
+    qc_periodic_closure_metrics: dict[str, object] = {}
     if selector is not None:
         hb = compute_hbond_metrics(
             mol=qc_mol,
@@ -710,6 +750,7 @@ def main(cfg: DictConfig) -> None:
             neighbor_window=ordering_spec.hbond_neighbor_window,
             min_donor_angle_deg=ordering_spec.hbond_min_donor_angle_deg,
             min_acceptor_angle_deg=ordering_spec.hbond_min_acceptor_angle_deg,
+            box_vectors_A=box_vectors_A,
         )
         qc_hbond_like_fraction = float(hb.like_fraction)
         qc_hbond_geometric_fraction = float(hb.geometric_fraction)
@@ -725,6 +766,18 @@ def main(cfg: DictConfig) -> None:
             qc_mol,
             selector.mol,
         )
+    if is_periodic:
+        closure = next(
+            (
+                metric
+                for metric in inspect_backbone_linkages(qc_mol)
+                if metric.donor_residue_index == int(backbone.dp) - 1
+                and metric.acceptor_residue_index == 0
+            ),
+            None,
+        )
+        if closure is not None:
+            qc_periodic_closure_metrics = asdict(closure)
 
     qc_thresholds = {
         "min_heavy_distance_A": float(qc_spec.min_heavy_distance_A),
@@ -860,6 +913,11 @@ def main(cfg: DictConfig) -> None:
         rise_A=float(helix.rise_A),
         residues_per_turn=float(helix.residues_per_turn),
         pitch_A=float(helix.pitch_A),
+        periodic_box_A=(
+            list(get_box_vectors_A(final_mol))
+            if is_periodic and get_box_vectors_A(final_mol) is not None
+            else None
+        ),
         selector_enabled=bool(selector_enabled),
         selector_name=selector_name,
         selector_sites=[str(s) for s in selector_sites],
@@ -882,6 +940,7 @@ def main(cfg: DictConfig) -> None:
         qc_hbond_total_pairs=qc_hbond_total_pairs,
         qc_selector_torsion_stats_deg=qc_selector_torsions,
         qc_selector_aromatic_ring_planarity_A=qc_selector_ring_planarity,
+        qc_periodic_closure_metrics=qc_periodic_closure_metrics,
         qc_thresholds=qc_thresholds,
         qc_pass=bool(qc_pass),
         qc_fail_reasons=qc_fail_reasons,
@@ -944,6 +1003,11 @@ def main(cfg: DictConfig) -> None:
             "  selector ring max OOP (A):   "
             f"{float(qc_selector_ring_planarity['max_out_of_plane_A']):.3f}"
         )
+    if qc_periodic_closure_metrics:
+        print(
+            "  periodic closure bond (A):   "
+            f"{float(qc_periodic_closure_metrics['bond_length_A']):.3f}"
+        )
     if qc_fail_reasons:
         print("  failures:")
         for reason in qc_fail_reasons:
@@ -958,6 +1022,13 @@ def main(cfg: DictConfig) -> None:
         for result in ranked_results:
             rank_dir = _ensure_outdir(outdir / f"ranked_{result.rank:03d}")
             rank_final_mol = build_forcefield_molecule(result.mol).mol
+            if is_periodic:
+                ensure_periodic_box_vectors(
+                    mol=rank_final_mol,
+                    helix=helix,
+                    dp=backbone.dp,
+                    padding_A=30.0,
+                )
             if "pdb" in output_export_formats:
                 write_pdb_from_rdkit(rank_final_mol, rank_dir / "model.pdb")
             if "sdf" in output_export_formats:

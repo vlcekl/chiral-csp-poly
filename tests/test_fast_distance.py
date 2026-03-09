@@ -20,6 +20,8 @@ from poly_csp.ordering.scoring import (
     min_interatomic_distance,
     min_interatomic_distance_fast,
 )
+from poly_csp.structure.pbc import get_box_vectors_A
+from tests.support import build_forcefield_mol
 
 
 def _helix() -> HelixSpec:
@@ -84,3 +86,55 @@ def test_class_distance_fast_matches_naive() -> None:
         f_val = fast[key]
         if np.isfinite(n_val) and n_val < 3.0:
             assert abs(n_val - f_val) < 1e-6, f"key={key} naive={n_val} fast={f_val}"
+
+
+def test_periodic_fast_distances_match_naive() -> None:
+    selector = make_35_dmpc_template()
+    mol = build_forcefield_mol(
+        polymer="amylose",
+        dp=4,
+        selector=selector,
+        site="C6",
+        end_mode="periodic",
+    )
+    conf = mol.GetConformer(0)
+    for atom in mol.GetAtoms():
+        if not atom.HasProp("_poly_csp_selector_instance"):
+            continue
+        if int(atom.GetIntProp("_poly_csp_selector_instance")) != 1:
+            continue
+        pos = conf.GetAtomPosition(atom.GetIdx())
+        conf.SetAtomPosition(atom.GetIdx(), (float(pos.x + 120.0), float(pos.y), float(pos.z)))
+
+    xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
+    heavy = _heavy_mask(mol)
+    excluded = bonded_exclusion_pairs(mol, max_path_length=2)
+    box_vectors_A = get_box_vectors_A(mol)
+
+    naive = min_interatomic_distance(xyz, heavy, excluded, box_vectors_A=box_vectors_A)
+    fast = min_interatomic_distance_fast(
+        xyz,
+        heavy,
+        excluded,
+        cutoff=3.0,
+        box_vectors_A=box_vectors_A,
+    )
+    assert abs(naive - fast) < 1e-6, f"naive={naive}, fast={fast}"
+
+    naive_class = min_distance_by_class(
+        mol,
+        xyz,
+        heavy,
+        excluded,
+        box_vectors_A=box_vectors_A,
+    )
+    fast_class = min_distance_by_class_fast(
+        mol,
+        xyz,
+        heavy,
+        excluded,
+        cutoff=3.0,
+        box_vectors_A=box_vectors_A,
+    )
+    for key in ("backbone_backbone", "backbone_selector", "selector_selector"):
+        assert abs(naive_class[key] - fast_class[key]) < 1e-6
