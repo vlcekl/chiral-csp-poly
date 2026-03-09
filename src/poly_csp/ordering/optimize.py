@@ -45,7 +45,7 @@ class OrderingSpec:
     soft_max_iterations: int = 60
     full_max_iterations: int = 120
     final_restraint_factor: float = 0.15
-    max_site_sweeps: int = 3
+    max_site_sweeps: int = 5
     randomize_initial_assignment: bool = True
     randomize_site_order: bool = True
     randomize_residue_order: bool = True

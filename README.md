@@ -487,9 +487,9 @@ The pipeline supports `pdb`, `sdf`, `pdbqt`, and `amber` export.
 Current end-mode boundary:
 
 * `open`: `pdb`, `sdf`, `pdbqt`, and `amber` are supported
-* `periodic`: `pdb` and `sdf` are supported on the canonical runtime path
-* `periodic`: `pdbqt` is rejected because the docking handoff is defined only for finite non-periodic receptors
-* `periodic`: `amber` is currently rejected because the present AMBER export handoff does not preserve the periodic closure model reliably
+* `periodic`: `pdb` and `sdf` are supported directly as diagnostic periodic-cell outputs
+* `periodic`: `pdbqt` and `amber` are supported only through periodic handoff expansion to an open receptor
+* `periodic`: direct periodic `pdbqt` / `amber` export remains rejected; the finite handoff receptor is exported instead
 * `capped`: runtime support is still out of scope
 
 Example:
@@ -516,11 +516,27 @@ If you only want structure inspection without runtime-derived docking or AMBER a
 python -m poly_csp.pipelines.build_csp output.export_formats=[pdb,sdf]
 ```
 
+Periodic docking / AMBER handoff example:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  topology/backbone=amylose_periodic \
+  forcefield/options=runtime \
+  periodic_handoff.enabled=true \
+  output.export_formats=[pdb,sdf,pdbqt,amber]
+```
+
+In that mode:
+
+* top-level `model.*`, `receptor.pdbqt`, `vina_box.txt`, and AMBER files come from the expanded open handoff receptor
+* the optimized periodic cell is retained under `periodic_cell/`
+* `build_report.json` records both the periodic optimization model and the open handoff model explicitly
+
 ---
 
 ## 7. Multi-start selector optimization
 
-Selector ordering now runs on the canonical all-atom runtime molecule, not on a pre-forcefield geometry surrogate. Each candidate selector pose is evaluated by short two-stage `soft -> full` minimization on the real runtime system, and multi-start mode runs N independent seeded searches to sample different local minima:
+Selector ordering now runs on the canonical all-atom runtime molecule, not on a pre-forcefield geometry surrogate. Each candidate selector pose is evaluated by short two-stage `soft -> full` minimization on the real runtime system. With a fixed seed, the search uses seeded repeat-class initialization plus randomized site/residue/pose sweep order before greedy refinement, and multi-start mode runs N independent seeded searches to sample different local minima:
 
 ```bash
 python -m poly_csp.pipelines.build_csp \
@@ -535,8 +551,14 @@ Ordering requires the supported runtime slice:
 
 * built-in selectors,
 * `anhydro` representation,
-* `open` end mode,
+* `open` or `periodic` end mode,
 * `forcefield/options=runtime` or `forcefield/options=runtime_relax`.
+
+For the default Chiralpak AD workflow:
+
+* `ordering.repeat_residues=4` matches the 4-residue helical repeat
+* the built-in 35dmpc grid currently contains 16 discrete `tau_link` / `tau_ar` combinations
+* `ordering.max_candidates` values above 16 do not broaden the 35dmpc search unless the rotamer grid itself is expanded
 
 ### Configuration
 
@@ -583,6 +605,12 @@ Each ranked result includes the optimization score, seed used, and full ordering
 
 Seed reproducibility: the same `multi_opt.seed` value produces identical rankings across runs.
 
+When `end_mode=periodic` and `periodic_handoff.enabled=true`:
+
+* each ranked result exports the open handoff receptor as the primary `ranked_XXX/` model
+* the corresponding periodic optimization cell is preserved under `ranked_XXX/periodic_cell/`
+* ranked docking / AMBER exports always come from the open handoff receptor, not from the periodic cell
+
 ---
 
 # Output Products
@@ -603,6 +631,9 @@ Each build produces:
 
   * Symmetry RMSD
   * Clash score
+  * H-bond pair fraction
+  * H-bond donor occupancy
+  * Aromatic ring planarity
   * Torsion summary
 
 ---
@@ -658,9 +689,11 @@ Each build should satisfy:
 
 * Low screw-symmetry RMSD
 * Acceptable steric overlap
-* Reproducibility (no random conformer generation)
+* Reproducibility under fixed seeds
+* Chemically reasonable selector planarity
+* Interpretable donor occupancy for carbamate H-bond diagnostics
 
-The pipeline is deterministic by design.
+No stochastic conformer generation is used during structure construction. Ordering and multi-start results are reproducible when the relevant seeds are fixed.
 
 ---
 
@@ -731,7 +764,11 @@ The codebase now has:
 * canonical two-stage runtime relaxation (`soft -> full`),
 * persistent GLYCAM / selector / connector runtime-parameter caching,
 * separate AMBER export utilities,
-* selector ordering, QC, SDF export, and multi-start optimization.
+* selector ordering, QC, SDF export, and multi-start optimization,
+* periodic unit-cell optimization with periodic-aware QC,
+* periodic-to-open handoff expansion for docking / AMBER export,
+* ranked periodic handoff export bundles with retained periodic-cell diagnostics,
+* H-bond donor occupancy reporting on ordering and QC summaries.
 
 What remains for later phases:
 

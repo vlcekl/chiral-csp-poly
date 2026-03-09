@@ -3,6 +3,7 @@ repeat_residues: 4
 max_candidates: 64
 positional_k: 5000.0
 freeze_backbone: true
+max_site_sweeps: 5
 soft_n_stages: 2
 soft_max_iterations: 40
 full_max_iterations: 80
