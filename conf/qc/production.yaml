@@ -17,6 +17,7 @@ max_screw_symmetry_rmsd_A: 0.30
 min_hbond_like_fraction: 0.00
 min_hbond_geometric_fraction: 0.00
 max_selector_torsion_std_deg: null
+max_selector_aromatic_ring_max_deviation_A: 0.10
 
 # Hard-fail enabled for production/CI runs.
 fail_on_thresholds: true

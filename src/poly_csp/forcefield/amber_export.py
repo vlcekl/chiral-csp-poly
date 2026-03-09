@@ -11,7 +11,7 @@ from openmm import unit
 from poly_csp.forcefield.export_bundle import ExportBundle
 from poly_csp.forcefield.gaff import build_fragment_prmtop, parameterize_gaff_fragment
 from poly_csp.forcefield.glycam import _ensure_required_tools, _run_command
-from poly_csp.io.pdb import write_pdb_from_rdkit
+from poly_csp.io.rdkit_io import write_mol
 
 
 def parameterize_selector_fragment(
@@ -26,14 +26,14 @@ def parameterize_selector_fragment(
         charge_model=charge_model,
         net_charge=net_charge,
         residue_name="SEL",
-        pdb_name="selector.pdb",
+        input_name="selector.mol",
         mol2_name="selector.mol2",
         frcmod_name="selector.frcmod",
         lib_name="selector.lib",
         work_dir=work_dir,
         ensure_tools_fn=_ensure_required_tools,
         run_command_fn=_run_command,
-        write_pdb_fn=write_pdb_from_rdkit,
+        write_input_fn=write_mol,
     )
 
 

@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Callable, Dict, Mapping, Sequence
 
 from rdkit import Chem
-from rdkit.Chem import rdchem
 
 import openmm as mm
 from openmm import app as mmapp
@@ -19,7 +18,7 @@ from openmm import unit
 
 from poly_csp.structure.hydrogens import complete_with_hydrogens
 from poly_csp.topology.selectors import SelectorTemplate
-from poly_csp.io.pdb import write_pdb_from_rdkit
+from poly_csp.io.rdkit_io import write_mol
 
 log = logging.getLogger(__name__)
 
@@ -89,51 +88,6 @@ def _run_command(cmd: Sequence[str], cwd: Path, log_path: Path) -> None:
             f"Command failed (exit {proc.returncode}): {' '.join(cmd)}. "
             f"See: {log_path}"
         )
-
-
-def _default_atom_names(fragment_mol: Chem.Mol) -> dict[int, str]:
-    names: dict[int, str] = {}
-    heavy_serial = 0
-    hydrogen_serial = 1
-    for atom in fragment_mol.GetAtoms():
-        if atom.GetAtomicNum() <= 1:
-            names[int(atom.GetIdx())] = f"H{hydrogen_serial:03d}"
-            hydrogen_serial += 1
-            continue
-        names[int(atom.GetIdx())] = f"A{heavy_serial:03d}"
-        heavy_serial += 1
-    return names
-
-
-def _assign_fragment_pdb_info(
-    mol: Chem.Mol,
-    residue_name: str,
-    atom_names: Mapping[int, str] | None = None,
-) -> Chem.Mol:
-    out = Chem.Mol(mol)
-    resolved_names = (
-        _default_atom_names(out)
-        if atom_names is None
-        else {int(idx): str(name)[:4] for idx, name in atom_names.items()}
-    )
-    if len(resolved_names) != out.GetNumAtoms():
-        raise ValueError("Fragment atom naming must cover every atom.")
-    for atom in out.GetAtoms():
-        atom_name = resolved_names[int(atom.GetIdx())]
-        info = rdchem.AtomPDBResidueInfo()
-        if len(atom_name) < 4:
-            atom_name = f" {atom_name:<3s}"
-        else:
-            atom_name = atom_name[:4]
-        info.SetName(atom_name)
-        info.SetResidueName(str(residue_name)[:3].upper())
-        info.SetResidueNumber(1)
-        info.SetChainId("A")
-        info.SetIsHeteroAtom(True)
-        info.SetOccupancy(1.0)
-        info.SetTempFactor(0.0)
-        atom.SetPDBResidueInfo(info)
-    return out
 
 
 def _selector_atom_sources(selector_template: SelectorTemplate) -> dict[int, str]:
@@ -275,17 +229,20 @@ def parameterize_gaff_fragment(
     charge_model: str = "bcc",
     net_charge: int = 0,
     residue_name: str = "FRG",
-    pdb_name: str = "fragment.pdb",
+    input_name: str = "fragment.mol",
     mol2_name: str = "fragment.mol2",
     frcmod_name: str = "fragment.frcmod",
     lib_name: str = "fragment.lib",
     work_dir: Path | None = None,
     ensure_tools_fn: Callable[[Sequence[str]], None] = _ensure_required_tools,
     run_command_fn: Callable[[Sequence[str], Path, Path], None] = _run_command,
-    write_pdb_fn: Callable[[Chem.Mol, str | Path], None] = write_pdb_from_rdkit,
-    atom_names: Mapping[int, str] | None = None,
+    write_input_fn: Callable[[Chem.Mol, str | Path], None] = write_mol,
 ) -> Dict[str, str]:
-    """Run antechamber + parmchk2 + tleap saveoff on a single GAFF fragment."""
+    """Run antechamber + parmchk2 + tleap saveoff on a single GAFF fragment.
+
+    The input handoff uses MDL MOL rather than PDB so aromatic bond orders are
+    preserved into antechamber atom typing.
+    """
     ensure_tools_fn(("antechamber", "parmchk2", "tleap"))
 
     if work_dir is None:
@@ -294,7 +251,7 @@ def parameterize_gaff_fragment(
         wd = Path(work_dir)
         wd.mkdir(parents=True, exist_ok=True)
 
-    pdb_path = wd / pdb_name
+    input_path = wd / input_name
     mol2_path = wd / mol2_name
     frcmod_path = wd / frcmod_name
     lib_path = wd / lib_name
@@ -309,18 +266,12 @@ def parameterize_gaff_fragment(
     clean_mol = clean_mol.GetMol()
     Chem.SanitizeMol(clean_mol)
     prepared = complete_with_hydrogens(clean_mol, add_coords=True, optimize="h_only")
-    prepared = _assign_fragment_pdb_info(
-        prepared,
-        residue_name=residue_name,
-        atom_names=atom_names,
-    )
-
-    write_pdb_fn(prepared, pdb_path)
+    write_input_fn(prepared, input_path)
 
     run_command_fn(
         [
             "antechamber",
-            "-i", pdb_path.name, "-fi", "pdb",
+            "-i", input_path.name, "-fi", "mdl",
             "-o", mol2_path.name, "-fo", "mol2",
             "-at", "gaff2", "-c", charge_model,
             "-nc", str(net_charge),
@@ -518,12 +469,11 @@ def parameterize_isolated_selector(
         charge_model=charge_model,
         net_charge=net_charge,
         residue_name="SEL",
-        pdb_name="selector.pdb",
+        input_name="selector.mol",
         mol2_name="selector.mol2",
         frcmod_name="selector.frcmod",
         lib_name="selector.lib",
         work_dir=None if work_dir is None else Path(work_dir),
-        atom_names=atom_names,
     )
     prmtop = build_fragment_prmtop(
         mol2_path=artifacts["mol2"],

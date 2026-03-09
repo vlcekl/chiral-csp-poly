@@ -94,7 +94,7 @@ def test_build_linkage_frcmod(tmp_path) -> None:
 
 
 def test_parameterize_selector_fragment_cleans_dummy_atoms(monkeypatch, tmp_path) -> None:
-    """Selector fragment inputs should be hydrogen-complete before PDB write."""
+    """Selector fragment inputs should be hydrogen-complete before MDL write."""
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from poly_csp.forcefield import amber_export as amber_export_mod
@@ -108,20 +108,22 @@ def test_parameterize_selector_fragment_cleans_dummy_atoms(monkeypatch, tmp_path
 
     written_mols = []
 
-    def fake_write_pdb(m, path):
+    def fake_write_mol(m, path):
         written_mols.append(Chem.Mol(m))
-        path.write_text("ATOM      1  H   SEL A   1\n", encoding="utf-8")
+        path.write_text("selector\n", encoding="utf-8")
 
     def fake_run_command(cmd, cwd, log_path):
         log_path.write_text("OK\n", encoding="utf-8")
         if "antechamber" in cmd:
+            assert "-fi" in cmd
+            assert cmd[cmd.index("-fi") + 1] == "mdl"
             (cwd / "selector.mol2").write_text("dummy", encoding="utf-8")
         elif "parmchk2" in cmd:
             (cwd / "selector.frcmod").write_text("dummy", encoding="utf-8")
         elif "tleap" in cmd:
             (cwd / "selector.lib").write_text("dummy", encoding="utf-8")
 
-    monkeypatch.setattr(amber_export_mod, "write_pdb_from_rdkit", fake_write_pdb)
+    monkeypatch.setattr(amber_export_mod, "write_mol", fake_write_mol)
     monkeypatch.setattr(amber_export_mod, "_run_command", fake_run_command)
     monkeypatch.setattr(amber_export_mod, "_ensure_required_tools", lambda tools: None)
 
@@ -129,7 +131,7 @@ def test_parameterize_selector_fragment_cleans_dummy_atoms(monkeypatch, tmp_path
 
     assert len(written_mols) == 1
     written = written_mols[0]
-    # No dummy atoms should remain in the molecule written to PDB
+    # No dummy atoms should remain in the molecule written to MDL.
     assert all(a.GetAtomicNum() > 0 for a in written.GetAtoms())
     # Hydrogen completion should occur before parameterization.
     assert any(a.GetAtomicNum() == 1 for a in written.GetAtoms())

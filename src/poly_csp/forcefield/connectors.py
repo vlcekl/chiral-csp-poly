@@ -547,12 +547,11 @@ def load_connector_params(
         charge_model=charge_model,
         net_charge=net_charge,
         residue_name="CNN",
-        pdb_name="connector_fragment.pdb",
+        input_name="connector_fragment.mol",
         mol2_name="connector_fragment.mol2",
         frcmod_name="connector_fragment.frcmod",
         lib_name="connector_fragment.lib",
         work_dir=work_dir,
-        atom_names=atom_name_map,
     )
     prmtop_path = build_fragment_prmtop(
         mol2_path=artifacts["mol2"],

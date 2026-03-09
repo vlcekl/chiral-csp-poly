@@ -11,6 +11,12 @@ from poly_csp.topology.monomers import (
 )
 
 
+def write_mol(mol: Chem.Mol, path: str | Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Chem.MolToMolFile(mol, str(path))
+
+
 def write_sdf(mol: Chem.Mol, path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

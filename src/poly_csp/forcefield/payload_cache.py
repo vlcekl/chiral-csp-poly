@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     )
 
 
-PAYLOAD_CACHE_SCHEMA_VERSION = 2
+PAYLOAD_CACHE_SCHEMA_VERSION = 3
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_RUNTIME_CACHE_DIR = _REPO_ROOT / ".cache" / "poly_csp" / "runtime_params"
 

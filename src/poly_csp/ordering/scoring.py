@@ -13,6 +13,74 @@ from poly_csp.structure.dihedrals import measure_dihedral_rad
 from poly_csp.structure.matrix import ScrewTransform
 
 
+def _selector_instance_local_index_maps(mol: Chem.Mol) -> Dict[int, Dict[int, int]]:
+    instances: Dict[int, Dict[int, int]] = {}
+    for atom in mol.GetAtoms():
+        if not atom.HasProp("_poly_csp_selector_instance"):
+            continue
+        if not atom.HasProp("_poly_csp_selector_local_idx"):
+            continue
+        inst = int(atom.GetIntProp("_poly_csp_selector_instance"))
+        local = int(atom.GetIntProp("_poly_csp_selector_local_idx"))
+        instances.setdefault(inst, {})[local] = atom.GetIdx()
+    return instances
+
+
+def selector_aromatic_ring_planarity(
+    mol: Chem.Mol,
+    selector_mol: Chem.Mol,
+    *,
+    ring_size: int = 6,
+) -> Dict[str, float | int]:
+    if mol.GetNumConformers() == 0:
+        return {}
+
+    aromatic_rings = [
+        tuple(int(idx) for idx in ring)
+        for ring in selector_mol.GetRingInfo().AtomRings()
+        if len(ring) == int(ring_size)
+        and all(selector_mol.GetAtomWithIdx(int(idx)).GetIsAromatic() for idx in ring)
+    ]
+    if not aromatic_rings:
+        return {}
+
+    instances = _selector_instance_local_index_maps(mol)
+    if not instances:
+        return {}
+
+    xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
+    max_deviations_A: list[float] = []
+    rms_deviations_A: list[float] = []
+
+    for mapping in instances.values():
+        for ring in aromatic_rings:
+            if any(local_idx not in mapping for local_idx in ring):
+                continue
+            ring_xyz = xyz[np.asarray([mapping[local_idx] for local_idx in ring], dtype=int)]
+            centroid = np.mean(ring_xyz, axis=0)
+            centered = ring_xyz - centroid
+            _, _, vh = np.linalg.svd(centered, full_matrices=False)
+            normal = vh[-1]
+            deviations = np.abs(centered @ normal)
+            max_deviations_A.append(float(np.max(deviations)))
+            rms_deviations_A.append(float(np.sqrt(np.mean(deviations * deviations))))
+
+    if not max_deviations_A:
+        return {}
+
+    max_arr = np.asarray(max_deviations_A, dtype=float)
+    rms_arr = np.asarray(rms_deviations_A, dtype=float)
+    return {
+        "ring_count": int(max_arr.size),
+        "template_ring_count": int(len(aromatic_rings)),
+        "instance_count": int(len(instances)),
+        "max_out_of_plane_A": float(np.max(max_arr)),
+        "mean_max_out_of_plane_A": float(np.mean(max_arr)),
+        "max_rms_out_of_plane_A": float(np.max(rms_arr)),
+        "mean_rms_out_of_plane_A": float(np.mean(rms_arr)),
+    }
+
+
 def bonded_exclusion_pairs(mol: Chem.Mol, max_path_length: int = 2) -> set[tuple[int, int]]:
     """Return atom pairs with shortest bond-path <= max_path_length."""
     n = mol.GetNumAtoms()
@@ -282,13 +350,7 @@ def selector_torsion_stats(
         return {}
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
 
-    instances: Dict[int, Dict[int, int]] = {}
-    for atom in mol.GetAtoms():
-        if not atom.HasProp("_poly_csp_selector_instance"):
-            continue
-        inst = int(atom.GetIntProp("_poly_csp_selector_instance"))
-        local = int(atom.GetIntProp("_poly_csp_selector_local_idx"))
-        instances.setdefault(inst, {})[local] = atom.GetIdx()
+    instances = _selector_instance_local_index_maps(mol)
 
     values_deg: Dict[str, List[float]] = {name: [] for name in selector_dihedrals}
     for mapping in instances.values():

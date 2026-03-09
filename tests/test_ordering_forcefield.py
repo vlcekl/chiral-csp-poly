@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+from poly_csp.ordering.scoring import selector_aromatic_ring_planarity
 from poly_csp.ordering.optimize import OrderingSpec, optimize_selector_ordering
 from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
 from poly_csp.structure.selector_library.tmb import make_tmb_template
@@ -178,3 +179,35 @@ def test_optimize_selector_ordering_requires_forcefield_molecule() -> None:
         assert "forcefield-domain molecule" in str(exc)
     else:
         raise AssertionError("Expected non-forcefield ordering input to fail.")
+
+
+def test_selector_aromatic_ring_planarity_detects_out_of_plane_distortion() -> None:
+    selector = make_35_dmpc_template()
+    mol = build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
+
+    baseline = selector_aromatic_ring_planarity(mol, selector.mol)
+    assert baseline
+    assert baseline["ring_count"] == 1
+
+    distorted = type(mol)(mol)
+    conf = distorted.GetConformer()
+    aromatic_ring = next(
+        ring
+        for ring in selector.mol.GetRingInfo().AtomRings()
+        if len(ring) == 6
+        and all(selector.mol.GetAtomWithIdx(idx).GetIsAromatic() for idx in ring)
+    )
+    local_idx = int(aromatic_ring[0])
+    atom_idx = next(
+        atom.GetIdx()
+        for atom in distorted.GetAtoms()
+        if atom.HasProp("_poly_csp_selector_instance")
+        and int(atom.GetIntProp("_poly_csp_selector_instance")) == 1
+        and int(atom.GetIntProp("_poly_csp_selector_local_idx")) == local_idx
+    )
+    pos = conf.GetAtomPosition(atom_idx)
+    conf.SetAtomPosition(atom_idx, (float(pos.x), float(pos.y), float(pos.z) + 1.0))
+
+    warped = selector_aromatic_ring_planarity(distorted, selector.mol)
+    assert warped["max_out_of_plane_A"] > baseline["max_out_of_plane_A"] + 0.1
+    assert warped["max_out_of_plane_A"] > 0.1

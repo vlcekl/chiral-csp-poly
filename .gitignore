@@ -51,8 +51,8 @@ Thumbs.db
 .ruff_cache/
 
 # Other
+.cache/
 *.pdf
 *.pdb
 *.sdf
 
-.cache/
