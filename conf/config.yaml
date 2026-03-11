@@ -8,6 +8,8 @@ defaults:
   - qc: basic
   - multi_opt: default
   - periodic_handoff: default
+  # Select a named commercial CSP with e.g. `phase=chiralpak_ad` or `phase=chiralcel_oz`.
+  - optional phase: null
   - _self_
 
 output:

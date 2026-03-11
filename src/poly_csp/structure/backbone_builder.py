@@ -1089,6 +1089,13 @@ def build_backbone_structure(
     out.SetProp("_poly_csp_polymer", first_state.polymer)
     out.SetProp("_poly_csp_representation", first_state.representation)
     out.SetProp("_poly_csp_end_mode", first_state.end_mode)
+    out.SetProp("_poly_csp_helix_name", str(helix_spec.name))
+    if helix_spec.repeat_residues is not None:
+        out.SetIntProp("_poly_csp_helix_repeat_residues", int(helix_spec.repeat_residues))
+    if helix_spec.repeat_turns is not None:
+        out.SetIntProp("_poly_csp_helix_repeat_turns", int(helix_spec.repeat_turns))
+    if helix_spec.axial_repeat_A is not None:
+        out.SetDoubleProp("_poly_csp_helix_axial_repeat_A", float(helix_spec.axial_repeat_A))
     set_residue_label_maps(out, residue_maps)
     set_json_prop(out, "_poly_csp_removed_old_indices_json", [])
     set_json_prop(

@@ -1,5 +1,5 @@
 enabled: true
-name: 35dmpc
+name: 4c3mpc
 sites: [C2, C3, C6]
 pose:
   dihedral_targets_deg: {}

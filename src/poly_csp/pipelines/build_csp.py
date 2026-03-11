@@ -9,8 +9,9 @@ Minimal working CSP build pipeline.
 
 Run (from repo root):
   python -m poly_csp.pipelines.build_csp
-  python -m poly_csp.pipelines.build_csp topology.backbone.dp=24
-  python -m poly_csp.pipelines.build_csp structure/helix=cellulose_3_2_derivatized topology.selector.enabled=true
+  python -m poly_csp.pipelines.build_csp phase=chiralpak_ad topology.backbone.dp=24
+  python -m poly_csp.pipelines.build_csp phase=chiralcel_oz topology.backbone.dp=24
+  python -m poly_csp.pipelines.build_csp topology/backbone=cellulose topology/selector=35dcpc structure/helix=cellulose_3_2_derivatized
 """
 
 from __future__ import annotations
@@ -39,9 +40,11 @@ from poly_csp.config.schema import (
     BackboneSpec,
     HelixSpec,
     MonomerRepresentation,
+    PhasePresetSpec,
     PolymerKind,
     RuntimeForcefieldOptions,
     SelectorPoseSpec,
+    SelectorRuntimeSpec,
     Site,
 )
 from poly_csp.forcefield.amber_export import export_amber_artifacts
@@ -203,6 +206,13 @@ class BuildReport:
     handoff_interior_transfer_max_deviation_A: Optional[float] = None
     handoff_relaxation_enabled: bool = False
     handoff_relaxation_summary: dict[str, object] = field(default_factory=dict)
+    phase_column_id: Optional[str] = None
+    phase_name: Optional[str] = None
+    phase_manufacturer: Optional[str] = None
+    phase_chemical_name: Optional[str] = None
+    phase_attachment_mode: Optional[str] = None
+    phase_attachment_description: Optional[str] = None
+    phase_silica_tether_description: Optional[str] = None
 
 
 def _cfg_to_helixspec(cfg: DictConfig) -> HelixSpec:
@@ -220,6 +230,29 @@ def _cfg_to_ordering_spec(cfg: DictConfig) -> OrderingSpec:
     if not isinstance(payload, dict):
         return OrderingSpec()
     return OrderingSpec(**payload)
+
+
+def _cfg_to_selector_runtime_spec(cfg: DictConfig) -> SelectorRuntimeSpec:
+    if (
+        "topology" not in cfg
+        or cfg.topology is None
+        or "selector" not in cfg.topology
+        or cfg.topology.selector is None
+    ):
+        return SelectorRuntimeSpec(enabled=False)
+    payload = OmegaConf.to_container(cfg.topology.selector, resolve=True)
+    if not isinstance(payload, dict):
+        return SelectorRuntimeSpec(enabled=False)
+    return SelectorRuntimeSpec(**payload)
+
+
+def _cfg_to_phase_spec(cfg: DictConfig) -> PhasePresetSpec | None:
+    if "phase" not in cfg or cfg.phase is None:
+        return None
+    payload = OmegaConf.to_container(cfg.phase, resolve=True)
+    if not isinstance(payload, dict):
+        return None
+    return PhasePresetSpec(**payload)
 
 
 def _cfg_to_multi_opt_spec(cfg: DictConfig) -> MultiOptSpec:
@@ -357,17 +390,6 @@ def _relax_spec_with_enabled(
     if base is None:
         return None
     return replace(base, enabled=bool(options.enabled and enabled))
-
-
-def _selector_enabled(cfg: DictConfig) -> bool:
-    return bool(
-        "topology" in cfg
-        and cfg.topology is not None
-        and "selector" in cfg.topology
-        and cfg.topology.selector is not None
-        and "enabled" in cfg.topology.selector
-        and cfg.topology.selector.enabled
-    )
 
 
 def _ensure_outdir(path: str | Path) -> Path:
@@ -514,7 +536,6 @@ def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
 
     backbone_cfg = cfg.topology.backbone
-    selector_cfg = cfg.topology.selector
 
     polymer_kind: PolymerKind = str(backbone_cfg.kind)  # type: ignore[assignment]
     dp: int = int(backbone_cfg.dp)
@@ -555,6 +576,8 @@ def main(cfg: DictConfig) -> None:
         helix=helix,
     )
     ordering_spec = _cfg_to_ordering_spec(cfg)
+    selector_runtime = _cfg_to_selector_runtime_spec(cfg)
+    phase_spec = _cfg_to_phase_spec(cfg)
     multi_opt_spec = _cfg_to_multi_opt_spec(cfg)
     qc_spec = _cfg_to_qc_spec(cfg)
     docking_spec = _cfg_to_docking_spec(cfg)
@@ -626,7 +649,7 @@ def main(cfg: DictConfig) -> None:
 
     # ---- Stage 3: optional selector attachment and deterministic pose setup.
     is_periodic = str(backbone.end_mode) == "periodic"
-    selector_enabled = _selector_enabled(cfg)
+    selector_enabled = bool(selector_runtime.enabled)
     selector_name: Optional[str] = None
     selector_sites: List[Site] = []
     selector_pose = SelectorPoseSpec()
@@ -645,14 +668,12 @@ def main(cfg: DictConfig) -> None:
                 "Selector attachment requested but selector modules are not available."
             )
 
-        selector_name = str(selector_cfg.name)
-        selector_sites = [str(s) for s in selector_cfg.sites]  # type: ignore[assignment]
+        if selector_runtime.name is None:
+            raise ValueError("Enabled selector config is missing a selector name.")
+        selector_name = str(selector_runtime.name)
+        selector_sites = [str(site) for site in selector_runtime.sites]  # type: ignore[assignment]
         selector = SelectorRegistry.get(selector_name)
-
-        if "pose" in selector_cfg and selector_cfg.pose is not None:
-            pose_payload = OmegaConf.to_container(selector_cfg.pose, resolve=True)
-            if isinstance(pose_payload, dict):
-                selector_pose = SelectorPoseSpec(**pose_payload)
+        selector_pose = selector_runtime.pose
 
         for res_i in range(backbone.dp):
             for site in selector_sites:
@@ -1178,6 +1199,31 @@ def main(cfg: DictConfig) -> None:
             handoff_relaxation_summary.get("enabled", False)
         ),
         handoff_relaxation_summary=handoff_relaxation_summary,
+        phase_column_id=(None if phase_spec is None else str(phase_spec.column_id)),
+        phase_name=(None if phase_spec is None else str(phase_spec.phase_name)),
+        phase_manufacturer=(
+            None
+            if phase_spec is None or phase_spec.manufacturer is None
+            else str(phase_spec.manufacturer)
+        ),
+        phase_chemical_name=(
+            None
+            if phase_spec is None or phase_spec.chemical_name is None
+            else str(phase_spec.chemical_name)
+        ),
+        phase_attachment_mode=(
+            None if phase_spec is None else str(phase_spec.attachment_mode)
+        ),
+        phase_attachment_description=(
+            None
+            if phase_spec is None or phase_spec.attachment_description is None
+            else str(phase_spec.attachment_description)
+        ),
+        phase_silica_tether_description=(
+            None
+            if phase_spec is None or phase_spec.silica_tether_description is None
+            else str(phase_spec.silica_tether_description)
+        ),
     )
 
     # ---- Write outputs.

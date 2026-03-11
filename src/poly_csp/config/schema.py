@@ -248,6 +248,29 @@ class SelectorPoseSpec(BaseModel):
     aromatic_normal_local: Optional[Tuple[float, float, float]] = None
 
 
+class SelectorRuntimeSpec(BaseModel):
+    enabled: bool = False
+    name: Optional[str] = None
+    sites: Tuple[Site, ...] = ("C2", "C3", "C6")
+    pose: SelectorPoseSpec = Field(default_factory=SelectorPoseSpec)
+
+    @model_validator(mode="after")
+    def _validate_enabled_selector_has_name(self) -> "SelectorRuntimeSpec":
+        if self.enabled and (self.name is None or not str(self.name).strip()):
+            raise ValueError("Enabled selector runtime config requires a selector name.")
+        return self
+
+
+class PhasePresetSpec(BaseModel):
+    column_id: str
+    phase_name: str
+    manufacturer: Optional[str] = None
+    chemical_name: Optional[str] = None
+    attachment_mode: Literal["coated", "immobilized"]
+    attachment_description: Optional[str] = None
+    silica_tether_description: Optional[str] = None
+
+
 class ScalingPair(BaseModel):
     scee: confloat(gt=0) = 1.0
     scnb: confloat(gt=0) = 1.0

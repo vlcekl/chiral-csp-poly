@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /topology/backbone: amylose
+  - override /topology/selector: 35dcpc
+  - override /structure/helix: amylose_4_3_derivatized
+  - _self_
+
+phase:
+  column_id: IE
+  phase_name: Chiralpak IE
+  manufacturer: Daicel
+  chemical_name: Amylose tris(3,5-dichlorophenylcarbamate)
+  attachment_mode: immobilized
+  attachment_description: Covalent Immobilization
+  silica_tether_description: Diisocyanate or triethoxysilyl cross-linking

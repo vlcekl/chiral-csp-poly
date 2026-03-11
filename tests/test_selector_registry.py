@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from poly_csp.topology.selector_assets import (
     available_selector_asset_names,
     load_selector_asset_spec,
@@ -30,6 +32,46 @@ def test_selector_asset_catalog_lists_current_assets() -> None:
     assert spec.linkage_type == "carbamate"
     assert spec.reference_columns == ("AD", "IB")
     assert spec.reference_backbones == ("amylose", "cellulose")
+
+
+@pytest.mark.parametrize("selector_name", available_selector_asset_names())
+def test_selector_registry_templates_expose_runtime_attachment_contract(
+    selector_name: str,
+) -> None:
+    template = SelectorRegistry.get(selector_name)
+
+    assert 0 <= template.attach_atom_idx < template.mol.GetNumAtoms()
+    assert template.attach_dummy_idx is not None
+    assert 0 <= template.attach_dummy_idx < template.mol.GetNumAtoms()
+    assert template.attach_atom_idx != template.attach_dummy_idx
+    assert template.connector_local_roles
+    assert all(
+        0 <= atom_idx < template.mol.GetNumAtoms()
+        for atom_idx in template.connector_local_roles
+    )
+    assert all(len(indices) == 4 for indices in template.dihedrals.values())
+    assert all(
+        0 <= atom_idx < template.mol.GetNumAtoms()
+        for indices in template.dihedrals.values()
+        for atom_idx in indices
+    )
+    if template.linkage_type == "carbamate":
+        assert set(template.connector_local_roles.values()) == {
+            "carbonyl_c",
+            "carbonyl_o",
+            "amide_n",
+        }
+    elif template.linkage_type == "ester":
+        assert set(template.connector_local_roles.values()) == {
+            "carbonyl_c",
+            "carbonyl_o",
+        }
+
+
+def test_selector_registry_rejects_removed_legacy_alias() -> None:
+    assert "dmpc_35" not in SelectorRegistry.available()
+    with pytest.raises(KeyError, match="Unknown selector"):
+        SelectorRegistry.get("dmpc_35")
 
 
 def test_selector_from_smiles_detects_implicit_h_donors() -> None:

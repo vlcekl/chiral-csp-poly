@@ -56,3 +56,38 @@ def test_pipeline_structure_helix_group_override_runs(tmp_path: Path) -> None:
     assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
     assert report["axial_repeat_A"] == pytest.approx(16.2)
     assert report["qc_pass"] is True
+
+
+def test_pipeline_selector_group_override_runs(tmp_path: Path) -> None:
+    outdir = tmp_path / "selector_group_out"
+    _run_build(
+        "topology/selector=35dcpc "
+        "topology.backbone.dp=1 "
+        "ordering.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["selector_enabled"] is True
+    assert report["selector_name"] == "35dcpc"
+    assert report["selector_sites"] == ["C2", "C3", "C6"]
+
+
+def test_pipeline_phase_group_override_runs(tmp_path: Path) -> None:
+    outdir = tmp_path / "phase_group_out"
+    _run_build(
+        "phase=chiralcel_oz "
+        "topology.backbone.dp=1 "
+        "ordering.enabled=false "
+        "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["polymer"] == "cellulose"
+    assert report["selector_name"] == "3c4mpc"
+    assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
+    assert report["phase_column_id"] == "OZ"
+    assert report["phase_name"] == "Chiralcel OZ"
+    assert report["phase_attachment_mode"] == "coated"

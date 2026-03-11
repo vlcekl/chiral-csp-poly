@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /topology/backbone: amylose
+  - override /topology/selector: 5c2mpc
+  - override /structure/helix: amylose_4_3_derivatized
+  - _self_
+
+phase:
+  column_id: AY
+  phase_name: Chiralpak AY
+  manufacturer: Daicel
+  chemical_name: Amylose tris(5-chloro-2-methylphenylcarbamate)
+  attachment_mode: coated
+  attachment_description: Physical Coating
+  silica_tether_description: Non-covalent physical adsorption

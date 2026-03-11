@@ -2,9 +2,9 @@
 
 **poly_csp** is a deterministic construction framework for building **highly ordered chiral stationary phase (CSP) polymers** for molecular dynamics simulations.
 
-The primary target system is:
+The primary target systems are derivatized amylose and cellulose polysaccharide CSPs, with named commercial phase presets such as:
 
-> **Chiralpak AD–like amylose tris(3,5-dimethylphenylcarbamate) (ADMPC)**
+> `chiralpak_ad`, `chiralpak_ay`, `chiralpak_ib`, `chiralpak_ic`, `chiralpak_ie`, `chiralpak_if`, `chiralpak_ig`, `chiralcel_ox`, `chiralcel_oz`
 
 The framework builds:
 
@@ -179,6 +179,7 @@ poly_csp/
 │   ├── topology/
 │   │   ├── backbone/
 │   │   └── selector/
+│   ├── phase/
 │   ├── structure/
 │   │   └── helix/
 │   ├── forcefield/
@@ -286,7 +287,22 @@ conf/
 │   │   ├── amylose.yaml
 │   │   └── cellulose.yaml
 │   └── selector/
-│       └── 35dmpc.yaml
+│       ├── 35dmpc.yaml
+│       ├── 35dcpc.yaml
+│       ├── 3c4mpc.yaml
+│       ├── 3c5mpc.yaml
+│       ├── 4c3mpc.yaml
+│       └── 5c2mpc.yaml
+├── phase/
+│   ├── chiralpak_ad.yaml
+│   ├── chiralpak_ay.yaml
+│   ├── chiralpak_ib.yaml
+│   ├── chiralpak_ic.yaml
+│   ├── chiralpak_ie.yaml
+│   ├── chiralpak_if.yaml
+│   ├── chiralpak_ig.yaml
+│   ├── chiralcel_ox.yaml
+│   └── chiralcel_oz.yaml
 ├── structure/
 │   └── helix/
 │       ├── amylose_4_3_derivatized.yaml
@@ -317,6 +333,8 @@ defaults:
   - forcefield: mixing_rules
   - qc: basic
   - multi_opt: default
+  - periodic_handoff: default
+  - optional phase: null
   - _self_
 
 output:
@@ -325,17 +343,32 @@ output:
 
 ---
 
-# Default Target: Derivatized Amylose 4/3 CSP
+# Default Config
 
-The default helix preset:
+The top-level default config remains a generic CSP component stack:
 
-* Left-handed 4/3 helix
-* Repeat: 4 residues, 3 turns
-* Repeat translation: 14.6 Å
-* Rise per residue: 3.65 Å
-* Deterministic screw-axis construction
+* `topology/backbone: amylose`
+* `topology/selector: 35dmpc`
+* `structure/helix: amylose_4_3_derivatized`
+* `phase: null`
 
-This corresponds to the literature-aligned derivatized amylose CSP backbone used by AD/AY/IE/IF/IG-type phases.
+That default is chemically equivalent to an AD-like amylose tris(3,5-dimethylphenylcarbamate) system, but it does not claim commercial phase metadata unless you explicitly select a phase preset.
+
+Recommended user entry point:
+
+* choose a named commercial phase with `phase=...`
+* override `topology.backbone.dp`, runtime options, and export settings as needed
+
+## Two Pitch Terms
+
+The project now distinguishes two axial quantities:
+
+* `axial_repeat_A`: translation across the full rational helical repeat used in the CSP literature
+  Example: amylose `4/3` uses `14.6 A`; cellulose `3/2` uses `16.2 A`.
+* `pitch_A`: translation per full `360 deg` turn
+  Example: amylose `4/3` gives `14.6 / 3 = 4.8667 A`; cellulose `3/2` gives `16.2 / 2 = 8.1 A`.
+
+For CSP presets and reports, the literature-facing quantity is `axial_repeat_A`. `pitch_A` is still derived and reported because it is the conventional per-turn screw parameter.
 
 ---
 
@@ -358,12 +391,22 @@ which tleap
 
 ---
 
-## 2. Build a CSP polymer
+## 2. Build a named CSP phase
 
-Example:
+Recommended workflow:
 
 ```bash
-python -m poly_csp.pipelines.build_csp topology.backbone.dp=24
+python -m poly_csp.pipelines.build_csp \
+  phase=chiralpak_ad \
+  topology.backbone.dp=24
+```
+
+Another example:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  phase=chiralcel_oz \
+  topology.backbone.dp=24
 ```
 
 Hydra will create an output directory like:
@@ -378,10 +421,25 @@ Containing:
 * `model.sdf` (if SDF export enabled)
 * `build_report.json`
 * optional logs
+* phase metadata in `build_report.json` when `phase=...` is selected
 
 ---
 
-## 3. Build a backbone helix only
+## 3. Build from generic components
+
+If you want to work below the commercial-phase layer, override the backbone, selector, and helix groups directly:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  topology/backbone=cellulose \
+  topology/selector=35dcpc \
+  structure/helix=cellulose_3_2_derivatized \
+  topology.backbone.dp=24
+```
+
+---
+
+## 4. Build a backbone helix only
 
 This builds only the explicit-H amylose backbone, with selectors and runtime-derived export artifacts disabled:
 
@@ -395,14 +453,14 @@ python -m poly_csp.pipelines.build_csp \
 
 ---
 
-## 4. Canonical runtime mode
+## 5. Canonical runtime mode
 
-The canonical runtime presets now cover the supported built-in selector-bearing slice:
+The canonical runtime presets now cover the supported selector-bearing slice:
 
 * polymer: `amylose` or `cellulose`
 * representation: `anhydro`
 * end mode: `open`
-* selectors: built-in templates only
+* selectors: bundled selector assets only
 * caps: none
 
 Example:
@@ -452,7 +510,42 @@ Those settings affect stage 1 of `forcefield/options=runtime_relax` only. They d
 
 ---
 
-## 5. Override parameters
+## 6. Catalog Overview
+
+### Selector IDs
+
+| Selector ID | Chemistry | Columns |
+|-----------|-----------|---------|
+| `35dmpc` | 3,5-dimethylphenylcarbamate | AD, IB |
+| `5c2mpc` | 5-chloro-2-methylphenylcarbamate | AY |
+| `35dcpc` | 3,5-dichlorophenylcarbamate | IC, IE |
+| `3c4mpc` | 3-chloro-4-methylphenylcarbamate | IF, OZ |
+| `3c5mpc` | 3-chloro-5-methylphenylcarbamate | IG |
+| `4c3mpc` | 4-chloro-3-methylphenylcarbamate | OX |
+
+### Phase Presets
+
+| Phase preset | Column | Backbone | Selector | Helix |
+|-----------|--------|----------|----------|-------|
+| `chiralpak_ad` | AD | amylose | `35dmpc` | `amylose_4_3_derivatized` |
+| `chiralpak_ay` | AY | amylose | `5c2mpc` | `amylose_4_3_derivatized` |
+| `chiralpak_ib` | IB | cellulose | `35dmpc` | `cellulose_3_2_derivatized` |
+| `chiralpak_ic` | IC | cellulose | `35dcpc` | `cellulose_3_2_derivatized` |
+| `chiralpak_ie` | IE | amylose | `35dcpc` | `amylose_4_3_derivatized` |
+| `chiralpak_if` | IF | amylose | `3c4mpc` | `amylose_4_3_derivatized` |
+| `chiralpak_ig` | IG | amylose | `3c5mpc` | `amylose_4_3_derivatized` |
+| `chiralcel_ox` | OX | cellulose | `4c3mpc` | `cellulose_3_2_derivatized` |
+| `chiralcel_oz` | OZ | cellulose | `3c4mpc` | `cellulose_3_2_derivatized` |
+
+---
+
+## 7. Override parameters
+
+Select a named phase:
+
+```bash
+python -m poly_csp.pipelines.build_csp phase=chiralpak_if
+```
 
 Change helix:
 
@@ -474,7 +567,7 @@ python -m poly_csp.pipelines.build_csp topology.selector.sites=[C6]
 
 ---
 
-## 6. Docking and AMBER export
+## 8. Docking and AMBER export
 
 The pipeline supports `pdb`, `sdf`, `pdbqt`, and `amber` export.
 
@@ -536,7 +629,7 @@ In that mode:
 
 ---
 
-## 7. Multi-start selector optimization
+## 9. Multi-start selector optimization
 
 Selector ordering now runs on the canonical all-atom runtime molecule, not on a pre-forcefield geometry surrogate. Each candidate selector pose is evaluated by short two-stage `soft -> full` minimization on the real runtime system. With a fixed seed, the search uses seeded repeat-class initialization plus randomized site/residue/pose sweep order before greedy refinement, and multi-start mode runs N independent seeded searches to sample different local minima:
 
@@ -556,11 +649,11 @@ Ordering requires the supported runtime slice:
 * `open` or `periodic` end mode,
 * `forcefield/options=runtime` or `forcefield/options=runtime_relax`.
 
-For the default Chiralpak AD workflow:
+For the bundled CSP carbamate selector catalog:
 
-* `ordering.repeat_residues=4` matches the 4-residue helical repeat
-* the bundled 35dmpc asset currently contains 16 discrete `tau_link` / `tau_ar` combinations
-* `ordering.max_candidates` values above 16 do not broaden the 35dmpc search unless the rotamer grid itself is expanded
+* `ordering.repeat_residues` now defaults to the active helix repeat when you do not override it
+* the six polymer CSP carbamate selector assets currently expose a `4 x 4` `tau_link` / `tau_ar` grid
+* `ordering.max_candidates` values above `16` do not broaden those CSP carbamate searches unless the asset grid itself is expanded
 
 ### Configuration
 
@@ -629,6 +722,7 @@ Each build produces:
 * Downstream AMBER `prmtop` / `inpcrd` export from the canonical runtime system
 * Multi-start ranked structures with scores (when `multi_opt.enabled=true`)
 * Forcefield-mode metadata in `build_report.json`
+* Optional `phase_*` provenance fields in `build_report.json` when a named phase preset is selected
 * QC metrics:
 
   * Symmetry RMSD
@@ -735,6 +829,12 @@ When adding new helix presets:
 
 1. Define `HelixSpec` in `presets.py`.
 2. Add Hydra YAML in `/conf/structure/helix/`.
+
+When adding new phase presets:
+
+1. Add a Hydra preset in `/conf/phase/` that composes backbone, selector, and helix groups.
+2. Keep silica/tether details as metadata only unless the runtime chemistry is actually implemented.
+3. Add or update phase composition tests.
 
 ---
 

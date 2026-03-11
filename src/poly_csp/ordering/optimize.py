@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping
+from typing import Dict, Iterable, List, Mapping, Optional
 
 import numpy as np
 from rdkit import Chem
@@ -37,7 +37,7 @@ from poly_csp.topology.selectors import SelectorTemplate
 @dataclass(frozen=True)
 class OrderingSpec:
     enabled: bool = False
-    repeat_residues: int = 4
+    repeat_residues: Optional[int] = None
     max_candidates: int = 64
     positional_k: float = 5000.0
     freeze_backbone: bool = True
@@ -89,6 +89,14 @@ def _finite_or_none(value: float) -> float | None:
 
 def _copy_pose(pose: Mapping[str, float]) -> Dict[str, float]:
     return {str(name): float(value) for name, value in pose.items()}
+
+
+def _resolved_repeat_residues(mol: Chem.Mol, spec: OrderingSpec, dp: int) -> int:
+    if spec.repeat_residues is not None:
+        return max(1, min(int(spec.repeat_residues), int(dp)))
+    if mol.HasProp("_poly_csp_helix_repeat_residues"):
+        return max(1, min(int(mol.GetIntProp("_poly_csp_helix_repeat_residues")), int(dp)))
+    return 1
 
 
 def _ordering_diagnostics(
@@ -284,7 +292,7 @@ def optimize_selector_ordering(
         spec=spec,
     )
 
-    repeat = max(1, min(int(spec.repeat_residues), int(dp)))
+    repeat = _resolved_repeat_residues(mol, spec, dp)
     residues = list(range(int(dp)))
     site_keys = [str(site) for site in sites]
     selected: Dict[str, Dict[int, Dict[str, float]]] = {

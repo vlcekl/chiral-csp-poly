@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /topology/backbone: cellulose
+  - override /topology/selector: 35dmpc
+  - override /structure/helix: cellulose_3_2_derivatized
+  - _self_
+
+phase:
+  column_id: IB
+  phase_name: Chiralpak IB
+  manufacturer: Daicel
+  chemical_name: Cellulose tris(3,5-dimethylphenylcarbamate)
+  attachment_mode: immobilized
+  attachment_description: Covalent Immobilization
+  silica_tether_description: Diisocyanate or triethoxysilyl cross-linking

@@ -42,6 +42,8 @@ def test_pipeline_runtime_amylose(tmp_path: Path) -> None:
     report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
     assert report["forcefield_enabled"] is True
     assert report["forcefield_mode"] == "runtime"
+    assert report["phase_column_id"] is None
+    assert report["phase_name"] is None
     assert report["forcefield_summary"]["nonbonded_mode"] == "full"
     assert report["forcefield_summary"]["particle_count"] > 0
     assert report["forcefield_summary"]["bonded_term_summary"]["bonds"] > 0
@@ -54,8 +56,7 @@ def test_pipeline_runtime_amylose(tmp_path: Path) -> None:
 def test_pipeline_runtime_cellulose(tmp_path: Path) -> None:
     outdir = tmp_path / "cellulose_runtime"
     _run_build(
-        "topology/backbone=cellulose "
-        "structure/helix=cellulose_3_2_derivatized "
+        "phase=chiralcel_oz "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
         "forcefield/options=runtime "
@@ -65,8 +66,11 @@ def test_pipeline_runtime_cellulose(tmp_path: Path) -> None:
 
     report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
     assert report["polymer"] == "cellulose"
+    assert report["selector_enabled"] is False
     assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
     assert report["axial_repeat_A"] == pytest.approx(16.2)
+    assert report["phase_column_id"] == "OZ"
+    assert report["phase_name"] == "Chiralcel OZ"
     assert report["forcefield_mode"] == "runtime"
     assert report["forcefield_summary"]["particle_count"] > 0
     assert report["forcefield_summary"]["force_inventory"]["counts"]["NonbondedForce"] == 1

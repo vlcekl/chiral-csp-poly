@@ -15,6 +15,9 @@ from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec
 
 
+_CSP_SELECTOR_NAMES = ("35dcpc", "35dmpc", "3c4mpc", "3c5mpc", "4c3mpc", "5c2mpc")
+
+
 def _helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
@@ -139,8 +142,8 @@ def test_attach_selector_consumes_site_oh_and_preserves_carbamate_nh() -> None:
     assert amide_n.GetTotalNumHs(includeNeighbors=True) == 1
 
 
-@pytest.mark.parametrize("selector_name", ("35dcpc", "3c4mpc"))
-def test_attach_selector_supports_additional_csp_catalog_selectors(selector_name: str) -> None:
+@pytest.mark.parametrize("selector_name", _CSP_SELECTOR_NAMES)
+def test_attach_selector_supports_polymer_csp_selector_catalog(selector_name: str) -> None:
     template = make_glucose_template("amylose")
     selector = SelectorRegistry.get(selector_name)
 

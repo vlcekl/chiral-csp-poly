@@ -100,6 +100,7 @@ def build_forcefield_mol(
     site: str = "C6",
     end_mode: str = "open",
     end_caps: dict[str, str] | None = None,
+    helix: HelixSpec | None = None,
 ) -> Chem.Mol:
     template = make_glucose_template(polymer, monomer_representation="anhydro")
     topology = polymerize(
@@ -114,7 +115,8 @@ def build_forcefield_mol(
         caps=dict(end_caps or {}),
         representation="anhydro",
     )
-    structure = build_backbone_structure(topology, test_helix()).mol
+    active_helix = test_helix() if helix is None else helix
+    structure = build_backbone_structure(topology, active_helix).mol
     if selector is not None:
         for residue_index in range(dp):
             structure = attach_selector(
@@ -126,7 +128,7 @@ def build_forcefield_mol(
     if end_mode == "periodic":
         ensure_periodic_box_vectors(
             structure,
-            test_helix(),
+            active_helix,
             dp=dp,
             padding_A=30.0,
         )

@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import math
 
+from poly_csp.config.schema import HelixSpec
 from poly_csp.ordering.scoring import selector_aromatic_ring_planarity
 from poly_csp.ordering.optimize import OrderingSpec, optimize_selector_ordering
 from poly_csp.topology.selectors import SelectorRegistry
 from tests.support import build_forcefield_mol, make_fake_runtime_params
 
 
-def _ordering_spec(*, repeat_residues: int = 1, max_candidates: int = 8) -> OrderingSpec:
+def _ordering_spec(
+    *,
+    repeat_residues: int | None = None,
+    max_candidates: int = 8,
+) -> OrderingSpec:
     return OrderingSpec(
         enabled=True,
         repeat_residues=repeat_residues,
@@ -158,6 +163,37 @@ def test_ordering_repeat_unit_summary_uses_repeat_positions() -> None:
 
     assert summary["repeat_residues"] == 2
     assert set(summary["selected_pose_by_site"]["C6"]) == {"0", "1"}
+
+
+def test_ordering_repeat_unit_defaults_to_helix_repeat_metadata() -> None:
+    selector = SelectorRegistry.get("tmb")
+    cellulose_helix = HelixSpec(
+        name="cellulose_CSP_3_2_derivatized",
+        repeat_residues=3,
+        repeat_turns=2,
+        axial_repeat_A=16.2,
+        handedness="left",
+    )
+    mol = build_forcefield_mol(
+        polymer="cellulose",
+        dp=3,
+        selector=selector,
+        site="C3",
+        helix=cellulose_helix,
+    )
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C3")
+
+    _, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C3"],
+        dp=3,
+        spec=_ordering_spec(max_candidates=4),
+        runtime_params=runtime_params,
+    )
+
+    assert summary["repeat_residues"] == 3
+    assert set(summary["selected_pose_by_site"]["C3"]) == {"0", "1", "2"}
 
 
 def test_optimize_selector_ordering_requires_forcefield_molecule() -> None:
