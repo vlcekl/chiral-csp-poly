@@ -4,8 +4,7 @@ import math
 
 from poly_csp.ordering.scoring import selector_aromatic_ring_planarity
 from poly_csp.ordering.optimize import OrderingSpec, optimize_selector_ordering
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
-from poly_csp.structure.selector_library.tmb import make_tmb_template
+from poly_csp.topology.selectors import SelectorRegistry
 from tests.support import build_forcefield_mol, make_fake_runtime_params
 
 
@@ -22,7 +21,7 @@ def _ordering_spec(*, repeat_residues: int = 1, max_candidates: int = 8) -> Orde
 
 
 def test_optimize_selector_ordering_returns_forcefield_summary() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C6")
     runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
 
@@ -52,7 +51,7 @@ def test_optimize_selector_ordering_returns_forcefield_summary() -> None:
 
 
 def test_optimize_selector_ordering_supports_cellulose_runtime_systems() -> None:
-    selector = make_tmb_template()
+    selector = SelectorRegistry.get("tmb")
     mol = build_forcefield_mol(polymer="cellulose", dp=2, selector=selector, site="C3")
     runtime_params = make_fake_runtime_params(mol, selector=selector, site="C3")
 
@@ -72,7 +71,7 @@ def test_optimize_selector_ordering_supports_cellulose_runtime_systems() -> None
 
 
 def test_optimize_selector_ordering_supports_periodic_runtime_systems() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -98,7 +97,7 @@ def test_optimize_selector_ordering_supports_periodic_runtime_systems() -> None:
 
 
 def test_ordering_seeded_determinism_and_metadata() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C6")
     runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
     spec = _ordering_spec(max_candidates=4)
@@ -144,7 +143,7 @@ def test_ordering_seeded_determinism_and_metadata() -> None:
 
 
 def test_ordering_repeat_unit_summary_uses_repeat_positions() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=4, selector=selector, site="C6")
     runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
 
@@ -162,7 +161,7 @@ def test_ordering_repeat_unit_summary_uses_repeat_positions() -> None:
 
 
 def test_optimize_selector_ordering_requires_forcefield_molecule() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
     mol.ClearProp("_poly_csp_manifest_schema_version")
 
@@ -186,7 +185,7 @@ def test_optimize_selector_ordering_requires_forcefield_molecule() -> None:
 
 
 def test_selector_aromatic_ring_planarity_detects_out_of_plane_distortion() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
 
     baseline = selector_aromatic_ring_planarity(mol, selector.mol)

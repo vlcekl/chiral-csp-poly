@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from rdkit import Chem
 
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 def test_make_35_dmpc_template_structure() -> None:
-    tpl = make_35_dmpc_template()
+    tpl = SelectorRegistry.get("35dmpc")
     assert tpl.name == "35dmpc"
     assert tpl.mol.GetNumAtoms() > 0
     assert tpl.attach_dummy_idx is not None
@@ -23,7 +23,7 @@ def test_make_35_dmpc_template_structure() -> None:
 
 
 def test_make_35_dmpc_template_attach_atom_is_carbonyl_c() -> None:
-    tpl = make_35_dmpc_template()
+    tpl = SelectorRegistry.get("35dmpc")
     atom = tpl.mol.GetAtomWithIdx(tpl.attach_atom_idx)
     assert atom.GetAtomicNum() == 6
     has_double_o = False
@@ -35,7 +35,7 @@ def test_make_35_dmpc_template_attach_atom_is_carbonyl_c() -> None:
 
 
 def test_make_35_dmpc_template_tracks_carbamate_nh() -> None:
-    tpl = make_35_dmpc_template()
+    tpl = SelectorRegistry.get("35dmpc")
     amide_idx = next(
         idx for idx, role in tpl.connector_local_roles.items() if role == "amide_n"
     )

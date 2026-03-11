@@ -23,19 +23,16 @@ from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.residue_state import resolve_residue_template_states
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.terminals import apply_terminal_mode
 
 
 def _helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
-        theta_rad=-3.0,
-        rise_A=3.7,
         repeat_residues=4,
         repeat_turns=3,
-        residues_per_turn=4.0 / 3.0,
-        pitch_A=3.7 * (4.0 / 3.0),
+        axial_repeat_A=14.8,
         handedness="left",
     )
 
@@ -65,7 +62,7 @@ def _periodic_helix() -> HelixSpec:
 
 def test_select_residue_templates_detects_substitution_and_termini() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     topology = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol
@@ -184,11 +181,8 @@ def test_build_backbone_structure_rejects_incompatible_helix_request() -> None:
         name="chemically_bad",
         theta_rad=0.5,
         rise_A=12.0,
-        repeat_residues=1,
-        repeat_turns=1,
-        residues_per_turn=1.0,
-        pitch_A=12.0,
-        handedness="left",
+        residues_per_turn=(2.0 * np.pi) / 0.5,
+        handedness="right",
     )
 
     with pytest.raises(
@@ -200,7 +194,7 @@ def test_build_backbone_structure_rejects_incompatible_helix_request() -> None:
 
 def test_selector_attachment_uses_explicit_h_backbone_and_selector_templates() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     topology = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol
@@ -290,7 +284,7 @@ def test_ensure_periodic_box_vectors_uses_selector_bearing_extent() -> None:
         representation="anhydro",
     )
     structure = build_backbone_structure(topology, _periodic_helix()).mol
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     backbone_box = compute_helical_box_vectors(
         structure,

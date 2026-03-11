@@ -20,7 +20,7 @@ from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import build_backbone_glycam_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.structure.pbc import compute_helical_box_vectors, set_box_vectors
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
@@ -217,7 +217,7 @@ def test_map_backbone_to_glycam_ignores_selector_atoms(tmp_path) -> None:
         mol_polymer=structure,
         residue_index=0,
         site="C6",
-        selector=make_35_dmpc_template(),
+        selector=SelectorRegistry.get("35dmpc"),
     )
     mol = build_forcefield_molecule(structure).mol
     params = load_glycam_params(

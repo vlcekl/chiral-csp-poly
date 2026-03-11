@@ -1,8 +1,9 @@
 # poly_csp/config/schema.py
 from __future__ import annotations
 
+import math
 from typing import Dict, Literal, Optional, Tuple
-from pydantic import BaseModel, Field, PositiveInt, confloat
+from pydantic import BaseModel, Field, PositiveInt, confloat, model_validator
 
 
 PolymerKind = Literal["amylose", "cellulose"]
@@ -21,19 +22,48 @@ class HelixSpec(BaseModel):
     name: str
 
     # Screw parameters (per residue)
-    theta_rad: float = Field(..., description="Rotation per residue about +z (radians).")
-    rise_A: float = Field(..., description="Translation per residue along +z (angstrom).")
+    theta_rad: Optional[float] = Field(
+        None,
+        description="Rotation per residue about +z (radians).",
+    )
+    rise_A: Optional[float] = Field(
+        None,
+        description="Translation per residue along +z (angstrom).",
+    )
 
     # For tight helices like 4/3, store the rational form explicitly.
-    repeat_residues: Optional[PositiveInt] = Field(None, description="Residues in helical repeat (e.g., 4).")
-    repeat_turns: Optional[PositiveInt] = Field(None, description="Turns in helical repeat (e.g., 3).")
+    repeat_residues: Optional[PositiveInt] = Field(
+        None,
+        description="Residues in helical repeat (e.g., 4).",
+    )
+    repeat_turns: Optional[PositiveInt] = Field(
+        None,
+        description="Turns in helical repeat (e.g., 3).",
+    )
 
     # Informational/derived convenience fields
-    residues_per_turn: confloat(gt=0) = Field(..., description="n = residues per 360° turn.")
-    pitch_A: float = Field(..., description="Pitch (angstrom) per 360° turn.")
+    residues_per_turn: Optional[confloat(gt=0)] = Field(
+        None,
+        description="n = residues per 360° turn.",
+    )
+    pitch_A: Optional[float] = Field(
+        None,
+        description="Pitch (angstrom) per 360° turn.",
+    )
+    axial_repeat_A: Optional[float] = Field(
+        None,
+        description=(
+            "Axial translation (angstrom) across the full rational helical repeat, "
+            "e.g. 14.6 A for a 4-residue/3-turn amylose CSP repeat."
+        ),
+    )
 
     handedness: Handedness = "right"
     axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+    inter_rod_distance_A: Optional[float] = None
+    core_diameter_A: Optional[float] = None
+    reference_label: Optional[str] = None
+    reference_columns: Tuple[str, ...] = Field(default_factory=tuple)
 
     # Optional: torsion targets to keep polymerizable geometry
     # Use degrees here for human readability; convert internally.
@@ -41,6 +71,156 @@ class HelixSpec(BaseModel):
     glycosidic_phi_deg: Optional[float] = None
     glycosidic_psi_deg: Optional[float] = None
     glycosidic_omega_deg: Optional[float] = None
+
+    @model_validator(mode="after")
+    def _normalize(self) -> "HelixSpec":
+        tol = 1e-8
+        fields_set = set(self.model_fields_set)
+
+        def _coerce(name: str) -> float | None:
+            value = getattr(self, name)
+            return None if value is None else float(value)
+
+        def _set_or_check(name: str, derived: float) -> float:
+            current = _coerce(name)
+            if current is None:
+                setattr(self, name, float(derived))
+                return float(derived)
+            if not math.isclose(current, float(derived), rel_tol=1e-7, abs_tol=1e-7):
+                raise ValueError(
+                    f"HelixSpec field {name!r}={current} is inconsistent with derived value "
+                    f"{float(derived)} for helix {self.name!r}."
+                )
+            return current
+
+        handedness = self.handedness
+        theta = _coerce("theta_rad")
+        if theta is not None and abs(theta) > tol:
+            theta_handedness: Handedness = "left" if theta < 0.0 else "right"
+            if "handedness" in fields_set and handedness != theta_handedness:
+                raise ValueError(
+                    f"HelixSpec handedness {handedness!r} is inconsistent with "
+                    f"theta_rad={theta} for helix {self.name!r}."
+                )
+            handedness = theta_handedness
+            self.handedness = handedness
+
+        repeat_residues = (
+            int(self.repeat_residues) if self.repeat_residues is not None else None
+        )
+        repeat_turns = int(self.repeat_turns) if self.repeat_turns is not None else None
+        if (repeat_residues is None) ^ (repeat_turns is None):
+            raise ValueError(
+                "repeat_residues and repeat_turns must be provided together when using "
+                "repeat-based helix metadata."
+            )
+
+        if repeat_residues is not None and repeat_turns is not None:
+            residues_per_turn = _set_or_check(
+                "residues_per_turn",
+                float(repeat_residues) / float(repeat_turns),
+            )
+            _set_or_check(
+                "theta_rad",
+                (-1.0 if handedness == "left" else 1.0)
+                * (2.0 * math.pi * float(repeat_turns) / float(repeat_residues)),
+            )
+
+            axial_repeat = _coerce("axial_repeat_A")
+            rise_A = _coerce("rise_A")
+            pitch_A = _coerce("pitch_A")
+
+            if axial_repeat is None and rise_A is not None:
+                axial_repeat = float(rise_A) * float(repeat_residues)
+            if axial_repeat is None and pitch_A is not None:
+                axial_repeat = float(pitch_A) * float(repeat_turns)
+
+            if axial_repeat is not None:
+                axial_repeat = _set_or_check("axial_repeat_A", axial_repeat)
+                rise_A = _set_or_check(
+                    "rise_A",
+                    float(axial_repeat) / float(repeat_residues),
+                )
+                pitch_A = _set_or_check(
+                    "pitch_A",
+                    float(axial_repeat) / float(repeat_turns),
+                )
+            else:
+                if rise_A is None and pitch_A is None:
+                    raise ValueError(
+                        f"HelixSpec {self.name!r} needs either axial_repeat_A, rise_A, "
+                        "or pitch_A when repeat_residues/repeat_turns are provided."
+                    )
+                if rise_A is not None:
+                    rise_A = _set_or_check("rise_A", rise_A)
+                    pitch_A = _set_or_check(
+                        "pitch_A",
+                        float(rise_A) * float(residues_per_turn),
+                    )
+                    _set_or_check(
+                        "axial_repeat_A",
+                        float(rise_A) * float(repeat_residues),
+                    )
+                else:
+                    pitch_A = _set_or_check("pitch_A", float(pitch_A))
+                    rise_A = _set_or_check(
+                        "rise_A",
+                        float(pitch_A) / float(residues_per_turn),
+                    )
+                    _set_or_check(
+                        "axial_repeat_A",
+                        float(pitch_A) * float(repeat_turns),
+                    )
+        else:
+            residues_per_turn = _coerce("residues_per_turn")
+            rise_A = _coerce("rise_A")
+            pitch_A = _coerce("pitch_A")
+
+            if residues_per_turn is None and theta is not None:
+                if abs(theta) <= tol:
+                    raise ValueError(
+                        f"HelixSpec {self.name!r} cannot derive residues_per_turn from "
+                        "theta_rad=0. Provide residues_per_turn explicitly."
+                    )
+                residues_per_turn = _set_or_check(
+                    "residues_per_turn",
+                    (2.0 * math.pi) / abs(float(theta)),
+                )
+            if residues_per_turn is None:
+                raise ValueError(
+                    f"HelixSpec {self.name!r} is missing residues_per_turn."
+                )
+            if theta is None:
+                theta = _set_or_check(
+                    "theta_rad",
+                    (-1.0 if handedness == "left" else 1.0)
+                    * ((2.0 * math.pi) / float(residues_per_turn)),
+                )
+            if rise_A is None and pitch_A is None:
+                raise ValueError(
+                    f"HelixSpec {self.name!r} needs at least one of rise_A or pitch_A."
+                )
+            if rise_A is not None:
+                rise_A = _set_or_check("rise_A", rise_A)
+                _set_or_check(
+                    "pitch_A",
+                    float(rise_A) * float(residues_per_turn),
+                )
+            else:
+                pitch_A = _set_or_check("pitch_A", float(pitch_A))
+                _set_or_check(
+                    "rise_A",
+                    float(pitch_A) / float(residues_per_turn),
+                )
+
+        if self.theta_rad is None or self.rise_A is None:
+            raise ValueError(f"HelixSpec {self.name!r} is missing screw parameters.")
+        if self.residues_per_turn is None or self.pitch_A is None:
+            raise ValueError(
+                f"HelixSpec {self.name!r} is missing derived pitch metadata."
+            )
+
+        return self
 
 
 class BackboneSpec(BaseModel):

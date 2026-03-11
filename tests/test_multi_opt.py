@@ -6,12 +6,12 @@ import math
 
 from poly_csp.ordering.multi_opt import MultiOptSpec, RankedResult, run_multi_start_optimization
 from poly_csp.ordering.optimize import OrderingSpec
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from tests.support import build_forcefield_mol, make_fake_runtime_params
 
 
 def _build_runtime_case(dp: int = 3):
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(polymer="amylose", dp=dp, selector=selector, site="C6")
     runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
     return mol, selector, runtime_params

@@ -36,13 +36,15 @@ def test_pipeline_topology_backbone_group_override_runs(tmp_path: Path) -> None:
     assert report["polymer"] == "amylose"
     assert report["dp"] == 4
     assert report["end_mode"] == "periodic"
+    assert report["helix_name"] == "amylose_CSP_4_3_derivatized"
+    assert report["axial_repeat_A"] == pytest.approx(14.6)
 
 
 def test_pipeline_structure_helix_group_override_runs(tmp_path: Path) -> None:
     outdir = tmp_path / "cellulose_helix_out"
     _run_build(
         "topology/backbone=cellulose "
-        "structure/helix=cellulose_i "
+        "structure/helix=cellulose_3_2_derivatized "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
         "forcefield.options.enabled=false output.export_formats=[pdb,sdf] "
@@ -51,5 +53,6 @@ def test_pipeline_structure_helix_group_override_runs(tmp_path: Path) -> None:
 
     report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
     assert report["polymer"] == "cellulose"
-    assert report["helix_name"] == "cellulose_I_2_1"
+    assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
+    assert report["axial_repeat_A"] == pytest.approx(16.2)
     assert report["qc_pass"] is True

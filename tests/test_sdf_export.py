@@ -9,7 +9,7 @@ from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec
 from poly_csp.io.rdkit_io import write_sdf
 
@@ -29,7 +29,7 @@ def _helix() -> HelixSpec:
 
 def _build_functionalized_polymer(dp: int = 3) -> Chem.Mol:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")
     mol = assign_conformer(mol, coords)

@@ -8,7 +8,7 @@ from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.terminals import apply_terminal_mode
 from poly_csp.config.schema import HelixSpec
 
@@ -45,7 +45,7 @@ def test_natural_oh_polymerize_removes_internal_o1() -> None:
 
 def test_natural_oh_coords_pruning_and_selector_attachment() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     dp = 3
 
     topology = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")

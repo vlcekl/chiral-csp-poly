@@ -265,7 +265,7 @@ def optimize_selector_ordering(
         mixing_rules_cfg=mixing_rules_cfg,
     )
 
-    grid_spec = grid or default_rotamer_grid(selector.name)
+    grid_spec = grid or default_rotamer_grid(selector)
     if spec.max_candidates > 0:
         grid_spec = RotamerGridSpec(
             dihedral_values_deg=grid_spec.dihedral_values_deg,

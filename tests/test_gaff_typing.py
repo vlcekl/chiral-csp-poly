@@ -5,7 +5,7 @@ import shutil
 import pytest
 
 from poly_csp.forcefield.gaff import load_selector_fragment_params
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 @pytest.mark.skipif(
@@ -13,7 +13,7 @@ from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
     reason="AmberTools executables not available",
 )
 def test_selector_gaff_typing_preserves_aromatic_ring(tmp_path) -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     params = load_selector_fragment_params(selector, work_dir=tmp_path)
 
     mol2_text = (tmp_path / "selector.mol2").read_text(encoding="utf-8")

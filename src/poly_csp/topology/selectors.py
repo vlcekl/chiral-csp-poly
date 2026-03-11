@@ -43,6 +43,11 @@ class SelectorTemplate:
     linkage_type: Literal["carbamate", "ester", "ether"] = "carbamate"
     connector_local_roles: Dict[int, str] = field(default_factory=dict)
     features: Dict[str, Tuple[int, ...]] = field(default_factory=dict)
+    full_name: str | None = None
+    reference_columns: Tuple[str, ...] = ()
+    reference_backbones: Tuple[str, ...] = ()
+    rotamer_grid: Dict[str, Tuple[float, ...]] = field(default_factory=dict)
+    rotamer_max_candidates: int = 128
 
 
 def selector_from_smiles(
@@ -63,6 +68,7 @@ def selector_from_smiles(
     donors, acceptors = infer_donor_acceptor_atoms(mol) if auto_detect_hbond else ((), ())
     return SelectorTemplate(
         name=name,
+        full_name=name,
         mol=mol,
         attach_atom_idx=int(attach_atom_idx),
         attach_dummy_idx=attach_dummy_idx,
@@ -79,21 +85,21 @@ def selector_from_smiles(
 
 class SelectorRegistry:
     _reg: Dict[str, SelectorTemplate] = {}
+    _assets_loaded: bool = False
 
     @classmethod
     def _norm(cls, name: str) -> str:
         return name.strip().lower()
 
     @classmethod
-    def _register_builtins(cls) -> None:
-        tpl = cls._reg.get("35dmpc")
-        if tpl is None:
-            from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+    def _load_assets(cls) -> None:
+        if cls._assets_loaded:
+            return
+        from poly_csp.topology.selector_assets import iter_selector_asset_templates
 
-            tpl = make_35_dmpc_template()
-            cls.register(tpl)
-            cls._reg["35dmpc"] = tpl
-        cls._reg["dmpc_35"] = tpl
+        for template in iter_selector_asset_templates():
+            cls.register(template)
+        cls._assets_loaded = True
 
     @classmethod
     def register(cls, template: SelectorTemplate) -> None:
@@ -105,9 +111,14 @@ class SelectorRegistry:
 
     @classmethod
     def get(cls, name: str) -> SelectorTemplate:
-        cls._register_builtins()
+        cls._load_assets()
         key = cls._norm(name)
         if key not in cls._reg:
             available = ", ".join(sorted(cls._reg.keys()))
             raise KeyError(f"Unknown selector {name!r}. Available: [{available}]")
         return cls._reg[key]
+
+    @classmethod
+    def available(cls) -> tuple[str, ...]:
+        cls._load_assets()
+        return tuple(sorted(cls._reg.keys()))

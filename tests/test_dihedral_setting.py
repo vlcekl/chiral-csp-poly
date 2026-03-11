@@ -9,7 +9,7 @@ from poly_csp.topology.reactions import (
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec, SelectorPoseSpec
 from poly_csp.structure.alignment import apply_selector_pose_dihedrals
 from poly_csp.structure.dihedrals import measure_dihedral_rad, set_dihedral_rad
@@ -59,7 +59,7 @@ def test_set_dihedral_rad_changes_only_masked_atoms() -> None:
 
 def test_apply_selector_pose_dihedrals_sets_target_angle() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     coords = build_backbone_coords(template, _helix(), dp=1)
     mol = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")

@@ -286,11 +286,12 @@ conf/
 │   │   ├── amylose.yaml
 │   │   └── cellulose.yaml
 │   └── selector/
-│       └── dmpc_35.yaml
+│       └── 35dmpc.yaml
 ├── structure/
 │   └── helix/
-│       ├── chiralpak_ad.yaml
-│       └── cellulose_i.yaml
+│       ├── amylose_4_3_derivatized.yaml
+│       ├── cellulose_3_2_derivatized.yaml
+│       └── cellulose_natural_i_2_1.yaml
 ├── forcefield/
 │   ├── options/
 │   │   ├── runtime.yaml
@@ -309,8 +310,8 @@ conf/
 ```yaml
 defaults:
   - topology/backbone: amylose
-  - topology/selector: dmpc_35
-  - structure/helix: chiralpak_ad
+  - topology/selector: 35dmpc
+  - structure/helix: amylose_4_3_derivatized
   - forcefield/options: runtime
   - ordering: basic
   - forcefield: mixing_rules
@@ -324,16 +325,17 @@ output:
 
 ---
 
-# Default Target: Chiralpak AD–Like ADMPC
+# Default Target: Derivatized Amylose 4/3 CSP
 
 The default helix preset:
 
 * Left-handed 4/3 helix
 * Repeat: 4 residues, 3 turns
-* Rise per residue ≈ 3.7 Å
+* Repeat translation: 14.6 Å
+* Rise per residue: 3.65 Å
 * Deterministic screw-axis construction
 
-This corresponds to literature-reported conformations for amylose tris(3,5-DMPC).
+This corresponds to the literature-aligned derivatized amylose CSP backbone used by AD/AY/IE/IF/IG-type phases.
 
 ---
 
@@ -455,7 +457,7 @@ Those settings affect stage 1 of `forcefield/options=runtime_relax` only. They d
 Change helix:
 
 ```bash
-python -m poly_csp.pipelines.build_csp structure/helix=cellulose_i
+python -m poly_csp.pipelines.build_csp structure/helix=cellulose_3_2_derivatized
 ```
 
 Change degree of polymerization:
@@ -549,7 +551,7 @@ python -m poly_csp.pipelines.build_csp \
 
 Ordering requires the supported runtime slice:
 
-* built-in selectors,
+* bundled selector assets,
 * `anhydro` representation,
 * `open` or `periodic` end mode,
 * `forcefield/options=runtime` or `forcefield/options=runtime_relax`.
@@ -557,7 +559,7 @@ Ordering requires the supported runtime slice:
 For the default Chiralpak AD workflow:
 
 * `ordering.repeat_residues=4` matches the 4-residue helical repeat
-* the built-in 35dmpc grid currently contains 16 discrete `tau_link` / `tau_ar` combinations
+* the bundled 35dmpc asset currently contains 16 discrete `tau_link` / `tau_ar` combinations
 * `ordering.max_candidates` values above 16 do not broaden the 35dmpc search unless the rotamer grid itself is expanded
 
 ### Configuration
@@ -724,11 +726,10 @@ Planned extensions:
 
 When adding new selectors:
 
-1. Implement `SelectorTemplate`.
-2. Define attachment atom index.
-3. Define dihedral set.
-4. Register in `SelectorRegistry`.
-5. Add Hydra config in `/conf/topology/selector/`.
+1. Add a packaged selector asset in `src/poly_csp/assets/selectors/`.
+2. Define mapped attachment atoms, connector roles, dihedrals, and any rotamer grid in YAML.
+3. Add Hydra config in `/conf/topology/selector/`.
+4. Add or update selector asset and registry tests.
 
 When adding new helix presets:
 
@@ -772,7 +773,7 @@ The codebase now has:
 
 What remains for later phases:
 
-* widening the supported chemistry slice beyond built-in selectors and the current `open`/`periodic` `anhydro` backbone slice,
+* widening the supported chemistry slice beyond the current bundled selector assets and the current `open`/`periodic` `anhydro` backbone slice,
 * capped runtime support,
 * periodic AMBER export from the canonical runtime model,
 * richer runtime diagnostics and ordering metrics on the final forcefield,

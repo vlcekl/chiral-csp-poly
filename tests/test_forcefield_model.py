@@ -8,19 +8,16 @@ from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.terminals import apply_terminal_mode
 
 
 def _helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
-        theta_rad=-3.0,
-        rise_A=3.7,
         repeat_residues=4,
         repeat_turns=3,
-        residues_per_turn=4.0 / 3.0,
-        pitch_A=3.7 * (4.0 / 3.0),
+        axial_repeat_A=14.8,
         handedness="left",
     )
 
@@ -42,7 +39,7 @@ def test_build_forcefield_molecule_assigns_manifest_names_and_pdb_info() -> None
 
 def test_build_forcefield_molecule_preserves_selector_connector_and_cap_identity() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     topology = apply_terminal_mode(

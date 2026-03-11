@@ -15,25 +15,22 @@ from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 def _helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
-        theta_rad=-3.0,
-        rise_A=3.7,
         repeat_residues=4,
         repeat_turns=3,
-        residues_per_turn=4.0 / 3.0,
-        pitch_A=3.7 * (4.0 / 3.0),
+        axial_repeat_A=14.8,
         handedness="left",
     )
 
 
 def test_atom_mapping_sets_are_disjoint_and_exhaustive() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     mol = polymerize(template=template, dp=4, linkage="1-4", anomer="alpha")
     mol = assign_conformer(mol, build_backbone_coords(template, _helix(), dp=4))
@@ -60,7 +57,7 @@ def test_atom_mapping_sets_are_disjoint_and_exhaustive() -> None:
 
 def test_selector_instance_maps_present_after_attachment() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     mol = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     mol = assign_conformer(mol, build_backbone_coords(template, _helix(), dp=2))
@@ -79,7 +76,7 @@ def test_selector_instance_maps_present_after_attachment() -> None:
 
 def test_attachment_instance_maps_include_selector_and_connector_atoms() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     mol = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     mol = assign_conformer(mol, build_backbone_coords(template, _helix(), dp=2))

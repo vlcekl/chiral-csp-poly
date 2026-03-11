@@ -29,8 +29,7 @@ from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.structure.pbc import ensure_periodic_box_vectors
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
-from poly_csp.structure.selector_library.tmb import make_tmb_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
@@ -552,7 +551,7 @@ def test_create_system_soft_and_full_share_bonded_terms_for_pure_backbone() -> N
 
 
 def test_create_system_soft_and_full_share_bonded_terms_for_mixed_system() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = _build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector.name)
@@ -594,7 +593,7 @@ def test_create_system_soft_and_full_share_bonded_terms_for_mixed_system() -> No
 
 
 def test_create_system_supports_ester_connectors_in_both_modes() -> None:
-    selector = make_tmb_template()
+    selector = SelectorRegistry.get("tmb")
     mol = _build_forcefield_mol(polymer="cellulose", dp=1, selector=selector, site="C3")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector.name)
@@ -628,7 +627,7 @@ def test_create_system_supports_ester_connectors_in_both_modes() -> None:
 
 
 def test_create_system_rejects_missing_selector_payloads_early() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = _build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
     glycam = _fake_glycam_params(mol)
 
@@ -647,7 +646,7 @@ def test_create_system_rejects_missing_selector_payloads_early() -> None:
 
 
 def test_create_system_rejects_missing_connector_payloads_early() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = _build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector.name)

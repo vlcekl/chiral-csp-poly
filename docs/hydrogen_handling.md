@@ -88,7 +88,7 @@ There is no heavy-backbone retrofit step and no late generic backbone hydrogen p
 
 ## Stage 5: Selector attachment
 
-Selector templates now live in [src/poly_csp/structure/selector_library/](/home/lukas/work/projects/poly_csp/src/poly_csp/structure/selector_library) as explicit-H fragments.
+Selector definitions now live as packaged selector assets under `src/poly_csp/assets/selectors/`, and they are loaded into `SelectorTemplate` objects through the shared selector registry.
 
 When `attach_selector()` runs:
 

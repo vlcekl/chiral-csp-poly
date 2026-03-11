@@ -1,0 +1,11 @@
+name: amylose_CSP_4_3_derivatized
+
+# Literature-aligned derivatized amylose CSP helix.
+repeat_residues: 4
+repeat_turns: 3
+handedness: left
+axial_repeat_A: 14.6
+
+inter_rod_distance_A: 18.9
+reference_label: literature_polysaccharide_csp
+reference_columns: [AD, AY, IE, IF, IG]

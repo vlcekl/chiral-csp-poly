@@ -9,7 +9,7 @@ from rdkit.Geometry import Point3D
 from poly_csp.config.schema import SelectorPoseSpec, Site
 from poly_csp.topology.linkage import CARBAMATE, LINKAGE_TABLE, build_linkage_coords
 from poly_csp.topology.reactions import residue_label_global_index, site_to_oxygen_label
-from poly_csp.topology.selectors import SelectorRegistry, SelectorTemplate
+from poly_csp.topology.selectors import SelectorTemplate
 from poly_csp.topology.utils import residue_label_maps
 from poly_csp.structure.dihedrals import set_dihedral_rad
 from poly_csp.structure.local_frames import compute_residue_local_frame, pose_selector_in_frame
@@ -225,7 +225,7 @@ def apply_selector_pose_dihedrals(
     residue_index: int,
     site: Site,
     pose_spec: SelectorPoseSpec,
-    selector: SelectorTemplate | None = None,
+    selector: SelectorTemplate,
 ) -> Chem.Mol:
     """Apply target selector dihedrals (degrees) for one attached selector."""
     if mol.GetNumConformers() == 0:
@@ -233,7 +233,7 @@ def apply_selector_pose_dihedrals(
     if not pose_spec.dihedral_targets_deg:
         return Chem.Mol(mol)
 
-    tpl = selector if selector is not None else SelectorRegistry.get("35dmpc")
+    tpl = selector
     local_to_global = _selector_local_to_global_map(mol, residue_index, site)
     sugar_o_global = _site_oxygen_global_index(mol, residue_index, site)
 

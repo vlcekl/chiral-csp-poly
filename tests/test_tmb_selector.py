@@ -9,7 +9,7 @@ from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.tmb import make_tmb_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec
 
 
@@ -27,7 +27,7 @@ def _helix() -> HelixSpec:
 
 
 def test_tmb_template_structure() -> None:
-    tmb = make_tmb_template()
+    tmb = SelectorRegistry.get("tmb")
     assert tmb.name == "tmb"
     assert tmb.mol.GetNumAtoms() > 0
     assert tmb.mol.GetNumConformers() == 1
@@ -46,7 +46,7 @@ def test_tmb_template_structure() -> None:
 
 def test_tmb_attach_at_c6() -> None:
     template = make_glucose_template("amylose")
-    tmb = make_tmb_template()
+    tmb = SelectorRegistry.get("tmb")
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")
@@ -66,7 +66,7 @@ def test_tmb_attach_at_c6() -> None:
 
 def test_tmb_sanitizes() -> None:
     template = make_glucose_template("amylose")
-    tmb = make_tmb_template()
+    tmb = SelectorRegistry.get("tmb")
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")

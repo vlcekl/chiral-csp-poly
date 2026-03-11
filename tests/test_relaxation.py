@@ -26,7 +26,7 @@ from poly_csp.forcefield.system_builder import (
     SystemBuildResult,
 )
 from poly_csp.structure.backbone_builder import build_backbone_structure
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
@@ -47,7 +47,7 @@ def _helix() -> HelixSpec:
 
 
 def _forcefield_selector_mol():
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     template = make_glucose_template("amylose", monomer_representation="anhydro")
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     topology = apply_terminal_mode(

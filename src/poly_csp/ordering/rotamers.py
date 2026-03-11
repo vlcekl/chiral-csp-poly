@@ -5,6 +5,7 @@ from itertools import product
 from typing import Dict, Iterable, List, Sequence
 
 from poly_csp.config.schema import SelectorPoseSpec
+from poly_csp.topology.selectors import SelectorTemplate
 
 
 @dataclass(frozen=True)
@@ -24,20 +25,14 @@ def _unique_preserve_order(values: Iterable[float]) -> List[float]:
     return out
 
 
-def default_rotamer_grid(selector_name: str) -> RotamerGridSpec:
-    key = selector_name.strip().lower()
-    if key in {"35dmpc", "dmpc_35"}:
+def default_rotamer_grid(selector: SelectorTemplate) -> RotamerGridSpec:
+    if selector.rotamer_grid:
         return RotamerGridSpec(
             dihedral_values_deg={
-                "tau_link": (-120.0, -60.0, 60.0, 120.0),
-                "tau_ar": (-120.0, -60.0, 60.0, 120.0),
+                str(name): tuple(float(value) for value in values)
+                for name, values in selector.rotamer_grid.items()
             },
-            max_candidates=64,
-        )
-    if key == "tmb":
-        return RotamerGridSpec(
-            dihedral_values_deg={"tau_ar": (-120.0, 0.0, 120.0)},
-            max_candidates=32,
+            max_candidates=int(selector.rotamer_max_candidates),
         )
     return RotamerGridSpec(
         dihedral_values_deg={"tau_link": (-120.0, 0.0, 120.0)},

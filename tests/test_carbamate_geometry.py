@@ -10,7 +10,7 @@ from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.linkage import CARBAMATE, build_linkage_coords
 from poly_csp.config.schema import HelixSpec
 
@@ -30,7 +30,7 @@ def _helix() -> HelixSpec:
 
 def _build_mol_with_selector(dp: int = 2, site: str = "C6"):
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")
     mol = assign_conformer(mol, coords)
@@ -131,7 +131,7 @@ def test_attached_selector_has_conformer() -> None:
 def test_attach_all_sites_preserves_atom_count() -> None:
     """Attaching at C2, C3, C6 should add the expected number of atoms."""
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")

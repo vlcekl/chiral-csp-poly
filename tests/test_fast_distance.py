@@ -11,7 +11,7 @@ from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec
 from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
@@ -46,7 +46,7 @@ def _heavy_mask(mol: Chem.Mol) -> np.ndarray:
 
 def _build_mol_with_selectors():
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     dp = 4
     coords = build_backbone_coords(template, _helix(), dp)
     mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")
@@ -89,7 +89,7 @@ def test_class_distance_fast_matches_naive() -> None:
 
 
 def test_periodic_fast_distances_match_naive() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,

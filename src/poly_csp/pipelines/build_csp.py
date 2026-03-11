@@ -10,7 +10,7 @@ Minimal working CSP build pipeline.
 Run (from repo root):
   python -m poly_csp.pipelines.build_csp
   python -m poly_csp.pipelines.build_csp topology.backbone.dp=24
-  python -m poly_csp.pipelines.build_csp structure/helix=cellulose_i topology.selector.enabled=true
+  python -m poly_csp.pipelines.build_csp structure/helix=cellulose_3_2_derivatized topology.selector.enabled=true
 """
 
 from __future__ import annotations
@@ -144,6 +144,7 @@ class BuildReport:
     rise_A: float
     residues_per_turn: float
     pitch_A: float
+    axial_repeat_A: Optional[float]
     periodic_box_A: Optional[List[float]]
     selector_enabled: bool
     selector_name: Optional[str]
@@ -206,20 +207,10 @@ class BuildReport:
 
 def _cfg_to_helixspec(cfg: DictConfig) -> HelixSpec:
     helix_cfg = cfg.structure.helix
-    return HelixSpec(
-        name=str(helix_cfg.name),
-        theta_rad=float(helix_cfg.theta_rad),
-        rise_A=float(helix_cfg.rise_A),
-        repeat_residues=int(helix_cfg.repeat_residues)
-        if "repeat_residues" in helix_cfg
-        else None,
-        repeat_turns=int(helix_cfg.repeat_turns)
-        if "repeat_turns" in helix_cfg
-        else None,
-        residues_per_turn=float(helix_cfg.residues_per_turn),
-        pitch_A=float(helix_cfg.pitch_A),
-        handedness=str(helix_cfg.handedness) if "handedness" in helix_cfg else "right",
-    )
+    payload = OmegaConf.to_container(helix_cfg, resolve=True)
+    if not isinstance(payload, dict):
+        raise TypeError("structure.helix config must resolve to a mapping.")
+    return HelixSpec(**payload)
 
 
 def _cfg_to_ordering_spec(cfg: DictConfig) -> OrderingSpec:
@@ -1100,6 +1091,9 @@ def main(cfg: DictConfig) -> None:
         rise_A=float(helix.rise_A),
         residues_per_turn=float(helix.residues_per_turn),
         pitch_A=float(helix.pitch_A),
+        axial_repeat_A=(
+            float(helix.axial_repeat_A) if helix.axial_repeat_A is not None else None
+        ),
         periodic_box_A=(
             list(get_box_vectors_A(optimization_final_mol))
             if is_periodic and get_box_vectors_A(optimization_final_mol) is not None

@@ -14,7 +14,7 @@ from poly_csp.structure.periodic_handoff import (
 )
 from poly_csp.forcefield.relaxation import RelaxSpec
 from poly_csp.topology.utils import residue_label_maps
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from tests.support import build_forcefield_mol, test_helix as _helix
 
 
@@ -47,7 +47,7 @@ def test_extract_periodic_handoff_template_requires_periodic_box_vectors() -> No
 
 
 def test_extract_periodic_handoff_template_collects_transferable_atoms() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -85,7 +85,7 @@ def test_extract_periodic_handoff_template_collects_transferable_atoms() -> None
 
 
 def test_extract_periodic_handoff_template_respects_component_filter_spec() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -112,7 +112,7 @@ def test_extract_periodic_handoff_template_respects_component_filter_spec() -> N
 
 
 def test_extract_periodic_handoff_template_fails_on_missing_manifest_source() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -133,7 +133,7 @@ def test_extract_periodic_handoff_template_fails_on_missing_manifest_source() ->
 
 
 def test_extract_periodic_handoff_template_local_coords_roundtrip_source_geometry() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -154,7 +154,7 @@ def test_extract_periodic_handoff_template_local_coords_roundtrip_source_geometr
 
 
 def test_build_open_handoff_receptor_requires_odd_n_cells() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     periodic = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -174,7 +174,7 @@ def test_build_open_handoff_receptor_requires_odd_n_cells() -> None:
 
 
 def test_build_open_handoff_receptor_places_periodic_geometry_on_central_cell() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     periodic = build_forcefield_mol(
         polymer="amylose",
         dp=4,
@@ -216,7 +216,7 @@ def test_build_open_handoff_receptor_places_periodic_geometry_on_central_cell() 
 def test_run_open_handoff_cleanup_relaxation_builds_interior_and_terminal_reference_groups(
     monkeypatch,
 ) -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     periodic = build_forcefield_mol(
         polymer="amylose",
         dp=4,

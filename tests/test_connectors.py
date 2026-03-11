@@ -31,8 +31,7 @@ from poly_csp.forcefield.glycam import (
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.system_builder import create_system
 from poly_csp.structure.backbone_builder import build_backbone_structure
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
-from poly_csp.structure.selector_library.tmb import make_tmb_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
@@ -42,12 +41,9 @@ from poly_csp.topology.terminals import apply_terminal_mode
 
 _HELIX = {
     "name": "connector_test_helix",
-    "theta_rad": -4.71238898038469,
-    "rise_A": 3.7,
     "repeat_residues": 4,
     "repeat_turns": 3,
-    "residues_per_turn": 4.0 / 3.0,
-    "pitch_A": 4.933333333333334,
+    "axial_repeat_A": 14.8,
     "handedness": "left",
 }
 _GLYCAM_HYDROGEN_ALIASES = {
@@ -428,13 +424,13 @@ def test_load_connector_params_validates_inputs() -> None:
         load_connector_params("amylose", bad_selector, site="C6")
 
     with pytest.raises(ValueError, match="site"):
-        load_connector_params("amylose", make_35_dmpc_template(), site="")
+        load_connector_params("amylose", SelectorRegistry.get("35dmpc"), site="")
 
 
 def test_build_capped_monomer_fragment_assigns_backbone_and_selector_roles() -> None:
     frag = build_capped_monomer_fragment(
         polymer="amylose",
-        selector_template=make_35_dmpc_template(),
+        selector_template=SelectorRegistry.get("35dmpc"),
         site="C6",
     )
 
@@ -449,22 +445,22 @@ def test_build_capped_monomer_fragment_assigns_backbone_and_selector_roles() -> 
 @pytest.mark.parametrize("polymer", ["amylose", "cellulose"])
 @pytest.mark.parametrize("site, anchor", [("C2", "BB_O2"), ("C3", "BB_O3"), ("C6", "BB_O6")])
 @pytest.mark.parametrize(
-    "selector_factory, expected_roles",
+    "selector_name, expected_roles",
     [
-        (make_35_dmpc_template, {"carbonyl_c", "carbonyl_o", "amide_n"}),
-        (make_tmb_template, {"carbonyl_c", "carbonyl_o"}),
+        ("35dmpc", {"carbonyl_c", "carbonyl_o", "amide_n"}),
+        ("tmb", {"carbonyl_c", "carbonyl_o"}),
     ],
 )
 def test_build_capped_monomer_fragment_covers_supported_sites_and_polymers(
     polymer: str,
     site: str,
     anchor: str,
-    selector_factory,
+    selector_name: str,
     expected_roles: set[str],
 ) -> None:
     frag = build_capped_monomer_fragment(
         polymer=polymer,
-        selector_template=selector_factory(),
+        selector_template=SelectorRegistry.get(selector_name),
         site=site,
     )
 
@@ -481,7 +477,7 @@ def test_build_capped_monomer_fragment_covers_supported_sites_and_polymers(
 def test_build_capped_monomer_fragment_handles_ester_selector() -> None:
     frag = build_capped_monomer_fragment(
         polymer="amylose",
-        selector_template=make_tmb_template(),
+        selector_template=SelectorRegistry.get("tmb"),
         site="C6",
     )
 
@@ -495,7 +491,7 @@ def test_build_capped_monomer_fragment_handles_ester_selector() -> None:
 def test_extract_linkage_params_from_system_keeps_only_connector_terms() -> None:
     frag = build_capped_monomer_fragment(
         polymer="amylose",
-        selector_template=make_35_dmpc_template(),
+        selector_template=SelectorRegistry.get("35dmpc"),
         site="C6",
     )
     ref_system = _mock_connector_system(frag)
@@ -558,7 +554,7 @@ def test_extract_linkage_params_from_system_keeps_only_connector_terms() -> None
 def test_validate_connector_params_rejects_terms_without_connector_atoms() -> None:
     frag = build_capped_monomer_fragment(
         polymer="amylose",
-        selector_template=make_35_dmpc_template(),
+        selector_template=SelectorRegistry.get("35dmpc"),
         site="C6",
     )
     ref_system = _mock_connector_system(frag)
@@ -673,7 +669,7 @@ def test_validate_connector_params_accepts_ester_planarity_terms() -> None:
 def test_create_system_materializes_connector_terms_in_both_runtime_modes(
     nonbonded_mode: str,
 ) -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = _forcefield_selector_mol(selector, site="C6")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector)
@@ -735,7 +731,7 @@ def test_create_system_materializes_connector_terms_in_both_runtime_modes(
 
 
 def test_create_system_rejects_connector_payload_missing_runtime_atom_params() -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     mol = _forcefield_selector_mol(selector, site="C6")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector)
@@ -764,7 +760,7 @@ def test_create_system_rejects_connector_payload_missing_runtime_atom_params() -
 
 
 def test_create_system_rejects_connector_terms_for_atoms_outside_the_instance() -> None:
-    selector = make_tmb_template()
+    selector = SelectorRegistry.get("tmb")
     mol = _forcefield_selector_mol(selector, site="C6")
     glycam = _fake_glycam_params(mol)
     selector_params = _fake_selector_params(mol, selector)
@@ -808,7 +804,7 @@ def test_create_system_rejects_connector_terms_for_atoms_outside_the_instance() 
 def test_load_connector_params_extracts_real_carbamate_planarity_terms(tmp_path) -> None:
     params = load_connector_params(
         polymer="amylose",
-        selector_template=make_35_dmpc_template(),
+        selector_template=SelectorRegistry.get("35dmpc"),
         site="C6",
         work_dir=tmp_path / "carbamate_connector",
     )
@@ -843,7 +839,7 @@ def test_load_connector_params_extracts_real_carbamate_planarity_terms(tmp_path)
 def test_load_connector_params_extracts_real_ester_planarity_terms(tmp_path) -> None:
     params = load_connector_params(
         polymer="amylose",
-        selector_template=make_tmb_template(),
+        selector_template=SelectorRegistry.get("tmb"),
         site="C6",
         work_dir=tmp_path / "ester_connector",
     )

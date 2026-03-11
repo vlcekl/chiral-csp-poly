@@ -78,7 +78,7 @@ def test_pipeline_periodic_selector_build_reports_periodic_box(tmp_path: Path) -
     assert selector_report["end_mode"] == "periodic"
     assert selector_report["selector_enabled"] is True
     assert len(selector_box) == 3
-    assert selector_box[2] == pytest.approx(14.8)
+    assert selector_box[2] == pytest.approx(14.6)
 
 
 def test_pipeline_writes_all_atom_model_by_default(tmp_path: Path) -> None:

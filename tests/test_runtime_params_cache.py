@@ -16,7 +16,7 @@ from poly_csp.forcefield.payload_cache import (
 )
 from poly_csp.forcefield.runtime_params import load_runtime_params
 from poly_csp.structure.backbone_builder import build_backbone_structure
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
@@ -37,7 +37,7 @@ def _helix() -> HelixSpec:
 
 
 def _forcefield_selector_mol(site: str):
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     template = make_glucose_template("amylose", monomer_representation="anhydro")
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     topology = apply_terminal_mode(
@@ -255,7 +255,7 @@ def test_load_runtime_params_invalidates_connector_cache_by_site(
 
 
 def test_connector_cache_dir_is_polymer_specific(tmp_path: Path) -> None:
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     amylose_dir, _ = connector_cache_dir(
         tmp_path,
         polymer="amylose",

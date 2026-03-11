@@ -144,10 +144,7 @@ def build_capped_monomer_fragment(
             name="fragment",
             theta_rad=0.0,
             rise_A=0.0,
-            repeat_residues=1,
-            repeat_turns=1,
             residues_per_turn=1.0,
-            pitch_A=1.0,
             handedness="right",
         ),
     ).mol

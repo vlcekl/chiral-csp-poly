@@ -7,7 +7,7 @@ from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 def _helix() -> HelixSpec:
@@ -25,7 +25,7 @@ def _helix() -> HelixSpec:
 
 def test_attach_selector_place_coords_false_builds_topology_without_conformer() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol
@@ -45,7 +45,7 @@ def test_attach_selector_place_coords_false_builds_topology_without_conformer() 
 
 def test_attach_selector_without_input_conformer_keeps_topology_only() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol

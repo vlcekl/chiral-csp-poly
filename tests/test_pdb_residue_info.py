@@ -11,7 +11,7 @@ from poly_csp.structure.backbone_builder import build_backbone_structure
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 def _helix() -> HelixSpec:
@@ -29,7 +29,7 @@ def _helix() -> HelixSpec:
 
 def test_pdb_contains_chain_ids(tmp_path) -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     topology = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol
     mol = attach_selector(
@@ -70,7 +70,7 @@ def test_pdb_contains_residue_names(tmp_path) -> None:
 
 def test_pdb_uses_forcefield_model_atom_names(tmp_path) -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
     topology = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     mol = build_backbone_structure(topology, _helix()).mol
     mol = attach_selector(

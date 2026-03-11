@@ -56,12 +56,9 @@ _GLYCAM_HYDROGEN_ALIASES = {
 def test_helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
-        theta_rad=-4.71238898038469,
-        rise_A=3.7,
         repeat_residues=4,
         repeat_turns=3,
-        residues_per_turn=4.0 / 3.0,
-        pitch_A=4.933333333333334,
+        axial_repeat_A=14.6,
         handedness="left",
     )
 

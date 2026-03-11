@@ -3,14 +3,14 @@ from __future__ import annotations
 import numpy as np
 
 from poly_csp.topology.monomers import make_glucose_template
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import SelectorPoseSpec
 from poly_csp.structure.local_frames import compute_residue_local_frame, pose_selector_in_frame
 
 
 def test_selector_pose_is_deterministic() -> None:
     mono = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     coords_res = np.asarray(mono.mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     coords_sel = np.asarray(selector.mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
@@ -25,7 +25,7 @@ def test_selector_pose_is_deterministic() -> None:
 
 def test_selector_pose_has_no_catastrophic_overlap_single_residue() -> None:
     mono = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     coords_res = np.asarray(mono.mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     coords_sel = np.asarray(selector.mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))

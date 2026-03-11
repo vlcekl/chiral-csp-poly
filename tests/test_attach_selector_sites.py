@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
+from rdkit import Chem
 
 from tests.support import build_backbone_coords
 from poly_csp.topology.reactions import attach_selector, residue_atom_global_index
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 from poly_csp.config.schema import HelixSpec
 
 
@@ -28,7 +30,7 @@ def _helix() -> HelixSpec:
 
 def test_attach_selector_c6_adds_expected_atoms_and_bond() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
@@ -58,7 +60,7 @@ def test_attach_selector_c6_adds_expected_atoms_and_bond() -> None:
 
 def test_attach_selector_all_residues_c6_sanitizes() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     dp = 3
     coords = build_backbone_coords(template, _helix(), dp)
@@ -78,7 +80,7 @@ def test_attach_selector_all_residues_c6_sanitizes() -> None:
 
 def test_attach_selector_all_sites_all_residues_increases_atom_count() -> None:
     template = make_glucose_template("amylose")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
@@ -102,7 +104,7 @@ def test_attach_selector_all_sites_all_residues_increases_atom_count() -> None:
 
 def test_attach_selector_consumes_site_oh_and_preserves_carbamate_nh() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     dp = 2
     coords = build_backbone_coords(template, _helix(), dp)
@@ -135,3 +137,26 @@ def test_attach_selector_consumes_site_oh_and_preserves_carbamate_nh() -> None:
         and atom.GetProp("_poly_csp_connector_role") == "amide_n"
     )
     assert amide_n.GetTotalNumHs(includeNeighbors=True) == 1
+
+
+@pytest.mark.parametrize("selector_name", ("35dcpc", "3c4mpc"))
+def test_attach_selector_supports_additional_csp_catalog_selectors(selector_name: str) -> None:
+    template = make_glucose_template("amylose")
+    selector = SelectorRegistry.get(selector_name)
+
+    dp = 2
+    coords = build_backbone_coords(template, _helix(), dp)
+    mol = polymerize(template=template, dp=dp, linkage="1-4", anomer="alpha")
+    mol = assign_conformer(mol, coords)
+
+    atom_count_before = mol.GetNumAtoms()
+    mol = attach_selector(
+        mol_polymer=mol,
+        residue_index=0,
+        site="C6",
+        selector=selector,
+    )
+
+    assert mol.GetNumAtoms() == atom_count_before + selector.mol.GetNumAtoms() - 1
+    assert mol.GetNumConformers() == 1
+    assert len(Chem.DetectChemistryProblems(mol)) == 0

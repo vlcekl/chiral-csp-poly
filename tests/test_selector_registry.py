@@ -1,21 +1,35 @@
 from __future__ import annotations
 
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selector_assets import (
+    available_selector_asset_names,
+    load_selector_asset_spec,
+)
 from poly_csp.topology.selectors import SelectorRegistry, selector_from_smiles
 
 
 def test_selector_registry_register_and_get() -> None:
-    template = make_35_dmpc_template()
-    try:
-        SelectorRegistry.register(template)
-    except ValueError:
-        pass
+    got = SelectorRegistry.get("35dmpc")
+    assert got.name == "35dmpc"
+    assert got.attach_atom_idx is not None
 
-    got1 = SelectorRegistry.get("35dmpc")
-    got2 = SelectorRegistry.get("dmpc_35")
-    assert got1.name == "35dmpc"
-    assert got2.name == "35dmpc"
-    assert got1.attach_atom_idx == template.attach_atom_idx
+
+def test_selector_asset_catalog_lists_current_assets() -> None:
+    expected = {
+        "35dcpc",
+        "35dmpc",
+        "3c4mpc",
+        "3c5mpc",
+        "4c3mpc",
+        "5c2mpc",
+        "tmb",
+    }
+    assert set(available_selector_asset_names()) == expected
+    assert set(SelectorRegistry.available()) == expected
+    spec = load_selector_asset_spec("35dmpc")
+    assert spec.name == "35dmpc"
+    assert spec.linkage_type == "carbamate"
+    assert spec.reference_columns == ("AD", "IB")
+    assert spec.reference_backbones == ("amylose", "cellulose")
 
 
 def test_selector_from_smiles_detects_implicit_h_donors() -> None:

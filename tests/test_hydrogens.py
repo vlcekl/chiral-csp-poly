@@ -12,18 +12,15 @@ from tests.support import assign_conformer
 from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.reactions import attach_selector
 from poly_csp.topology.atom_mapping import attachment_instance_maps
-from poly_csp.structure.selector_library.dmpc_35 import make_35_dmpc_template
+from poly_csp.topology.selectors import SelectorRegistry
 
 
 def _helix() -> HelixSpec:
     return HelixSpec(
         name="test_helix",
-        theta_rad=-3.0,
-        rise_A=3.7,
         repeat_residues=4,
         repeat_turns=3,
-        residues_per_turn=4.0 / 3.0,
-        pitch_A=3.7 * (4.0 / 3.0),
+        axial_repeat_A=14.8,
         handedness="left",
     )
 
@@ -43,7 +40,7 @@ def test_complete_with_hydrogens_adds_backbone_hydroxyl_hydrogens() -> None:
 
 def test_complete_with_hydrogens_preserves_heavy_coords_and_metadata() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     mol = polymerize(template=template, dp=2, linkage="1-4", anomer="alpha")
     coords = build_backbone_coords(template, _helix(), dp=2)
@@ -84,7 +81,7 @@ def test_complete_with_hydrogens_preserves_heavy_coords_and_metadata() -> None:
 
 def test_complete_with_hydrogens_only_on_atoms_targets_selector_hydrogens() -> None:
     template = make_glucose_template("amylose", monomer_representation="natural_oh")
-    selector = make_35_dmpc_template()
+    selector = SelectorRegistry.get("35dmpc")
 
     mol = polymerize(template=template, dp=1, linkage="1-4", anomer="alpha")
     coords = build_backbone_coords(template, _helix(), dp=1)

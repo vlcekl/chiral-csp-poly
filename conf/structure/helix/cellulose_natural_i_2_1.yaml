@@ -1,0 +1,9 @@
+name: cellulose_I_2_1_natural
+
+# Natural Cellulose I reference helix retained for non-CSP use.
+repeat_residues: 2
+repeat_turns: 1
+handedness: right
+axial_repeat_A: 10.3
+
+reference_label: natural_cellulose_reference
