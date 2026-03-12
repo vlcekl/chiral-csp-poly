@@ -1404,7 +1404,7 @@ def main(cfg: DictConfig) -> None:
                     "seed_used": result.seed_used,
                     "end_mode": "periodic",
                     "output_end_mode": "periodic",
-                    "backbone_pose_cache": rank_report.backbone_pose_cache,
+                    "backbone_pose_cache": report.backbone_pose_cache,
                     "periodic_box_A": (
                         list(get_box_vectors_A(rank_final_mol))
                         if get_box_vectors_A(rank_final_mol) is not None

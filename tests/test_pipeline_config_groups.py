@@ -147,3 +147,24 @@ def test_pipeline_phase_group_periodic_override_runs(tmp_path: Path) -> None:
     assert report["phase_name"] == "Chiralcel OZ"
     assert report["periodic_box_A"] is not None
     assert report["forcefield_summary"]["exception_summary"]["periodic"] is True
+
+
+def test_ranked_periodic_cell_subreport_uses_main_backbone_pose_cache_metadata() -> None:
+    report = {
+        "backbone_pose_cache": {
+            "kind": "disk",
+            "cache_dir": ".cache/poly_csp/backbone_pose",
+            "entry_path": ".cache/poly_csp/backbone_pose/example/pose.json",
+        }
+    }
+
+    rank_periodic_cell_report = {
+        "rank": 1,
+        "score": 0.0,
+        "seed_used": 7,
+        "end_mode": "periodic",
+        "output_end_mode": "periodic",
+        "backbone_pose_cache": report["backbone_pose_cache"],
+    }
+
+    assert rank_periodic_cell_report["backbone_pose_cache"] == report["backbone_pose_cache"]
