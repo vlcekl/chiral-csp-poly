@@ -148,6 +148,7 @@ class BuildReport:
     residues_per_turn: float
     pitch_A: float
     axial_repeat_A: Optional[float]
+    backbone_pose_cache: dict[str, object]
     periodic_box_A: Optional[List[float]]
     selector_enabled: bool
     selector_name: Optional[str]
@@ -645,7 +646,8 @@ def main(cfg: DictConfig) -> None:
         caps=backbone.end_caps,
         representation=backbone.monomer_representation,
     )
-    mol_poly = build_backbone_structure(topology_mol, helix_spec=helix).mol
+    backbone_result = build_backbone_structure(topology_mol, helix_spec=helix)
+    mol_poly = backbone_result.mol
 
     # ---- Stage 3: optional selector attachment and deterministic pose setup.
     is_periodic = str(backbone.end_mode) == "periodic"
@@ -1115,6 +1117,7 @@ def main(cfg: DictConfig) -> None:
         axial_repeat_A=(
             float(helix.axial_repeat_A) if helix.axial_repeat_A is not None else None
         ),
+        backbone_pose_cache=asdict(backbone_result.pose_cache_summary),
         periodic_box_A=(
             list(get_box_vectors_A(optimization_final_mol))
             if is_periodic and get_box_vectors_A(optimization_final_mol) is not None
@@ -1254,6 +1257,7 @@ def main(cfg: DictConfig) -> None:
         periodic_cell_report = {
             "end_mode": "periodic",
             "output_end_mode": "periodic",
+            "backbone_pose_cache": report.backbone_pose_cache,
             "periodic_box_A": report.periodic_box_A,
             "qc_pass": report.qc_pass,
             "qc_fail_reasons": report.qc_fail_reasons,
@@ -1400,6 +1404,7 @@ def main(cfg: DictConfig) -> None:
                     "seed_used": result.seed_used,
                     "end_mode": "periodic",
                     "output_end_mode": "periodic",
+                    "backbone_pose_cache": rank_report.backbone_pose_cache,
                     "periodic_box_A": (
                         list(get_box_vectors_A(rank_final_mol))
                         if get_box_vectors_A(rank_final_mol) is not None

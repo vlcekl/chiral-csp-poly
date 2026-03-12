@@ -10,6 +10,10 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Geometry import Point3D
 
+from poly_csp.cache_versions import (
+    BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+    BACKBONE_POSE_MODEL_VERSION,
+)
 from poly_csp.config.schema import HelixSpec
 from poly_csp.structure.matrix import ScrewTransform
 from poly_csp.structure.naming import AtomManifestEntry, build_atom_manifest
@@ -39,7 +43,6 @@ _POSE_RADIUS_BOUNDS = (0.8, 2.4)
 _POSE_TILT_BOUNDS = (-1.4, 1.4)
 _POSE_PHASE_BOUNDS = (-math.pi, math.pi)
 _PERIODIC_COMMENSURABILITY_TOL_RAD = 1e-4
-_BACKBONE_POSE_CACHE_SCHEMA_VERSION = 1
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _BACKBONE_POSE_CACHE_DIR = _REPO_ROOT / ".cache" / "poly_csp" / "backbone_pose"
 
@@ -52,6 +55,7 @@ class BackboneBuildResult:
     residue_maps: list[dict[str, int]]
     manifest: list[AtomManifestEntry]
     residue_states: list[ResidueTemplateState]
+    pose_cache_summary: "BackbonePoseCacheSummary"
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,17 @@ class BackbonePose:
     tilt_y_rad: float
     phase_z_rad: float
     flip_ring_normal: bool = False
+
+
+@dataclass(frozen=True)
+class BackbonePoseCacheSummary:
+    kind: str
+    hit: bool
+    cache_dir: str
+    entry_path: str
+    persisted: bool
+    schema_version: int
+    model_version: int
 
 
 @dataclass(frozen=True)
@@ -639,7 +654,8 @@ def _backbone_pose_cache_identity(
 ) -> tuple[str, dict[str, object]]:
     coords_array = np.asarray(coords, dtype=np.float64)
     identity = {
-        "schema_version": _BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+        "schema_version": BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+        "model_version": BACKBONE_POSE_MODEL_VERSION,
         "kind": "backbone_pose",
         "polymer": str(polymer),
         "representation": str(representation),
@@ -679,6 +695,23 @@ def _backbone_pose_cache_entry(
     )
 
 
+def _backbone_pose_cache_summary(
+    *,
+    kind: str,
+    payload_path: Path,
+    persisted: bool,
+) -> BackbonePoseCacheSummary:
+    return BackbonePoseCacheSummary(
+        kind=str(kind),
+        hit=bool(kind in {"memory", "disk"}),
+        cache_dir=str(_BACKBONE_POSE_CACHE_DIR),
+        entry_path=str(payload_path),
+        persisted=bool(persisted),
+        schema_version=BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+        model_version=BACKBONE_POSE_MODEL_VERSION,
+    )
+
+
 def _load_disk_cached_backbone_pose(
     polymer: str,
     representation: str,
@@ -700,6 +733,10 @@ def _load_disk_cached_backbone_pose(
     except Exception:
         return None
     if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != BACKBONE_POSE_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("model_version") != BACKBONE_POSE_MODEL_VERSION:
         return None
     if payload.get("identity") != expected_identity:
         return None
@@ -725,7 +762,7 @@ def _store_disk_cached_backbone_pose(
     heavy_label_to_idx: dict[str, int],
     helix_spec: HelixSpec,
     pose: BackbonePose,
-) -> None:
+) -> bool:
     payload_path, identity = _backbone_pose_cache_entry(
         polymer=polymer,
         representation=representation,
@@ -734,6 +771,8 @@ def _store_disk_cached_backbone_pose(
         helix_spec=helix_spec,
     )
     payload = {
+        "schema_version": BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+        "model_version": BACKBONE_POSE_MODEL_VERSION,
         "identity": identity,
         "pose": {
             "radius_A": float(pose.radius_A),
@@ -749,8 +788,9 @@ def _store_disk_cached_backbone_pose(
             json.dumps(payload, sort_keys=True, indent=2),
             encoding="utf-8",
         )
+        return True
     except Exception:
-        return
+        return False
 
 
 def _fit_backbone_pose(
@@ -759,16 +799,30 @@ def _fit_backbone_pose(
     coords: np.ndarray,
     heavy_label_to_idx: dict[str, int],
     helix_spec: HelixSpec,
-) -> BackbonePose:
+) -> tuple[BackbonePose, BackbonePoseCacheSummary]:
     cache_key = (
         str(polymer),
         str(representation),
         float(helix_spec.theta_rad),
         float(helix_spec.rise_A),
     )
+    payload_path, _ = _backbone_pose_cache_entry(
+        polymer=polymer,
+        representation=representation,
+        coords=coords,
+        heavy_label_to_idx=heavy_label_to_idx,
+        helix_spec=helix_spec,
+    )
     cached = _BACKBONE_POSE_CACHE.get(cache_key)
     if cached is not None:
-        return cached
+        return (
+            cached,
+            _backbone_pose_cache_summary(
+                kind="memory",
+                payload_path=payload_path,
+                persisted=payload_path.exists(),
+            ),
+        )
 
     disk_cached = _load_disk_cached_backbone_pose(
         polymer=polymer,
@@ -779,7 +833,14 @@ def _fit_backbone_pose(
     )
     if disk_cached is not None:
         _BACKBONE_POSE_CACHE[cache_key] = disk_cached
-        return disk_cached
+        return (
+            disk_cached,
+            _backbone_pose_cache_summary(
+                kind="disk",
+                payload_path=payload_path,
+                persisted=True,
+            ),
+        )
 
     if abs(float(helix_spec.theta_rad)) < 1e-10 and abs(float(helix_spec.rise_A)) < 1e-10:
         neutral = BackbonePose(
@@ -790,7 +851,7 @@ def _fit_backbone_pose(
             flip_ring_normal=False,
         )
         _BACKBONE_POSE_CACHE[cache_key] = neutral
-        _store_disk_cached_backbone_pose(
+        persisted = _store_disk_cached_backbone_pose(
             polymer=polymer,
             representation=representation,
             coords=coords,
@@ -798,7 +859,14 @@ def _fit_backbone_pose(
             helix_spec=helix_spec,
             pose=neutral,
         )
-        return neutral
+        return (
+            neutral,
+            _backbone_pose_cache_summary(
+                kind="build",
+                payload_path=payload_path,
+                persisted=persisted,
+            ),
+        )
 
     screw = ScrewTransform(theta_rad=helix_spec.theta_rad, rise_A=helix_spec.rise_A)
     targets = _linkage_targets(polymer=polymer, representation=representation)
@@ -834,7 +902,7 @@ def _fit_backbone_pose(
             "Helix parameters are incompatible with a chemically plausible glycosidic bond."
         )
     _BACKBONE_POSE_CACHE[cache_key] = best_pose
-    _store_disk_cached_backbone_pose(
+    persisted = _store_disk_cached_backbone_pose(
         polymer=polymer,
         representation=representation,
         coords=coords,
@@ -842,7 +910,14 @@ def _fit_backbone_pose(
         helix_spec=helix_spec,
         pose=best_pose,
     )
-    return best_pose
+    return (
+        best_pose,
+        _backbone_pose_cache_summary(
+            kind="build",
+            payload_path=payload_path,
+            persisted=persisted,
+        ),
+    )
 
 
 def build_backbone_heavy_coords(
@@ -855,7 +930,7 @@ def build_backbone_heavy_coords(
         raise ValueError(f"dp must be >= 1, got {dp}")
 
     coords = _glucose_template_coords(template)
-    pose = _fit_backbone_pose(
+    pose, _ = _fit_backbone_pose(
         polymer=template.polymer,
         representation=template.representation,
         coords=coords,
@@ -1104,7 +1179,7 @@ def build_backbone_structure(
         polymer=first_state.polymer,
         monomer_representation=first_state.representation,
     )
-    backbone_pose = _fit_backbone_pose(
+    backbone_pose, pose_cache_summary = _fit_backbone_pose(
         polymer=first_state.polymer,
         representation=first_state.representation,
         coords=_glucose_template_coords(pose_template),
@@ -1289,4 +1364,5 @@ def build_backbone_structure(
         residue_maps=residue_maps,
         manifest=manifest,
         residue_states=residue_states,
+        pose_cache_summary=pose_cache_summary,
     )

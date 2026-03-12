@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 from poly_csp.config.schema import HelixSpec
 from poly_csp.forcefield.connectors import ConnectorAtomParams, ConnectorParams
 from poly_csp.forcefield.gaff import SelectorAtomParams, SelectorFragmentParams
 from poly_csp.forcefield.model import build_forcefield_molecule
 from poly_csp.forcefield.payload_cache import (
-    PAYLOAD_CACHE_SCHEMA_VERSION,
     connector_cache_dir,
     load_cached_connector_params,
     selector_cache_dir,
@@ -180,6 +183,8 @@ def test_load_runtime_params_reuses_selector_and_connector_cache(
     assert second.glycam is glycam
     assert first.selector_params_by_name == second.selector_params_by_name
     assert first.connector_params_by_key == second.connector_params_by_key
+    assert first.cache_summary.schema_version == RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION
+    assert first.cache_summary.model_version == RUNTIME_PAYLOAD_MODEL_VERSION
     assert first.cache_summary.selector_hits == 0
     assert first.cache_summary.selector_misses == 1
     assert first.cache_summary.connector_hits == 0
@@ -189,6 +194,14 @@ def test_load_runtime_params_reuses_selector_and_connector_cache(
     assert second.cache_summary.connector_hits == 1
     assert second.cache_summary.connector_misses == 0
     assert first.source_manifest["selector"][selector.name]["cache"]["hit"] is False
+    assert (
+        first.source_manifest["selector"][selector.name]["cache"]["schema_version"]
+        == RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION
+    )
+    assert (
+        first.source_manifest["selector"][selector.name]["cache"]["model_version"]
+        == RUNTIME_PAYLOAD_MODEL_VERSION
+    )
     assert (
         first.source_manifest["connector"][f"{selector.name}:C6"]["cache"]["hit"]
         is False
@@ -340,6 +353,10 @@ def test_load_runtime_params_prefers_seeded_selector_and_connector_payloads(
     assert seeded.source_manifest["connector"][f"{selector.name}:C6"]["cache"][
         "seed_asset"
     ]
+    assert (
+        seeded.source_manifest["selector"][selector.name]["cache"]["model_version"]
+        == RUNTIME_PAYLOAD_MODEL_VERSION
+    )
 
     assert cached.cache_summary.selector_hits == 1
     assert cached.cache_summary.selector_seed_hits == 0
@@ -384,7 +401,27 @@ def test_load_cached_connector_params_rejects_stale_schema(tmp_path: Path) -> No
     (entry_dir / "payload.json").write_text(
         json.dumps(
             {
-                "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION - 1,
+                "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION - 1,
+                "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
+                "payload_kind": "connector_fragment",
+                "identity": {"kind": "connector_fragment"},
+                "payload": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_cached_connector_params(entry_dir) is None
+
+
+def test_load_cached_connector_params_rejects_stale_model_version(tmp_path: Path) -> None:
+    entry_dir = tmp_path / "connector_entry"
+    entry_dir.mkdir(parents=True, exist_ok=True)
+    (entry_dir / "payload.json").write_text(
+        json.dumps(
+            {
+                "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+                "model_version": RUNTIME_PAYLOAD_MODEL_VERSION - 1,
                 "payload_kind": "connector_fragment",
                 "identity": {"kind": "connector_fragment"},
                 "payload": {},

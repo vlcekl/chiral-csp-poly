@@ -492,6 +492,7 @@ Use `forcefield/options=runtime_relax` to run the canonical two-stage `soft -> f
 
 The build report now records:
 
+* backbone pose cache provenance (`build`, `disk`, or `memory`) and cache path
 * `forcefield_enabled`
 * `forcefield_mode`
 * `forcefield_summary`
@@ -506,6 +507,11 @@ read-only seed assets. With `forcefield.options.cache_enabled=true`, the runtime
 checks the writable cache first, then the packaged seed catalog, and only falls back to
 AmberTools fragment derivation on a real miss. Seed hits are reported separately from
 writable-cache hits in `build_report.json`.
+
+Runtime and backbone cache metadata now also carry explicit `schema_version` and
+`model_version` fields. `schema_version` is for serialized payload format changes;
+`model_version` is for scientific rule changes that should invalidate cached results even
+when the JSON layout is unchanged.
 
 The canonical runtime options are also typed and single-path. The only stage-specific nonbonded knobs currently exposed are:
 
@@ -633,6 +639,10 @@ python -m poly_csp.pipelines.build_csp \
   periodic_handoff.enabled=true \
   output.export_formats=[pdb,sdf,pdbqt,amber]
 ```
+
+Cellulose uses the same periodic path. You can either override `topology.backbone.end_mode=periodic`
+on a cellulose phase preset or use
+`topology/backbone=cellulose_periodic structure/helix=cellulose_3_2_derivatized`.
 
 In that mode:
 

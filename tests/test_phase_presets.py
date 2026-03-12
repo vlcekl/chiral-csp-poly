@@ -139,3 +139,21 @@ def test_phase_presets_cover_all_non_wo_reference_rows() -> None:
         assert cfg.phase.chemical_name == row["Chemical Name"].strip()
         assert cfg.phase.attachment_description == row["Mode of Attachment"].strip()
         assert cfg.phase.silica_tether_description == row["Tether/Linkage to Silica"].strip()
+
+
+def test_cellulose_phase_preset_allows_periodic_end_mode_override() -> None:
+    GlobalHydra.instance().clear()
+    with initialize_config_dir(version_base=None, config_dir=str(_CONF_DIR)):
+        cfg = compose(
+            config_name="config",
+            overrides=[
+                "phase=chiralcel_oz",
+                "topology.backbone.end_mode=periodic",
+                "topology.backbone.dp=3",
+            ],
+        )
+
+    assert cfg.topology.backbone.kind == "cellulose"
+    assert cfg.topology.backbone.end_mode == "periodic"
+    assert cfg.topology.backbone.dp == 3
+    assert cfg.structure.helix.name == "cellulose_CSP_3_2_derivatized"

@@ -8,10 +8,13 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 from poly_csp.forcefield.connectors import load_connector_params
 from poly_csp.forcefield.gaff import load_selector_fragment_params
 from poly_csp.forcefield.payload_cache import (
-    PAYLOAD_CACHE_SCHEMA_VERSION,
     _connector_params_to_jsonable,
     _selector_params_to_jsonable,
     connector_cache_identity,
@@ -149,7 +152,8 @@ def main() -> None:
     _write_json(
         ASSET_ROOT / "selectors.json",
         {
-            "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
             "payload_kind": "selector_fragment_seed_catalog",
             "selectors": list(selector_names),
             "entries": selector_entries,
@@ -158,7 +162,8 @@ def main() -> None:
     _write_json(
         ASSET_ROOT / "connectors.json",
         {
-            "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
             "payload_kind": "connector_fragment_seed_catalog",
             "selectors": list(selector_names),
             "polymers": list(POLYMERS),

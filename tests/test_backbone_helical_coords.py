@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
+from poly_csp.cache_versions import (
+    BACKBONE_POSE_CACHE_SCHEMA_VERSION,
+    BACKBONE_POSE_MODEL_VERSION,
+)
 from tests.support import build_backbone_coords
 from poly_csp.config.schema import HelixSpec
 import poly_csp.structure.backbone_builder as backbone_builder_mod
 from poly_csp.structure.matrix import ScrewTransform
+from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
+from poly_csp.topology.terminals import apply_terminal_mode
 
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +111,22 @@ def test_derivatized_cellulose_preset_normalizes_expected_geometry() -> None:
     assert helix.pitch_A == pytest.approx(8.1)
 
 
+def _open_backbone_topology(polymer: str = "amylose"):
+    template = make_glucose_template(polymer, monomer_representation="anhydro")
+    topology = polymerize(
+        template=template,
+        dp=2,
+        linkage="1-4",
+        anomer="alpha" if polymer == "amylose" else "beta",
+    )
+    return apply_terminal_mode(
+        mol=topology,
+        mode="open",
+        caps={},
+        representation="anhydro",
+    )
+
+
 def test_backbone_pose_disk_cache_reuses_saved_pose(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -127,3 +150,60 @@ def test_backbone_pose_disk_cache_reuses_saved_pose(
     coords_second = backbone_builder_mod.build_backbone_heavy_coords(template, helix, 6)
 
     assert np.allclose(coords_first, coords_second)
+
+
+def test_backbone_pose_cache_summary_reports_build_memory_and_disk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    topology = _open_backbone_topology("amylose")
+    helix = _test_helix()
+    cache_dir = tmp_path / "backbone_pose_cache"
+
+    monkeypatch.setattr(backbone_builder_mod, "_BACKBONE_POSE_CACHE_DIR", cache_dir)
+    backbone_builder_mod._BACKBONE_POSE_CACHE.clear()
+
+    first = backbone_builder_mod.build_backbone_structure(topology, helix)
+    second = backbone_builder_mod.build_backbone_structure(topology, helix)
+    backbone_builder_mod._BACKBONE_POSE_CACHE.clear()
+    third = backbone_builder_mod.build_backbone_structure(topology, helix)
+
+    assert first.pose_cache_summary.kind == "build"
+    assert first.pose_cache_summary.hit is False
+    assert first.pose_cache_summary.persisted is True
+    assert first.pose_cache_summary.schema_version == BACKBONE_POSE_CACHE_SCHEMA_VERSION
+    assert first.pose_cache_summary.model_version == BACKBONE_POSE_MODEL_VERSION
+    assert Path(first.pose_cache_summary.entry_path).exists()
+    assert first.pose_cache_summary.cache_dir == str(cache_dir)
+
+    assert second.pose_cache_summary.kind == "memory"
+    assert second.pose_cache_summary.hit is True
+    assert second.pose_cache_summary.entry_path == first.pose_cache_summary.entry_path
+
+    assert third.pose_cache_summary.kind == "disk"
+    assert third.pose_cache_summary.hit is True
+    assert third.pose_cache_summary.entry_path == first.pose_cache_summary.entry_path
+
+
+def test_backbone_pose_cache_rejects_stale_model_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    topology = _open_backbone_topology("amylose")
+    helix = _test_helix()
+    cache_dir = tmp_path / "backbone_pose_cache"
+
+    monkeypatch.setattr(backbone_builder_mod, "_BACKBONE_POSE_CACHE_DIR", cache_dir)
+    backbone_builder_mod._BACKBONE_POSE_CACHE.clear()
+
+    first = backbone_builder_mod.build_backbone_structure(topology, helix)
+    payload_path = Path(first.pose_cache_summary.entry_path)
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    payload["model_version"] = BACKBONE_POSE_MODEL_VERSION - 1
+    payload_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    backbone_builder_mod._BACKBONE_POSE_CACHE.clear()
+    second = backbone_builder_mod.build_backbone_structure(topology, helix)
+
+    assert second.pose_cache_summary.kind == "build"
+    assert second.pose_cache_summary.persisted is True

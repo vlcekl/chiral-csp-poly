@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 import poly_csp.forcefield.glycam as glycam_mod
-from poly_csp.forcefield.payload_cache import glycam_cache_dir
+from poly_csp.forcefield.payload_cache import glycam_cache_dir, load_cached_glycam_params
 
 
 def _touch(path: Path) -> None:
@@ -171,6 +176,11 @@ def test_load_glycam_params_reuses_persistent_cache(
     assert first.linkage_templates == second.linkage_templates
     assert first.provenance["cache"]["hit"] is False
     assert first.provenance["cache"]["kind"] == "build"
+    assert (
+        first.provenance["cache"]["schema_version"]
+        == RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION
+    )
+    assert first.provenance["cache"]["model_version"] == RUNTIME_PAYLOAD_MODEL_VERSION
     assert second.provenance["cache"]["hit"] is True
     assert second.provenance["cache"]["kind"] == "disk"
 
@@ -183,3 +193,22 @@ def test_load_glycam_params_reuses_persistent_cache(
     assert (entry_dir / "payload.json").exists()
     assert (entry_dir / "dp2" / "glycam_ref_dp2.prmtop").exists()
     assert (entry_dir / "dp4" / "glycam_ref_dp4.prmtop").exists()
+
+
+def test_load_cached_glycam_params_rejects_stale_model_version(tmp_path: Path) -> None:
+    entry_dir = tmp_path / "glycam_entry"
+    entry_dir.mkdir(parents=True, exist_ok=True)
+    (entry_dir / "payload.json").write_text(
+        json.dumps(
+            {
+                "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+                "model_version": RUNTIME_PAYLOAD_MODEL_VERSION - 1,
+                "payload_kind": "glycam_backbone",
+                "identity": {"kind": "glycam_backbone"},
+                "payload": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_cached_glycam_params(entry_dir) is None

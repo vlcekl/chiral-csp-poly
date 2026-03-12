@@ -1,6 +1,6 @@
 {
   "entries": {
-    "1f79cecc82f209af8fb7fe4d": {
+    "7f70d6942b255d2f2952b951": {
       "identity": {
         "attach_atom_idx": 1,
         "attach_dummy_idx": 0,
@@ -12,8 +12,2310 @@
         },
         "kind": "selector_fragment",
         "linkage_type": "carbamate",
+        "model_version": 1,
         "net_charge": 0,
-        "schema_version": 3,
+        "schema_version": 4,
+        "selector_name": "3c5mpc",
+        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([C]([H])([H])[H])[c]1[H]"
+      },
+      "payload": {
+        "angles": [
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "H102"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "H103"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H102",
+              "S010",
+              "H103"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H102",
+              "S010",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H103",
+              "S010",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          }
+        ],
+        "atom_params": {
+          "H051": {
+            "atom_name": "H051",
+            "charge_e": 0.143,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H081": {
+            "atom_name": "H081",
+            "charge_e": 0.149,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H101": {
+            "atom_name": "H101",
+            "charge_e": 0.05003300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H102": {
+            "atom_name": "H102",
+            "charge_e": 0.05003300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H103": {
+            "atom_name": "H103",
+            "charge_e": 0.05003300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H111": {
+            "atom_name": "H111",
+            "charge_e": 0.176,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "S004": {
+            "atom_name": "S004",
+            "charge_e": 0.0756,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S005": {
+            "atom_name": "S005",
+            "charge_e": -0.188,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S006": {
+            "atom_name": "S006",
+            "charge_e": 0.0494,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S007": {
+            "atom_name": "S007",
+            "charge_e": -0.0974,
+            "epsilon_kj_per_mol": 1.1037391998574824,
+            "sigma_nm": 0.34659523731906833
+          },
+          "S008": {
+            "atom_name": "S008",
+            "charge_e": -0.153,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S009": {
+            "atom_name": "S009",
+            "charge_e": -0.040299999999999996,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S010": {
+            "atom_name": "S010",
+            "charge_e": -0.0578,
+            "epsilon_kj_per_mol": 0.4510352003144314,
+            "sigma_nm": 0.33977095312572575
+          },
+          "S011": {
+            "atom_name": "S011",
+            "charge_e": -0.15899999999999997,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          }
+        },
+        "bonds": [
+          {
+            "atom_names": [
+              "H051",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H102",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H103",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 157301.664,
+            "length_nm": 0.17572000000000002
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 204103.888,
+            "length_nm": 0.15147
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          }
+        ],
+        "fragment_atom_count": 19,
+        "selector_name": "3c5mpc",
+        "source_prmtop": "seeded://selector/3c5mpc/5997caefd47e24677b7ed62d",
+        "torsions": [
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S008",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010",
+              "H102"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010",
+              "H103"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S004",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S010",
+              "H102"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S010",
+              "H103"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          }
+        ]
+      }
+    },
+    "9ea413f749f88d631a45664a": {
+      "identity": {
+        "attach_atom_idx": 1,
+        "attach_dummy_idx": 0,
+        "charge_model": "bcc",
+        "connector_local_roles": {
+          "1": "carbonyl_c",
+          "2": "carbonyl_o",
+          "3": "amide_n"
+        },
+        "kind": "selector_fragment",
+        "linkage_type": "carbamate",
+        "model_version": 1,
+        "net_charge": 0,
+        "schema_version": 4,
+        "selector_name": "4c3mpc",
+        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([H])[c]([Cl])[c]([C]([H])([H])[H])[c]1[H]"
+      },
+      "payload": {
+        "angles": [
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "H072"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "H073"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H072",
+              "S007",
+              "H073"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H072",
+              "S007",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H073",
+              "S007",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S010",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S008",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          }
+        ],
+        "atom_params": {
+          "H051": {
+            "atom_name": "H051",
+            "charge_e": 0.177,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H071": {
+            "atom_name": "H071",
+            "charge_e": 0.05403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H072": {
+            "atom_name": "H072",
+            "charge_e": 0.05403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H073": {
+            "atom_name": "H073",
+            "charge_e": 0.05403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H101": {
+            "atom_name": "H101",
+            "charge_e": 0.147,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H111": {
+            "atom_name": "H111",
+            "charge_e": 0.13299999999999998,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "S004": {
+            "atom_name": "S004",
+            "charge_e": 0.0666,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S005": {
+            "atom_name": "S005",
+            "charge_e": -0.153,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S006": {
+            "atom_name": "S006",
+            "charge_e": -0.0373,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S007": {
+            "atom_name": "S007",
+            "charge_e": -0.05879999999999999,
+            "epsilon_kj_per_mol": 0.4510352003144314,
+            "sigma_nm": 0.33977095312572575
+          },
+          "S008": {
+            "atom_name": "S008",
+            "charge_e": -0.0146,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S009": {
+            "atom_name": "S009",
+            "charge_e": -0.0974,
+            "epsilon_kj_per_mol": 1.1037391998574824,
+            "sigma_nm": 0.34659523731906833
+          },
+          "S010": {
+            "atom_name": "S010",
+            "charge_e": -0.094,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S011": {
+            "atom_name": "S011",
+            "charge_e": -0.183,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          }
+        },
+        "bonds": [
+          {
+            "atom_names": [
+              "H051",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H072",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H073",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H101",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 204103.888,
+            "length_nm": 0.15147
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_nm2": 157301.664,
+            "length_nm": 0.17572000000000002
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          }
+        ],
+        "fragment_atom_count": 19,
+        "selector_name": "4c3mpc",
+        "source_prmtop": "seeded://selector/4c3mpc/b46441265330994eed0ddfbe",
+        "torsions": [
+          {
+            "atom_names": [
+              "H101",
+              "S010",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S010",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S010",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007",
+              "H072"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007",
+              "H073"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S008",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S010",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S010",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S007",
+              "H072"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S007",
+              "H073"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S010",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S011",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S008",
+              "S010",
+              "H101"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S008",
+              "S010",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S004",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          }
+        ]
+      }
+    },
+    "af703fd80fc996780a62e547": {
+      "identity": {
+        "attach_atom_idx": 1,
+        "attach_dummy_idx": 0,
+        "charge_model": "bcc",
+        "connector_local_roles": {
+          "1": "carbonyl_c",
+          "2": "carbonyl_o",
+          "3": "amide_n"
+        },
+        "kind": "selector_fragment",
+        "linkage_type": "carbamate",
+        "model_version": 1,
+        "net_charge": 0,
+        "schema_version": 4,
+        "selector_name": "5c2mpc",
+        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([H])[c]1[C]([H])([H])[H]"
+      },
+      "payload": {
+        "angles": [
+          {
+            "atom_names": [
+              "H061",
+              "S006",
+              "H062"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H061",
+              "S006",
+              "H063"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H061",
+              "S006",
+              "S005"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H062",
+              "S006",
+              "H063"
+            ],
+            "k_kj_per_mol_rad2": 299.57439999999997,
+            "theta0_rad": 1.88024401
+          },
+          {
+            "atom_names": [
+              "H062",
+              "S006",
+              "S005"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H063",
+              "S006",
+              "S005"
+            ],
+            "k_kj_per_mol_rad2": 364.92848000000004,
+            "theta0_rad": 1.93085858
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "S005"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S007",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 508.27232000000004,
+            "theta0_rad": 2.10888224
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          }
+        ],
+        "atom_params": {
+          "H061": {
+            "atom_name": "H061",
+            "charge_e": 0.04403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H062": {
+            "atom_name": "H062",
+            "charge_e": 0.04403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H063": {
+            "atom_name": "H063",
+            "charge_e": 0.04403300000548778,
+            "epsilon_kj_per_mol": 0.08702720023662242,
+            "sigma_nm": 0.2600176998083396
+          },
+          "H071": {
+            "atom_name": "H071",
+            "charge_e": 0.13699999999999998,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H081": {
+            "atom_name": "H081",
+            "charge_e": 0.149,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H111": {
+            "atom_name": "H111",
+            "charge_e": 0.187,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "S004": {
+            "atom_name": "S004",
+            "charge_e": 0.0736,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S005": {
+            "atom_name": "S005",
+            "charge_e": -0.1303,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S006": {
+            "atom_name": "S006",
+            "charge_e": -0.054799999999999995,
+            "epsilon_kj_per_mol": 0.4510352003144314,
+            "sigma_nm": 0.33977095312572575
+          },
+          "S007": {
+            "atom_name": "S007",
+            "charge_e": -0.097,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S008": {
+            "atom_name": "S008",
+            "charge_e": -0.15,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S009": {
+            "atom_name": "S009",
+            "charge_e": 0.0404,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S010": {
+            "atom_name": "S010",
+            "charge_e": -0.0904,
+            "epsilon_kj_per_mol": 1.1037391998574824,
+            "sigma_nm": 0.34659523731906833
+          },
+          "S011": {
+            "atom_name": "S011",
+            "charge_e": -0.154,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          }
+        },
+        "bonds": [
+          {
+            "atom_names": [
+              "H061",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H062",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H063",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 288905.2,
+            "length_nm": 0.10962000000000001
+          },
+          {
+            "atom_names": [
+              "H071",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 204103.888,
+            "length_nm": 0.15147
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 157301.664,
+            "length_nm": 0.17572000000000002
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          }
+        ],
+        "fragment_atom_count": 19,
+        "selector_name": "5c2mpc",
+        "source_prmtop": "seeded://selector/5c2mpc/5e239d98d87551236a1e0893",
+        "torsions": [
+          {
+            "atom_names": [
+              "H071",
+              "S007",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "H061"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "H062"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "H063"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S007",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S007",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S007",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S007",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S008",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S007",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S005",
+              "S006",
+              "H061"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S005",
+              "S006",
+              "H062"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S005",
+              "S006",
+              "H063"
+            ],
+            "k_kj_per_mol": 0.0,
+            "periodicity": 1,
+            "phase_rad": 0.0
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S008",
+              "S007",
+              "H071"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          }
+        ]
+      }
+    },
+    "cb2f0a3062a17182f811efae": {
+      "identity": {
+        "attach_atom_idx": 1,
+        "attach_dummy_idx": 0,
+        "charge_model": "bcc",
+        "connector_local_roles": {
+          "1": "carbonyl_c",
+          "2": "carbonyl_o",
+          "3": "amide_n"
+        },
+        "kind": "selector_fragment",
+        "linkage_type": "carbamate",
+        "model_version": 1,
+        "net_charge": 0,
+        "schema_version": 4,
         "selector_name": "35dmpc",
         "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([C]([H])([H])[H])[c]([H])[c]([C]([H])([H])[H])[c]1[H]"
       },
@@ -928,772 +3230,7 @@
         ]
       }
     },
-    "3265f9e35d04d8bc31c74dd4": {
-      "identity": {
-        "attach_atom_idx": 1,
-        "attach_dummy_idx": 0,
-        "charge_model": "bcc",
-        "connector_local_roles": {
-          "1": "carbonyl_c",
-          "2": "carbonyl_o"
-        },
-        "kind": "selector_fragment",
-        "linkage_type": "ester",
-        "net_charge": 0,
-        "schema_version": 3,
-        "selector_name": "tmb",
-        "selector_smiles": "[*][C](=[O])[c]1[c]([H])[c]([H])[c]([H])[c]([C]([H])([H])[H])[c]1[H]"
-      },
-      "payload": {
-        "angles": [
-          {
-            "atom_names": [
-              "H041",
-              "S004",
-              "S003"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H041",
-              "S004",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H061",
-              "S006",
-              "H062"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H061",
-              "S006",
-              "H063"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H061",
-              "S006",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H062",
-              "S006",
-              "H063"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H062",
-              "S006",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H063",
-              "S006",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H091",
-              "S009",
-              "S003"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H091",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S004",
-              "S005"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S003",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S007",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          }
-        ],
-        "atom_params": {
-          "H041": {
-            "atom_name": "H041",
-            "charge_e": 0.13399999999999998,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H061": {
-            "atom_name": "H061",
-            "charge_e": 0.04636699999451222,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H062": {
-            "atom_name": "H062",
-            "charge_e": 0.04636699999451222,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H063": {
-            "atom_name": "H063",
-            "charge_e": 0.04636699999451222,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H071": {
-            "atom_name": "H071",
-            "charge_e": 0.135,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H081": {
-            "atom_name": "H081",
-            "charge_e": 0.138,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H091": {
-            "atom_name": "H091",
-            "charge_e": 0.154,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "S003": {
-            "atom_name": "S003",
-            "charge_e": -0.1946,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S004": {
-            "atom_name": "S004",
-            "charge_e": -0.089,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S005": {
-            "atom_name": "S005",
-            "charge_e": -0.09029999999999999,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S006": {
-            "atom_name": "S006",
-            "charge_e": -0.054799999999999995,
-            "epsilon_kj_per_mol": 0.4510352003144314,
-            "sigma_nm": 0.33977095312572575
-          },
-          "S007": {
-            "atom_name": "S007",
-            "charge_e": -0.09999999999999999,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S008": {
-            "atom_name": "S008",
-            "charge_e": -0.14200000000000002,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S009": {
-            "atom_name": "S009",
-            "charge_e": -0.074,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          }
-        },
-        "bonds": [
-          {
-            "atom_names": [
-              "H041",
-              "S004"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H061",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H062",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H063",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H091",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S004"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 204103.888,
-            "length_nm": 0.15147
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          }
-        ],
-        "fragment_atom_count": 17,
-        "selector_name": "tmb",
-        "source_prmtop": "seeded://selector/tmb/3265f9e35d04d8bc31c74dd4",
-        "torsions": [
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S009",
-              "H091"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S004",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S004",
-              "S005",
-              "S007"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S005",
-              "S004",
-              "H041"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S008",
-              "S009",
-              "H091"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S003",
-              "S009",
-              "S008",
-              "S007"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S003",
-              "S009",
-              "H091"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S003",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "H061"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "H062"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "H063"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S007",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S007",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S003",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S007",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S007",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S008",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S004",
-              "H041"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S007",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S005",
-              "S004",
-              "H041"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S005",
-              "S006",
-              "H061"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S005",
-              "S006",
-              "H062"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S005",
-              "S006",
-              "H063"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S008",
-              "S009",
-              "H091"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S003",
-              "S004",
-              "H041"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S008",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          }
-        ]
-      }
-    },
-    "57085485a6854fc611049471": {
+    "d01fa9ace0d2f2ce82a287c2": {
       "identity": {
         "attach_atom_idx": 1,
         "attach_dummy_idx": 0,
@@ -1705,8 +3242,614 @@
         },
         "kind": "selector_fragment",
         "linkage_type": "carbamate",
+        "model_version": 1,
         "net_charge": 0,
-        "schema_version": 3,
+        "schema_version": 4,
+        "selector_name": "35dcpc",
+        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([Cl])[c]1[H]"
+      },
+      "payload": {
+        "angles": [
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H051",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S004"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_rad2": 536.05408,
+            "theta0_rad": 2.08357495
+          }
+        ],
+        "atom_params": {
+          "H051": {
+            "atom_name": "H051",
+            "charge_e": 0.16849999999999998,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H081": {
+            "atom_name": "H081",
+            "charge_e": 0.164,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "H111": {
+            "atom_name": "H111",
+            "charge_e": 0.16849999999999998,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
+          "S004": {
+            "atom_name": "S004",
+            "charge_e": 0.0836,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S005": {
+            "atom_name": "S005",
+            "charge_e": -0.171,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S006": {
+            "atom_name": "S006",
+            "charge_e": 0.0519,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S007": {
+            "atom_name": "S007",
+            "charge_e": -0.0819,
+            "epsilon_kj_per_mol": 1.1037391998574824,
+            "sigma_nm": 0.34659523731906833
+          },
+          "S008": {
+            "atom_name": "S008",
+            "charge_e": -0.15,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S009": {
+            "atom_name": "S009",
+            "charge_e": 0.0519,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          },
+          "S010": {
+            "atom_name": "S010",
+            "charge_e": -0.0819,
+            "epsilon_kj_per_mol": 1.1037391998574824,
+            "sigma_nm": 0.34659523731906833
+          },
+          "S011": {
+            "atom_name": "S011",
+            "charge_e": -0.171,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
+          }
+        },
+        "bonds": [
+          {
+            "atom_names": [
+              "H051",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "H111",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol_nm2": 157301.664,
+            "length_nm": 0.17572000000000002
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol_nm2": 157301.664,
+            "length_nm": 0.17572000000000002
+          },
+          {
+            "atom_names": [
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          }
+        ],
+        "fragment_atom_count": 16,
+        "selector_name": "35dcpc",
+        "source_prmtop": "seeded://selector/35dcpc/7f3a1ebb40f74ea97e83b5a6",
+        "torsions": [
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S005",
+              "S006",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S008"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S004",
+              "S011",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S005",
+              "S008",
+              "S006",
+              "S007"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S005",
+              "S004",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S008",
+              "S009",
+              "S011"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S006",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S007",
+              "S006",
+              "S008",
+              "S009"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S006",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S008",
+              "S011",
+              "S009",
+              "S010"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S010",
+              "S009",
+              "S011",
+              "H111"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S004",
+              "S005",
+              "H051"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S011",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          }
+        ]
+      }
+    },
+    "d44786ce472e573fcd073181": {
+      "identity": {
+        "attach_atom_idx": 1,
+        "attach_dummy_idx": 0,
+        "charge_model": "bcc",
+        "connector_local_roles": {
+          "1": "carbonyl_c",
+          "2": "carbonyl_o",
+          "3": "amide_n"
+        },
+        "kind": "selector_fragment",
+        "linkage_type": "carbamate",
+        "model_version": 1,
+        "net_charge": 0,
+        "schema_version": 4,
         "selector_name": "3c4mpc",
         "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([H])[c]([C]([H])([H])[H])[c]([Cl])[c]1[H]"
       },
@@ -2459,791 +4602,43 @@
         ]
       }
     },
-    "5997caefd47e24677b7ed62d": {
+    "d82650922e7b11af4ee59b2d": {
       "identity": {
         "attach_atom_idx": 1,
         "attach_dummy_idx": 0,
         "charge_model": "bcc",
         "connector_local_roles": {
           "1": "carbonyl_c",
-          "2": "carbonyl_o",
-          "3": "amide_n"
+          "2": "carbonyl_o"
         },
         "kind": "selector_fragment",
-        "linkage_type": "carbamate",
+        "linkage_type": "ester",
+        "model_version": 1,
         "net_charge": 0,
-        "schema_version": 3,
-        "selector_name": "3c5mpc",
-        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([C]([H])([H])[H])[c]1[H]"
+        "schema_version": 4,
+        "selector_name": "tmb",
+        "selector_smiles": "[*][C](=[O])[c]1[c]([H])[c]([H])[c]([H])[c]([C]([H])([H])[H])[c]1[H]"
       },
       "payload": {
         "angles": [
           {
             "atom_names": [
-              "H051",
-              "S005",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H051",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "H102"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "H103"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H102",
-              "S010",
-              "H103"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H102",
-              "S010",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H103",
-              "S010",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
+              "H041",
               "S004",
-              "S005",
-              "S006"
+              "S003"
             ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
           },
           {
             "atom_names": [
-              "S004",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          }
-        ],
-        "atom_params": {
-          "H051": {
-            "atom_name": "H051",
-            "charge_e": 0.143,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H081": {
-            "atom_name": "H081",
-            "charge_e": 0.149,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H101": {
-            "atom_name": "H101",
-            "charge_e": 0.05003300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H102": {
-            "atom_name": "H102",
-            "charge_e": 0.05003300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H103": {
-            "atom_name": "H103",
-            "charge_e": 0.05003300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H111": {
-            "atom_name": "H111",
-            "charge_e": 0.176,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "S004": {
-            "atom_name": "S004",
-            "charge_e": 0.0756,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S005": {
-            "atom_name": "S005",
-            "charge_e": -0.188,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S006": {
-            "atom_name": "S006",
-            "charge_e": 0.0494,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S007": {
-            "atom_name": "S007",
-            "charge_e": -0.0974,
-            "epsilon_kj_per_mol": 1.1037391998574824,
-            "sigma_nm": 0.34659523731906833
-          },
-          "S008": {
-            "atom_name": "S008",
-            "charge_e": -0.153,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S009": {
-            "atom_name": "S009",
-            "charge_e": -0.040299999999999996,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S010": {
-            "atom_name": "S010",
-            "charge_e": -0.0578,
-            "epsilon_kj_per_mol": 0.4510352003144314,
-            "sigma_nm": 0.33977095312572575
-          },
-          "S011": {
-            "atom_name": "S011",
-            "charge_e": -0.15899999999999997,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          }
-        },
-        "bonds": [
-          {
-            "atom_names": [
-              "H051",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H102",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H103",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
+              "H041",
               "S004",
               "S005"
             ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
+            "k_kj_per_mol_rad2": 375.7232,
+            "theta0_rad": 2.0923016
           },
-          {
-            "atom_names": [
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 157301.664,
-            "length_nm": 0.17572000000000002
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 204103.888,
-            "length_nm": 0.15147
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          }
-        ],
-        "fragment_atom_count": 19,
-        "selector_name": "3c5mpc",
-        "source_prmtop": "seeded://selector/3c5mpc/5997caefd47e24677b7ed62d",
-        "torsions": [
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S008",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010",
-              "H102"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010",
-              "H103"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S004",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S010",
-              "H102"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S010",
-              "H103"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          }
-        ]
-      }
-    },
-    "5e239d98d87551236a1e0893": {
-      "identity": {
-        "attach_atom_idx": 1,
-        "attach_dummy_idx": 0,
-        "charge_model": "bcc",
-        "connector_local_roles": {
-          "1": "carbonyl_c",
-          "2": "carbonyl_o",
-          "3": "amide_n"
-        },
-        "kind": "selector_fragment",
-        "linkage_type": "carbamate",
-        "net_charge": 0,
-        "schema_version": 3,
-        "selector_name": "5c2mpc",
-        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([H])[c]1[C]([H])([H])[H]"
-      },
-      "payload": {
-        "angles": [
           {
             "atom_names": [
               "H061",
@@ -3336,21 +4731,48 @@
           },
           {
             "atom_names": [
-              "H111",
-              "S011",
-              "S004"
+              "H091",
+              "S009",
+              "S003"
             ],
             "k_kj_per_mol_rad2": 375.7232,
             "theta0_rad": 2.0923016
           },
           {
             "atom_names": [
-              "H111",
-              "S011",
-              "S009"
+              "H091",
+              "S009",
+              "S008"
             ],
             "k_kj_per_mol_rad2": 375.7232,
             "theta0_rad": 2.0923016
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S004",
+              "S005"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S009",
+              "S008"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S003",
+              "S009"
+            ],
+            "k_kj_per_mol_rad2": 532.79056,
+            "theta0_rad": 2.09474507
           },
           {
             "atom_names": [
@@ -3366,24 +4788,6 @@
               "S004",
               "S005",
               "S007"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011"
             ],
             "k_kj_per_mol_rad2": 532.79056,
             "theta0_rad": 2.09474507
@@ -3414,81 +4818,66 @@
             ],
             "k_kj_per_mol_rad2": 532.79056,
             "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
           }
         ],
         "atom_params": {
+          "H041": {
+            "atom_name": "H041",
+            "charge_e": 0.13399999999999998,
+            "epsilon_kj_per_mol": 0.06736240007496809,
+            "sigma_nm": 0.26254785220391275
+          },
           "H061": {
             "atom_name": "H061",
-            "charge_e": 0.04403300000548778,
+            "charge_e": 0.04636699999451222,
             "epsilon_kj_per_mol": 0.08702720023662242,
             "sigma_nm": 0.2600176998083396
           },
           "H062": {
             "atom_name": "H062",
-            "charge_e": 0.04403300000548778,
+            "charge_e": 0.04636699999451222,
             "epsilon_kj_per_mol": 0.08702720023662242,
             "sigma_nm": 0.2600176998083396
           },
           "H063": {
             "atom_name": "H063",
-            "charge_e": 0.04403300000548778,
+            "charge_e": 0.04636699999451222,
             "epsilon_kj_per_mol": 0.08702720023662242,
             "sigma_nm": 0.2600176998083396
           },
           "H071": {
             "atom_name": "H071",
-            "charge_e": 0.13699999999999998,
+            "charge_e": 0.135,
             "epsilon_kj_per_mol": 0.06736240007496809,
             "sigma_nm": 0.26254785220391275
           },
           "H081": {
             "atom_name": "H081",
-            "charge_e": 0.149,
+            "charge_e": 0.138,
             "epsilon_kj_per_mol": 0.06736240007496809,
             "sigma_nm": 0.26254785220391275
           },
-          "H111": {
-            "atom_name": "H111",
-            "charge_e": 0.187,
+          "H091": {
+            "atom_name": "H091",
+            "charge_e": 0.154,
             "epsilon_kj_per_mol": 0.06736240007496809,
             "sigma_nm": 0.26254785220391275
+          },
+          "S003": {
+            "atom_name": "S003",
+            "charge_e": -0.1946,
+            "epsilon_kj_per_mol": 0.41337919999772776,
+            "sigma_nm": 0.33152123100281
           },
           "S004": {
             "atom_name": "S004",
-            "charge_e": 0.0736,
+            "charge_e": -0.089,
             "epsilon_kj_per_mol": 0.41337919999772776,
             "sigma_nm": 0.33152123100281
           },
           "S005": {
             "atom_name": "S005",
-            "charge_e": -0.1303,
+            "charge_e": -0.09029999999999999,
             "epsilon_kj_per_mol": 0.41337919999772776,
             "sigma_nm": 0.33152123100281
           },
@@ -3500,36 +4889,32 @@
           },
           "S007": {
             "atom_name": "S007",
-            "charge_e": -0.097,
+            "charge_e": -0.09999999999999999,
             "epsilon_kj_per_mol": 0.41337919999772776,
             "sigma_nm": 0.33152123100281
           },
           "S008": {
             "atom_name": "S008",
-            "charge_e": -0.15,
+            "charge_e": -0.14200000000000002,
             "epsilon_kj_per_mol": 0.41337919999772776,
             "sigma_nm": 0.33152123100281
           },
           "S009": {
             "atom_name": "S009",
-            "charge_e": 0.0404,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S010": {
-            "atom_name": "S010",
-            "charge_e": -0.0904,
-            "epsilon_kj_per_mol": 1.1037391998574824,
-            "sigma_nm": 0.34659523731906833
-          },
-          "S011": {
-            "atom_name": "S011",
-            "charge_e": -0.154,
+            "charge_e": -0.074,
             "epsilon_kj_per_mol": 0.41337919999772776,
             "sigma_nm": 0.33152123100281
           }
         },
         "bonds": [
+          {
+            "atom_names": [
+              "H041",
+              "S004"
+            ],
+            "k_kj_per_mol_nm2": 301825.39200000005,
+            "length_nm": 0.10860000000000002
+          },
           {
             "atom_names": [
               "H061",
@@ -3572,16 +4957,24 @@
           },
           {
             "atom_names": [
-              "H111",
-              "S011"
+              "H091",
+              "S009"
             ],
             "k_kj_per_mol_nm2": 301825.39200000005,
             "length_nm": 0.10860000000000002
           },
           {
             "atom_names": [
-              "S004",
-              "S005"
+              "S003",
+              "S004"
+            ],
+            "k_kj_per_mol_nm2": 296436.4,
+            "length_nm": 0.13986
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S009"
             ],
             "k_kj_per_mol_nm2": 296436.4,
             "length_nm": 0.13986
@@ -3589,7 +4982,7 @@
           {
             "atom_names": [
               "S004",
-              "S011"
+              "S005"
             ],
             "k_kj_per_mol_nm2": 296436.4,
             "length_nm": 0.13986
@@ -3625,27 +5018,11 @@
             ],
             "k_kj_per_mol_nm2": 296436.4,
             "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 157301.664,
-            "length_nm": 0.17572000000000002
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
           }
         ],
-        "fragment_atom_count": 19,
-        "selector_name": "5c2mpc",
-        "source_prmtop": "seeded://selector/5c2mpc/5e239d98d87551236a1e0893",
+        "fragment_atom_count": 17,
+        "selector_name": "tmb",
+        "source_prmtop": "seeded://selector/tmb/3265f9e35d04d8bc31c74dd4",
         "torsions": [
           {
             "atom_names": [
@@ -3653,6 +5030,105 @@
               "S007",
               "S008",
               "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "H081",
+              "S008",
+              "S009",
+              "H091"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S004",
+              "S005",
+              "S006"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S004",
+              "S005",
+              "S007"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S005",
+              "S004",
+              "H041"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S008",
+              "S009",
+              "H091"
+            ],
+            "k_kj_per_mol": 4.6024,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S009",
+              "S008",
+              "H081"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S003",
+              "S009",
+              "S008",
+              "S007"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S003",
+              "S009",
+              "H091"
+            ],
+            "k_kj_per_mol": 15.167,
+            "periodicity": 2,
+            "phase_rad": 3.141594
+          },
+          {
+            "atom_names": [
+              "S004",
+              "S003",
+              "S009",
+              "S008"
             ],
             "k_kj_per_mol": 15.167,
             "periodicity": 2,
@@ -3726,53 +5202,9 @@
           },
           {
             "atom_names": [
-              "S004",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
               "S005",
               "S004",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
+              "S003",
               "S009"
             ],
             "k_kj_per_mol": 15.167,
@@ -3817,7 +5249,7 @@
               "S006",
               "S005",
               "S004",
-              "S011"
+              "H041"
             ],
             "k_kj_per_mol": 15.167,
             "periodicity": 2,
@@ -3850,7 +5282,7 @@
               "S007",
               "S005",
               "S004",
-              "S011"
+              "H041"
             ],
             "k_kj_per_mol": 15.167,
             "periodicity": 2,
@@ -3894,18 +5326,7 @@
               "S007",
               "S008",
               "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S008",
-              "S009",
-              "S011"
+              "H091"
             ],
             "k_kj_per_mol": 15.167,
             "periodicity": 2,
@@ -3924,23 +5345,12 @@
           },
           {
             "atom_names": [
-              "S008",
               "S009",
-              "S011",
-              "H111"
+              "S003",
+              "S004",
+              "H041"
             ],
             "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 4.6024,
             "periodicity": 2,
             "phase_rad": 3.141594
           },
@@ -3950,1409 +5360,6 @@
               "S008",
               "S007",
               "H071"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          }
-        ]
-      }
-    },
-    "7f3a1ebb40f74ea97e83b5a6": {
-      "identity": {
-        "attach_atom_idx": 1,
-        "attach_dummy_idx": 0,
-        "charge_model": "bcc",
-        "connector_local_roles": {
-          "1": "carbonyl_c",
-          "2": "carbonyl_o",
-          "3": "amide_n"
-        },
-        "kind": "selector_fragment",
-        "linkage_type": "carbamate",
-        "net_charge": 0,
-        "schema_version": 3,
-        "selector_name": "35dcpc",
-        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([Cl])[c]([H])[c]([Cl])[c]1[H]"
-      },
-      "payload": {
-        "angles": [
-          {
-            "atom_names": [
-              "H051",
-              "S005",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H051",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          }
-        ],
-        "atom_params": {
-          "H051": {
-            "atom_name": "H051",
-            "charge_e": 0.16849999999999998,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H081": {
-            "atom_name": "H081",
-            "charge_e": 0.164,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H111": {
-            "atom_name": "H111",
-            "charge_e": 0.16849999999999998,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "S004": {
-            "atom_name": "S004",
-            "charge_e": 0.0836,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S005": {
-            "atom_name": "S005",
-            "charge_e": -0.171,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S006": {
-            "atom_name": "S006",
-            "charge_e": 0.0519,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S007": {
-            "atom_name": "S007",
-            "charge_e": -0.0819,
-            "epsilon_kj_per_mol": 1.1037391998574824,
-            "sigma_nm": 0.34659523731906833
-          },
-          "S008": {
-            "atom_name": "S008",
-            "charge_e": -0.15,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S009": {
-            "atom_name": "S009",
-            "charge_e": 0.0519,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S010": {
-            "atom_name": "S010",
-            "charge_e": -0.0819,
-            "epsilon_kj_per_mol": 1.1037391998574824,
-            "sigma_nm": 0.34659523731906833
-          },
-          "S011": {
-            "atom_name": "S011",
-            "charge_e": -0.171,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          }
-        },
-        "bonds": [
-          {
-            "atom_names": [
-              "H051",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H081",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 157301.664,
-            "length_nm": 0.17572000000000002
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 157301.664,
-            "length_nm": 0.17572000000000002
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          }
-        ],
-        "fragment_atom_count": 16,
-        "selector_name": "35dcpc",
-        "source_prmtop": "seeded://selector/35dcpc/7f3a1ebb40f74ea97e83b5a6",
-        "torsions": [
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S008",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S011",
-              "S009",
-              "S010"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S009",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S004",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S009",
-              "S008",
-              "H081"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          }
-        ]
-      }
-    },
-    "b46441265330994eed0ddfbe": {
-      "identity": {
-        "attach_atom_idx": 1,
-        "attach_dummy_idx": 0,
-        "charge_model": "bcc",
-        "connector_local_roles": {
-          "1": "carbonyl_c",
-          "2": "carbonyl_o",
-          "3": "amide_n"
-        },
-        "kind": "selector_fragment",
-        "linkage_type": "carbamate",
-        "net_charge": 0,
-        "schema_version": 3,
-        "selector_name": "4c3mpc",
-        "selector_smiles": "[*][C](=[O])[N]([H])[c]1[c]([H])[c]([H])[c]([Cl])[c]([C]([H])([H])[H])[c]1[H]"
-      },
-      "payload": {
-        "angles": [
-          {
-            "atom_names": [
-              "H051",
-              "S005",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H051",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "H072"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "H073"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H072",
-              "S007",
-              "H073"
-            ],
-            "k_kj_per_mol_rad2": 299.57439999999997,
-            "theta0_rad": 1.88024401
-          },
-          {
-            "atom_names": [
-              "H072",
-              "S007",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H073",
-              "S007",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 364.92848000000004,
-            "theta0_rad": 1.93085858
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S004"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 375.7232,
-            "theta0_rad": 2.0923016
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_rad2": 508.27232000000004,
-            "theta0_rad": 2.10888224
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S010",
-              "S011"
-            ],
-            "k_kj_per_mol_rad2": 532.79056,
-            "theta0_rad": 2.09474507
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S008",
-              "S010"
-            ],
-            "k_kj_per_mol_rad2": 536.05408,
-            "theta0_rad": 2.08357495
-          }
-        ],
-        "atom_params": {
-          "H051": {
-            "atom_name": "H051",
-            "charge_e": 0.177,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H071": {
-            "atom_name": "H071",
-            "charge_e": 0.05403300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H072": {
-            "atom_name": "H072",
-            "charge_e": 0.05403300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H073": {
-            "atom_name": "H073",
-            "charge_e": 0.05403300000548778,
-            "epsilon_kj_per_mol": 0.08702720023662242,
-            "sigma_nm": 0.2600176998083396
-          },
-          "H101": {
-            "atom_name": "H101",
-            "charge_e": 0.147,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "H111": {
-            "atom_name": "H111",
-            "charge_e": 0.13299999999999998,
-            "epsilon_kj_per_mol": 0.06736240007496809,
-            "sigma_nm": 0.26254785220391275
-          },
-          "S004": {
-            "atom_name": "S004",
-            "charge_e": 0.0666,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S005": {
-            "atom_name": "S005",
-            "charge_e": -0.153,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S006": {
-            "atom_name": "S006",
-            "charge_e": -0.0373,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S007": {
-            "atom_name": "S007",
-            "charge_e": -0.05879999999999999,
-            "epsilon_kj_per_mol": 0.4510352003144314,
-            "sigma_nm": 0.33977095312572575
-          },
-          "S008": {
-            "atom_name": "S008",
-            "charge_e": -0.0146,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S009": {
-            "atom_name": "S009",
-            "charge_e": -0.0974,
-            "epsilon_kj_per_mol": 1.1037391998574824,
-            "sigma_nm": 0.34659523731906833
-          },
-          "S010": {
-            "atom_name": "S010",
-            "charge_e": -0.094,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          },
-          "S011": {
-            "atom_name": "S011",
-            "charge_e": -0.183,
-            "epsilon_kj_per_mol": 0.41337919999772776,
-            "sigma_nm": 0.33152123100281
-          }
-        },
-        "bonds": [
-          {
-            "atom_names": [
-              "H051",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H071",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H072",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H073",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 288905.2,
-            "length_nm": 0.10962000000000001
-          },
-          {
-            "atom_names": [
-              "H101",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "H111",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 301825.39200000005,
-            "length_nm": 0.10860000000000002
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol_nm2": 204103.888,
-            "length_nm": 0.15147
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol_nm2": 157301.664,
-            "length_nm": 0.17572000000000002
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S010"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          },
-          {
-            "atom_names": [
-              "S010",
-              "S011"
-            ],
-            "k_kj_per_mol_nm2": 296436.4,
-            "length_nm": 0.13986
-          }
-        ],
-        "fragment_atom_count": 19,
-        "selector_name": "4c3mpc",
-        "source_prmtop": "seeded://selector/4c3mpc/b46441265330994eed0ddfbe",
-        "torsions": [
-          {
-            "atom_names": [
-              "H101",
-              "S010",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S005",
-              "S006",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S010",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S004",
-              "S011",
-              "S010",
-              "S008"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S004",
-              "S011",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007",
-              "H072"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S007",
-              "H073"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S006",
-              "S008",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S005",
-              "S008",
-              "S006",
-              "S007"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S005",
-              "S004",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S008",
-              "S010",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S006",
-              "S010",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "S009"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S007",
-              "S006",
-              "S008",
-              "S010"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S005",
-              "H051"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S007",
-              "H071"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S007",
-              "H072"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S006",
-              "S007",
-              "H073"
-            ],
-            "k_kj_per_mol": 0.0,
-            "periodicity": 1,
-            "phase_rad": 0.0
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S010",
-              "S011",
-              "H111"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S008",
-              "S011",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 4.6024,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S008",
-              "S010",
-              "H101"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S009",
-              "S008",
-              "S010",
-              "S011"
-            ],
-            "k_kj_per_mol": 15.167,
-            "periodicity": 2,
-            "phase_rad": 3.141594
-          },
-          {
-            "atom_names": [
-              "S011",
-              "S004",
-              "S005",
-              "H051"
             ],
             "k_kj_per_mol": 15.167,
             "periodicity": 2,
@@ -5362,8 +5369,9 @@
       }
     }
   },
+  "model_version": 1,
   "payload_kind": "selector_fragment_seed_catalog",
-  "schema_version": 3,
+  "schema_version": 4,
   "selectors": [
     "35dcpc",
     "35dmpc",

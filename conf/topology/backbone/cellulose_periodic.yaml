@@ -1,0 +1,5 @@
+kind: cellulose
+dp: 3          # One helical repeat (3/2 helix -> 3 residues)
+monomer_representation: anhydro
+end_mode: periodic
+end_caps: {}

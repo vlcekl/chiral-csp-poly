@@ -10,6 +10,11 @@ from pathlib import Path
 
 import pytest
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
+
 
 _ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.integration
@@ -50,6 +55,14 @@ def test_pipeline_runtime_amylose(tmp_path: Path) -> None:
     assert report["forcefield_summary"]["force_inventory"]["counts"]["NonbondedForce"] == 1
     assert report["forcefield_summary"]["exception_summary"]["expected_14_pairs"] > 0
     assert report["forcefield_summary"]["exception_summary"]["expected_14_pairs"] == report["forcefield_summary"]["exception_summary"]["found_14_pairs"]
+    assert (
+        report["forcefield_summary"]["runtime_param_cache"]["schema_version"]
+        == RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION
+    )
+    assert (
+        report["forcefield_summary"]["runtime_param_cache"]["model_version"]
+        == RUNTIME_PAYLOAD_MODEL_VERSION
+    )
     assert report["relax_enabled"] is False
 
 
@@ -75,6 +88,30 @@ def test_pipeline_runtime_cellulose(tmp_path: Path) -> None:
     assert report["forcefield_summary"]["particle_count"] > 0
     assert report["forcefield_summary"]["force_inventory"]["counts"]["NonbondedForce"] == 1
     assert report["forcefield_summary"]["exception_summary"]["counts_by_rule_bucket"]["backbone_backbone"] > 0
+
+
+def test_pipeline_runtime_supports_periodic_cellulose_mode(tmp_path: Path) -> None:
+    outdir = tmp_path / "periodic_cellulose_runtime"
+    _run_build(
+        "phase=chiralcel_oz "
+        "topology.backbone.end_mode=periodic "
+        "topology.backbone.dp=3 "
+        "topology.selector.enabled=false "
+        "ordering.enabled=false "
+        "forcefield/options=runtime "
+        "output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["polymer"] == "cellulose"
+    assert report["end_mode"] == "periodic"
+    assert report["phase_column_id"] == "OZ"
+    assert report["periodic_box_A"] is not None
+    assert report["forcefield_summary"]["exception_summary"]["periodic"] is True
+    assert report["qc_periodic_closure_metrics"]["donor_residue_index"] == 2
+    assert report["qc_periodic_closure_metrics"]["acceptor_residue_index"] == 0
+    assert report["qc_periodic_closure_metrics"]["bond_length_A"] < 2.0
 
 
 def test_pipeline_runtime_writes_pdbqt_and_amber_exports(tmp_path: Path) -> None:

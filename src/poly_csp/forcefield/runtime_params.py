@@ -7,6 +7,10 @@ from pathlib import Path
 
 from rdkit import Chem
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 from poly_csp.forcefield.connectors import ConnectorParams, load_connector_params
 from poly_csp.forcefield.gaff import (
     SelectorFragmentParams,
@@ -30,6 +34,8 @@ from poly_csp.forcefield.payload_cache import (
 class RuntimeParamCacheSummary:
     enabled: bool
     cache_dir: str | None
+    schema_version: int = RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION
+    model_version: int = RUNTIME_PAYLOAD_MODEL_VERSION
     glycam_hits: int = 0
     glycam_misses: int = 0
     selector_hits: int = 0
@@ -63,6 +69,8 @@ def _cache_meta(
             "kind": cache_kind if cache_enabled else "disabled",
             "entry_dir": None if cache_entry_dir is None else str(cache_entry_dir),
             "seed_asset": seed_asset if cache_enabled else None,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
         }
     }
 

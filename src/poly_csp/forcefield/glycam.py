@@ -8,6 +8,10 @@ import subprocess
 import tempfile
 from typing import Dict, List, Literal, Sequence
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 from poly_csp.config.schema import EndMode, MonomerRepresentation, PolymerKind
 from poly_csp.forcefield.payload_cache import (
     glycam_cache_dir,
@@ -659,6 +663,8 @@ def _with_cache_provenance(
         ),
         "hit": bool(cache_hit),
         "kind": str(cache_kind),
+        "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+        "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
     }
     return replace(params, provenance=provenance)
 

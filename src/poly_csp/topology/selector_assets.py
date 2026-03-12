@@ -66,21 +66,56 @@ def _idx_from_mapnum(mol: Chem.Mol, map_num: int, *, label: str) -> int:
     raise ValueError(f"Map number {map_num} not found in selector asset {label!r}.")
 
 
+def _embedding_reference_mol(mol: Chem.Mol) -> Chem.Mol:
+    reference = Chem.RWMol(Chem.Mol(mol))
+    for atom in reference.GetAtoms():
+        if atom.GetAtomicNum() != 0:
+            continue
+        atom.SetAtomicNum(1)
+        atom.SetFormalCharge(0)
+        atom.SetNoImplicit(True)
+        atom.SetNumExplicitHs(0)
+    reference = reference.GetMol()
+    Chem.SanitizeMol(reference)
+    return reference
+
+
+def _copy_embedded_coords(original: Chem.Mol, embedded: Chem.Mol, *, label: str) -> Chem.Mol:
+    if embedded.GetNumConformers() == 0:
+        raise RuntimeError(f"Embedded selector reference {label!r} has no conformer.")
+
+    original_atom_count = int(original.GetNumAtoms())
+    conf = embedded.GetConformer(0)
+    if conf.GetNumAtoms() < original_atom_count:
+        raise RuntimeError(
+            f"Embedded selector reference {label!r} lost atoms during coordinate transfer."
+        )
+
+    out = Chem.Mol(original)
+    out.RemoveAllConformers()
+    out_conf = Chem.Conformer(original_atom_count)
+    for atom_idx in range(original_atom_count):
+        out_conf.SetAtomPosition(atom_idx, conf.GetAtomPosition(atom_idx))
+    out.AddConformer(out_conf, assignId=True)
+    return out
+
+
 def _embed_if_needed(mol: Chem.Mol, *, seed: int, label: str) -> Chem.Mol:
     if mol.GetNumConformers() > 0:
         return mol
 
-    with_h = Chem.AddHs(mol)
+    explicit_h = Chem.AddHs(mol)
+    reference = _embedding_reference_mol(explicit_h)
     params = AllChem.ETKDGv3()
     params.randomSeed = int(seed)
-    status = AllChem.EmbedMolecule(with_h, params)
+    status = AllChem.EmbedMolecule(reference, params)
     if status != 0:
-        status = AllChem.EmbedMolecule(with_h, useRandomCoords=True, randomSeed=int(seed))
+        status = AllChem.EmbedMolecule(reference, useRandomCoords=True, randomSeed=int(seed))
     if status != 0:
         raise RuntimeError(f"RDKit failed to embed selector asset {label!r}.")
-    if all(atom.GetAtomicNum() > 0 for atom in with_h.GetAtoms()):
-        AllChem.UFFOptimizeMolecule(with_h, maxIters=250)
-    return with_h
+    if AllChem.UFFHasAllMoleculeParams(reference):
+        AllChem.UFFOptimizeMolecule(reference, maxIters=250)
+    return _copy_embedded_coords(explicit_h, reference, label=label)
 
 
 @lru_cache(maxsize=None)

@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from rdkit import Chem
 
+from poly_csp.cache_versions import (
+    RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+    RUNTIME_PAYLOAD_MODEL_VERSION,
+)
 from poly_csp.config.schema import EndMode, MonomerRepresentation, PolymerKind, Site
 from poly_csp.forcefield.connectors import (
     ConnectorAngleTemplate,
@@ -39,8 +43,6 @@ if TYPE_CHECKING:
         GlycamTorsionTemplate,
     )
 
-
-PAYLOAD_CACHE_SCHEMA_VERSION = 3
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_RUNTIME_CACHE_DIR = _REPO_ROOT / ".cache" / "poly_csp" / "runtime_params"
 _SEEDED_SELECTOR_PAYLOAD_CATALOG = "selectors.json"
@@ -68,7 +70,9 @@ def _load_seed_catalog(
         return {}
     with as_file(ref) as asset_path:
         payload = json.loads(asset_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != PAYLOAD_CACHE_SCHEMA_VERSION:
+    if payload.get("schema_version") != RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION:
+        return {}
+    if payload.get("model_version") != RUNTIME_PAYLOAD_MODEL_VERSION:
         return {}
     if payload.get("payload_kind") != expected_kind:
         return {}
@@ -103,7 +107,8 @@ def selector_cache_identity(
     net_charge: int = 0,
 ) -> tuple[str, dict[str, Any]]:
     identity = {
-        "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+        "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+        "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
         "kind": "selector_fragment",
         "selector_name": str(selector_template.name),
         "selector_smiles": _canonical_smiles(selector_template.mol),
@@ -141,7 +146,8 @@ def connector_cache_identity(
         net_charge=net_charge,
     )
     identity = {
-        "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+        "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+        "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
         "kind": "connector_fragment",
         "polymer": str(polymer),
         "site": str(site),
@@ -263,7 +269,8 @@ def glycam_cache_identity(
     end_mode: EndMode,
 ) -> tuple[str, dict[str, Any]]:
     identity = {
-        "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+        "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+        "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
         "kind": "glycam_backbone",
         "polymer": str(polymer),
         "representation": str(representation),
@@ -739,7 +746,9 @@ def load_cached_selector_params(entry_dir: Path) -> SelectorFragmentParams | Non
     if not payload_path.exists():
         return None
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != PAYLOAD_CACHE_SCHEMA_VERSION:
+    if payload.get("schema_version") != RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("model_version") != RUNTIME_PAYLOAD_MODEL_VERSION:
         return None
     if payload.get("payload_kind") != "selector_fragment":
         return None
@@ -755,7 +764,8 @@ def store_cached_selector_params(
     _write_cache_file(
         _cache_payload_path(entry_dir),
         {
-            "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
             "payload_kind": "selector_fragment",
             "identity": identity,
             "payload": _selector_params_to_jsonable(params),
@@ -768,7 +778,9 @@ def load_cached_connector_params(entry_dir: Path) -> ConnectorParams | None:
     if not payload_path.exists():
         return None
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != PAYLOAD_CACHE_SCHEMA_VERSION:
+    if payload.get("schema_version") != RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("model_version") != RUNTIME_PAYLOAD_MODEL_VERSION:
         return None
     if payload.get("payload_kind") != "connector_fragment":
         return None
@@ -784,7 +796,8 @@ def store_cached_connector_params(
     _write_cache_file(
         _cache_payload_path(entry_dir),
         {
-            "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
             "payload_kind": "connector_fragment",
             "identity": identity,
             "payload": _connector_params_to_jsonable(params),
@@ -797,7 +810,9 @@ def load_cached_glycam_params(entry_dir: Path) -> "GlycamParams" | None:
     if not payload_path.exists():
         return None
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != PAYLOAD_CACHE_SCHEMA_VERSION:
+    if payload.get("schema_version") != RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("model_version") != RUNTIME_PAYLOAD_MODEL_VERSION:
         return None
     if payload.get("payload_kind") != "glycam_backbone":
         return None
@@ -813,7 +828,8 @@ def store_cached_glycam_params(
     _write_cache_file(
         _cache_payload_path(entry_dir),
         {
-            "schema_version": PAYLOAD_CACHE_SCHEMA_VERSION,
+            "schema_version": RUNTIME_PAYLOAD_CACHE_SCHEMA_VERSION,
+            "model_version": RUNTIME_PAYLOAD_MODEL_VERSION,
             "payload_kind": "glycam_backbone",
             "identity": identity,
             "payload": _glycam_params_to_jsonable(params),

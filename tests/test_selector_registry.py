@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from poly_csp.topology.selector_assets import (
@@ -7,6 +12,9 @@ from poly_csp.topology.selector_assets import (
     load_selector_asset_spec,
 )
 from poly_csp.topology.selectors import SelectorRegistry, selector_from_smiles
+
+
+_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_selector_registry_register_and_get() -> None:
@@ -72,6 +80,29 @@ def test_selector_registry_rejects_removed_legacy_alias() -> None:
     assert "dmpc_35" not in SelectorRegistry.available()
     with pytest.raises(KeyError, match="Unknown selector"):
         SelectorRegistry.get("dmpc_35")
+
+
+def test_selector_asset_loading_is_silent() -> None:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(_ROOT / "src")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from poly_csp.topology.selector_assets import "
+                "available_selector_asset_names, load_selector_asset_template; "
+                "[load_selector_asset_template(name) for name in available_selector_asset_names()]"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=_ROOT,
+        env=env,
+    )
+
+    assert "UFFTYPER" not in result.stderr
 
 
 def test_selector_from_smiles_detects_implicit_h_donors() -> None:
