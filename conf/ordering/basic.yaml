@@ -1,5 +1,5 @@
 enabled: true
-max_candidates: 16
+max_candidates: 32
 positional_k: 5000.0
 freeze_backbone: true
 max_site_sweeps: 5

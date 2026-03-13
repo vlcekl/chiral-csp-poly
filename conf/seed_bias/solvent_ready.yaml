@@ -9,7 +9,7 @@ hbond_restraint_atom_mode: hydrogen_if_present
 skip_full_stage: true
 soft_selector_hbond_bias:
   enabled: true
-  epsilon_kj_per_mol: 6.0
+  epsilon_kj_per_mol: 20.0
   r0_nm: 0.20
-  half_width_nm: 0.19
+  half_width_nm: 0.199
   hbond_neighbor_window: 1

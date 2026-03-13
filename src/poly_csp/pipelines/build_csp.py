@@ -1123,7 +1123,7 @@ def main(cfg: DictConfig) -> None:
     primary_runtime_params = runtime_params
     primary_built_system = built_system if not relax_enabled else None
     primary_output_end_mode = str(backbone.end_mode)
-    handoff_primary_output = bool(is_periodic and periodic_handoff_enabled and requires_runtime_export)
+    handoff_primary_output = bool(is_periodic and periodic_handoff_enabled)
 
     if is_periodic and periodic_handoff_enabled:
         handoff_prepared = _prepare_periodic_handoff(
@@ -1428,7 +1428,7 @@ def main(cfg: DictConfig) -> None:
             rank_primary_runtime_params = runtime_params
             rank_primary_output_end_mode = str(backbone.end_mode)
             rank_handoff_primary_output = bool(
-                is_periodic and periodic_handoff_enabled and requires_runtime_export
+                is_periodic and periodic_handoff_enabled
             )
             if is_periodic and periodic_handoff_enabled:
                 rank_handoff_prepared = _prepare_periodic_handoff(
