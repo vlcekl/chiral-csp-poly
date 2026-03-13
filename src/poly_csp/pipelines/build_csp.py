@@ -43,6 +43,8 @@ from poly_csp.config.schema import (
     PhasePresetSpec,
     PolymerKind,
     RuntimeForcefieldOptions,
+    SeedBiasOptions,
+    SoftSelectorHbondBiasOptions,
     SelectorPoseSpec,
     SelectorRuntimeSpec,
     Site,
@@ -218,6 +220,32 @@ class BuildReport:
     phase_silica_tether_description: Optional[str] = None
 
 
+_SEED_BIAS_FIELDS = (
+    "soft_repulsion_k_kj_per_mol_nm2",
+    "soft_repulsion_cutoff_nm",
+    "anti_stacking_sigma_scale",
+    "soft_exclude_14",
+    "ideal_hbond_target_nm",
+    "hbond_neighbor_window",
+    "hbond_pairing_mode",
+    "hbond_restraint_atom_mode",
+    "skip_full_stage",
+    "soft_selector_hbond_bias",
+)
+
+
+def _coerce_soft_selector_hbond_bias(payload: dict[str, object]) -> dict[str, object]:
+    resolved = dict(payload)
+    value = resolved.get("soft_selector_hbond_bias")
+    if isinstance(value, SoftSelectorHbondBiasOptions):
+        return resolved
+    if isinstance(value, dict):
+        resolved["soft_selector_hbond_bias"] = SoftSelectorHbondBiasOptions(**value)
+        return resolved
+    resolved["soft_selector_hbond_bias"] = SoftSelectorHbondBiasOptions()
+    return resolved
+
+
 def _cfg_to_helixspec(cfg: DictConfig) -> HelixSpec:
     helix_cfg = cfg.structure.helix
     payload = OmegaConf.to_container(helix_cfg, resolve=True)
@@ -227,11 +255,15 @@ def _cfg_to_helixspec(cfg: DictConfig) -> HelixSpec:
 
 
 def _cfg_to_ordering_spec(cfg: DictConfig) -> OrderingSpec:
+    seed_bias = _cfg_to_seed_bias_options(cfg)
     if "ordering" not in cfg or cfg.ordering is None:
-        return OrderingSpec()
-    payload = OmegaConf.to_container(cfg.ordering, resolve=True)
-    if not isinstance(payload, dict):
-        return OrderingSpec()
+        payload: dict[str, object] = {}
+    else:
+        payload = OmegaConf.to_container(cfg.ordering, resolve=True)
+        if not isinstance(payload, dict):
+            payload = {}
+    payload = _seed_bias_defaults(payload, seed_bias)
+    payload = _coerce_soft_selector_hbond_bias(payload)
     return OrderingSpec(**payload)
 
 
@@ -268,18 +300,49 @@ def _cfg_to_multi_opt_spec(cfg: DictConfig) -> MultiOptSpec:
 
 
 def _cfg_to_forcefield_options(cfg: DictConfig) -> RuntimeForcefieldOptions:
+    seed_bias = _cfg_to_seed_bias_options(cfg)
     if (
         "forcefield" not in cfg
         or cfg.forcefield is None
         or "options" not in cfg.forcefield
         or cfg.forcefield.options is None
     ):
-        return RuntimeForcefieldOptions(enabled=False)
-
-    payload = OmegaConf.to_container(cfg.forcefield.options, resolve=True)
-    if not isinstance(payload, dict):
-        return RuntimeForcefieldOptions(enabled=False)
+        payload: dict[str, object] = {"enabled": False}
+    else:
+        payload = OmegaConf.to_container(cfg.forcefield.options, resolve=True)
+        if not isinstance(payload, dict):
+            payload = {"enabled": False}
+    payload = _seed_bias_defaults(payload, seed_bias)
     return RuntimeForcefieldOptions(**payload)
+
+
+def _cfg_to_seed_bias_options(cfg: DictConfig) -> SeedBiasOptions:
+    if "seed_bias" not in cfg or cfg.seed_bias is None:
+        return SeedBiasOptions()
+    payload = OmegaConf.to_container(cfg.seed_bias, resolve=True)
+    if not isinstance(payload, dict):
+        return SeedBiasOptions()
+    return SeedBiasOptions(**payload)
+
+
+def _seed_bias_defaults(
+    payload: dict[str, object],
+    seed_bias: SeedBiasOptions,
+) -> dict[str, object]:
+    resolved = dict(payload)
+    for field_name in _SEED_BIAS_FIELDS:
+        default_value = getattr(seed_bias, field_name)
+        if field_name == "soft_selector_hbond_bias":
+            merged = default_value.model_dump()
+            current = resolved.get(field_name)
+            if isinstance(current, SoftSelectorHbondBiasOptions):
+                merged.update(current.model_dump())
+            elif isinstance(current, dict):
+                merged.update(current)
+            resolved[field_name] = merged
+            continue
+        resolved.setdefault(field_name, default_value)
+    return resolved
 
 
 def _cfg_to_relax_spec(options: RuntimeForcefieldOptions):
@@ -307,6 +370,7 @@ def _cfg_to_relax_spec(options: RuntimeForcefieldOptions):
         hbond_pairing_mode=options.hbond_pairing_mode,
         hbond_restraint_atom_mode=options.hbond_restraint_atom_mode,
         skip_full_stage=bool(options.skip_full_stage),
+        soft_selector_hbond_bias=options.soft_selector_hbond_bias,
         t_start_K=float(options.anneal.t_start_K),
         t_end_K=float(options.anneal.t_end_K),
         anneal_steps=int(options.anneal.n_steps),

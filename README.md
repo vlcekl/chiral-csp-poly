@@ -313,6 +313,9 @@ conf/
 │       ├── amylose_4_3_derivatized.yaml
 │       ├── cellulose_3_2_derivatized.yaml
 │       └── cellulose_natural_i_2_1.yaml
+├── seed_bias/
+│   ├── default.yaml
+│   └── solvent_ready.yaml
 ├── forcefield/
 │   ├── options/
 │   │   ├── runtime.yaml
@@ -498,13 +501,31 @@ For solvent insertion workflows, there are also opt-in seed-oriented presets:
 * `ordering=solvent_ready`
 * `forcefield/options=runtime_seed`
 * `forcefield/options=runtime_seed_relax`
+* `seed_bias=solvent_ready`
 
-These presets keep the production/export forcefield path unchanged, but generate a more open selector seed by combining selector-aromatic soft-stage inflation, optional soft-mode 1-4 exclusion, chemically targeted H-bond biasing, and `skip_full_stage=true` so the seed is not immediately re-collapsed by the vacuum full stage. The runtime seed presets also keep annealing disabled because soft-only finalization and stage-2 annealing are intentionally incompatible.
+These presets keep the production/export forcefield path unchanged, but generate a more open selector seed by combining selector-aromatic soft-stage inflation, optional soft-mode 1-4 exclusion, a bounded soft-stage selector carbamate H...O attraction, and `skip_full_stage=true` so the seed is not immediately re-collapsed by the vacuum full stage. The runtime seed presets also keep annealing disabled because soft-only finalization and stage-2 annealing are intentionally incompatible.
+
+The shared seed-bias fields now live in the top-level `seed_bias` config group. `ordering.*` and `forcefield.options.*` still expose those keys so stage-local CLI overrides continue to work, but their preset defaults are now sourced from `seed_bias` rather than duplicated independently across every YAML file. The specialized presets (`ordering=solvent_ready`, `runtime_seed`, `runtime_seed_relax`) are thin wrappers around the base `basic`, `runtime`, and `runtime_relax` presets rather than standalone copies.
+
+The soft-stage selector H-bond attraction is configured through the nested `soft_selector_hbond_bias` block:
+
+```yaml
+seed_bias:
+  soft_selector_hbond_bias:
+    enabled: true
+    epsilon_kj_per_mol: 3.0
+    r0_nm: 0.20
+    half_width_nm: 0.05
+    hbond_neighbor_window: 1
+```
+
+That bias is applied only in the soft stage and only to selector carbamate H...O pairs. It is bounded and finite-support, so it cannot diverge at short range and does not alter the exported full forcefield.
 
 Example solvent-ready seed build:
 
 ```bash
 python -m poly_csp.pipelines.build_csp \
+  seed_bias=solvent_ready \
   ordering=solvent_ready \
   forcefield/options=runtime_seed \
   output.export_formats=[pdb,sdf,amber]
@@ -700,7 +721,7 @@ Ordering requires the supported runtime slice:
 * `open` or `periodic` end mode,
 * `forcefield/options=runtime`, `runtime_relax`, `runtime_seed`, or `runtime_seed_relax`.
 
-If the goal is a solvent-ready seed rather than a vacuum-refined selector bundle, use `ordering=solvent_ready`. That preset switches ordering to the soft-stage finalization path (`negative_stage1_energy_kj_mol`) and enables the seed-bias controls needed to reduce selector stacking before explicit-solvent equilibration.
+If the goal is a solvent-ready seed rather than a vacuum-refined selector bundle, use `ordering=solvent_ready`. That preset switches ordering to the soft-stage finalization path (`negative_stage1_energy_kj_mol`) and, together with `seed_bias=solvent_ready`, enables the shared seed-bias controls needed to reduce selector stacking before explicit-solvent equilibration. The solvent-ready ordering preset now keeps legacy explicit H-bond restraints off (`ordering.hbond_k=0.0`) and instead relies on the shared bounded soft-stage `soft_selector_hbond_bias` potential so ordering can continue to reuse a shared prepared runtime bundle.
 
 For the bundled CSP carbamate selector catalog:
 
@@ -834,11 +855,12 @@ The current forcefield presets are:
    - Enables the solvent-ready seed controls for any downstream runtime relaxation consumer, including periodic handoff cleanup.
    - Keeps `relax_enabled=false`, so no post-order relaxation is run unless you explicitly choose a relaxation preset.
    - Does not replace the exported physical forcefield; it only changes how an opt-in seed geometry is generated.
+   - The solvent-ready H-bond bias is controlled through `forcefield.options.soft_selector_hbond_bias.*`.
 
 5. `forcefield/options=runtime_seed_relax`
    - Uses the same canonical runtime parameter sources as `runtime_relax`.
    - Runs the solvent-ready soft-stage finalization path with `skip_full_stage=true`.
-   - Enables selector anti-stacking and H-bond seed biasing, with annealing intentionally disabled.
+   - Enables selector anti-stacking and bounded soft-stage H-bond seed biasing, with annealing intentionally disabled.
    - Reports the final stage explicitly through `relax_summary.full_stage_skipped` and `relax_summary.final_stage_nonbonded_mode`.
 
 AMBER export remains available, but it is now a downstream product of the canonical runtime system rather than the runtime source of backbone parameters. The docking handoff uses that same final runtime model to emit rigid-receptor `pdbqt` plus `vina_box.txt`.

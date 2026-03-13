@@ -1,31 +1,13 @@
-enabled: true
-relax_enabled: true
-cache_enabled: true
-cache_dir: .cache/poly_csp/runtime_params
-soft_repulsion_k_kj_per_mol_nm2: 800.0
-soft_repulsion_cutoff_nm: 0.6
-anti_stacking_sigma_scale: 1.35
-soft_exclude_14: true
-ideal_hbond_target_nm: 0.19
-hbond_neighbor_window: 1
-hbond_pairing_mode: nearest_unique
-hbond_restraint_atom_mode: hydrogen_if_present
-skip_full_stage: true
+# @package _global_
+defaults:
+  - /forcefield/options/runtime_relax@forcefield.options
+  - override /seed_bias: solvent_ready
+  - _self_
 
-# Seed-generation restraint controls.
-positional_k: 5000.0
-dihedral_k: 500.0
-hbond_k: 50.0
-freeze_backbone: true
-soft_n_stages: 3
-soft_max_iterations: 200
-full_max_iterations: 200
-final_restraint_factor: 0.15
+forcefield:
+  options:
+    hbond_k: 0.0
 
-# Annealing must remain disabled when skip_full_stage is true.
-anneal:
-  enabled: false
-  t_start_K: 50
-  t_end_K: 350
-  n_steps: 50000
-  cool_down: true
+    # Seed-mode soft finalization is intentionally incompatible with annealing.
+    anneal:
+      enabled: false

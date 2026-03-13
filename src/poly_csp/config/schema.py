@@ -298,6 +298,38 @@ class AnnealOptions(BaseModel):
     cool_down: bool = True
 
 
+class SoftSelectorHbondBiasOptions(BaseModel):
+    enabled: bool = False
+    epsilon_kj_per_mol: confloat(gt=0) = 3.0
+    r0_nm: confloat(gt=0) = 0.20
+    half_width_nm: confloat(gt=0) = 0.05
+    hbond_neighbor_window: int = 1
+
+    @model_validator(mode="after")
+    def _validate_window(self) -> "SoftSelectorHbondBiasOptions":
+        if float(self.half_width_nm) >= float(self.r0_nm):
+            raise ValueError(
+                "soft_selector_hbond_bias.half_width_nm must be smaller than "
+                "soft_selector_hbond_bias.r0_nm so the attractive window does not extend to r=0."
+            )
+        return self
+
+
+class SeedBiasOptions(BaseModel):
+    soft_repulsion_k_kj_per_mol_nm2: float = 800.0
+    soft_repulsion_cutoff_nm: confloat(gt=0) = 0.6
+    anti_stacking_sigma_scale: confloat(gt=0) = 1.0
+    soft_exclude_14: bool = False
+    ideal_hbond_target_nm: Optional[confloat(gt=0)] = None
+    hbond_neighbor_window: int = 1
+    hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
+    hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
+    skip_full_stage: bool = False
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions = Field(
+        default_factory=SoftSelectorHbondBiasOptions
+    )
+
+
 class RuntimeForcefieldOptions(BaseModel):
     enabled: bool = False
     relax_enabled: bool = False
@@ -320,6 +352,9 @@ class RuntimeForcefieldOptions(BaseModel):
     hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
     hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
     skip_full_stage: bool = False
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions = Field(
+        default_factory=SoftSelectorHbondBiasOptions
+    )
     anneal: AnnealOptions = Field(default_factory=AnnealOptions)
 
 

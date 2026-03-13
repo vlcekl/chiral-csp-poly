@@ -7,7 +7,7 @@ import numpy as np
 import openmm as mm
 from openmm import unit
 
-from poly_csp.config.schema import HelixSpec
+from poly_csp.config.schema import HelixSpec, SoftSelectorHbondBiasOptions
 from poly_csp.forcefield.minimization import (
     ExplicitPositionalRestraintGroup,
     HELIX_CORE_BACKBONE_ATOM_NAMES,
@@ -193,6 +193,13 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
         hbond_neighbor_window=2,
         hbond_pairing_mode="nearest_unique",
         hbond_restraint_atom_mode="donor_heavy",
+        soft_selector_hbond_bias=SoftSelectorHbondBiasOptions(
+            enabled=True,
+            epsilon_kj_per_mol=3.0,
+            r0_nm=0.20,
+            half_width_nm=0.05,
+            hbond_neighbor_window=1,
+        ),
         anneal_enabled=False,
     )
     relaxed, summary = run_staged_relaxation(
@@ -211,6 +218,7 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
     assert calls["prepare"]["kwargs"]["hbond_neighbor_window"] == 2
     assert calls["prepare"]["kwargs"]["hbond_pairing_mode"] == "nearest_unique"
     assert calls["prepare"]["kwargs"]["hbond_restraint_atom_mode"] == "donor_heavy"
+    assert calls["prepare"]["kwargs"]["soft_selector_hbond_bias"].enabled is True
     assert calls["run"]["prepared"] is bundle
     assert calls["run"]["initial_positions_nm"] is None
     assert relaxed.GetNumAtoms() == mol.GetNumAtoms()

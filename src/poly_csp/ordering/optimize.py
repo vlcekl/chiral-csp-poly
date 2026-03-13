@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional
 
@@ -11,6 +11,7 @@ from poly_csp.config.schema import (
     HbondPairingMode,
     HbondRestraintAtomMode,
     Site,
+    SoftSelectorHbondBiasOptions,
 )
 from poly_csp.forcefield.minimization import (
     PreparedRuntimeOptimizationBundle,
@@ -50,6 +51,8 @@ class OrderingSpec:
     soft_max_iterations: int = 60
     full_max_iterations: int = 120
     final_restraint_factor: float = 0.15
+    soft_repulsion_k_kj_per_mol_nm2: float = 800.0
+    soft_repulsion_cutoff_nm: float = 0.6
     hbond_k: float = 0.0
     anti_stacking_sigma_scale: float = 1.0
     soft_exclude_14: bool = False
@@ -57,6 +60,9 @@ class OrderingSpec:
     hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
     hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
     skip_full_stage: bool = False
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions = field(
+        default_factory=SoftSelectorHbondBiasOptions
+    )
     max_site_sweeps: int = 5
     randomize_initial_assignment: bool = True
     randomize_site_order: bool = True
@@ -78,6 +84,7 @@ class RuntimeOrderingEvaluation:
     full_stage_skipped: bool
     soft_nonbonded_mode: str
     full_nonbonded_mode: str
+    soft_exception_summary: dict[str, object]
     hbond_metrics: HbondMetrics
     min_heavy_distance_A: float
     class_min_distance_A: dict[str, float]
@@ -193,8 +200,11 @@ def _prepare_runtime_ordering_systems(
             final_restraint_factor=float(spec.final_restraint_factor),
             skip_full_stage=bool(spec.skip_full_stage),
         ),
+        soft_repulsion_k_kj_per_mol_nm2=float(spec.soft_repulsion_k_kj_per_mol_nm2),
+        soft_repulsion_cutoff_nm=float(spec.soft_repulsion_cutoff_nm),
         soft_exclude_14=bool(spec.soft_exclude_14),
         anti_stacking_sigma_scale=float(spec.anti_stacking_sigma_scale),
+        soft_selector_hbond_bias=spec.soft_selector_hbond_bias,
         hbond_max_distance_A=float(spec.hbond_max_distance_A),
         hbond_neighbor_window=int(spec.hbond_neighbor_window),
         hbond_pairing_mode=spec.hbond_pairing_mode,
@@ -243,6 +253,7 @@ def _evaluate_runtime_candidate(
         full_stage_skipped=bool(minimization.full_stage_skipped),
         soft_nonbonded_mode=str(resolved_prepared.soft.nonbonded_mode),
         full_nonbonded_mode=str(resolved_prepared.full.nonbonded_mode),
+        soft_exception_summary=dict(resolved_prepared.soft.exception_summary),
         hbond_metrics=hb,
         min_heavy_distance_A=dmin,
         class_min_distance_A={key: float(value) for key, value in class_min.items()},
@@ -491,6 +502,7 @@ def optimize_selector_ordering(
         "enabled": True,
         "objective": _ordering_objective_label(spec),
         "stage1_nonbonded_mode": final.soft_nonbonded_mode,
+        "soft_exception_summary": dict(final.soft_exception_summary),
         "stage2_nonbonded_mode": (
             None if final.full_stage_skipped else final.full_nonbonded_mode
         ),

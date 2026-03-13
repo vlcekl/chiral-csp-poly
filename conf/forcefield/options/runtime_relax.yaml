@@ -2,15 +2,21 @@ enabled: true
 relax_enabled: true
 cache_enabled: true
 cache_dir: .cache/poly_csp/runtime_params
-soft_repulsion_k_kj_per_mol_nm2: 800.0
-soft_repulsion_cutoff_nm: 0.6
-anti_stacking_sigma_scale: 1.0
-soft_exclude_14: false
-ideal_hbond_target_nm: null
-hbond_neighbor_window: 1
-hbond_pairing_mode: legacy_all_pairs
-hbond_restraint_atom_mode: hydrogen_if_present
-skip_full_stage: false
+soft_repulsion_k_kj_per_mol_nm2: ${seed_bias.soft_repulsion_k_kj_per_mol_nm2}
+soft_repulsion_cutoff_nm: ${seed_bias.soft_repulsion_cutoff_nm}
+anti_stacking_sigma_scale: ${seed_bias.anti_stacking_sigma_scale}
+soft_exclude_14: ${seed_bias.soft_exclude_14}
+ideal_hbond_target_nm: ${seed_bias.ideal_hbond_target_nm}
+hbond_neighbor_window: ${seed_bias.hbond_neighbor_window}
+hbond_pairing_mode: ${seed_bias.hbond_pairing_mode}
+hbond_restraint_atom_mode: ${seed_bias.hbond_restraint_atom_mode}
+skip_full_stage: ${seed_bias.skip_full_stage}
+soft_selector_hbond_bias:
+  enabled: ${seed_bias.soft_selector_hbond_bias.enabled}
+  epsilon_kj_per_mol: ${seed_bias.soft_selector_hbond_bias.epsilon_kj_per_mol}
+  r0_nm: ${seed_bias.soft_selector_hbond_bias.r0_nm}
+  half_width_nm: ${seed_bias.soft_selector_hbond_bias.half_width_nm}
+  hbond_neighbor_window: ${seed_bias.soft_selector_hbond_bias.hbond_neighbor_window}
 
 # Restrained relaxation controls
 positional_k: 5000.0

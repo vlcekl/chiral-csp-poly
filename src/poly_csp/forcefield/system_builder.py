@@ -10,6 +10,7 @@ from rdkit import Chem
 import openmm as mm
 from openmm import unit
 
+from poly_csp.config.schema import SoftSelectorHbondBiasOptions
 from poly_csp.forcefield.connectors import (
     ConnectorParams,
     ConnectorToken,
@@ -19,6 +20,7 @@ from poly_csp.forcefield.exceptions import apply_mixing_rules
 from poly_csp.forcefield.gaff import SelectorFragmentParams
 from poly_csp.forcefield.glycam import GlycamParams
 from poly_csp.forcefield.glycam_mapping import GlycamMappingResult, map_backbone_to_glycam
+from poly_csp.forcefield.soft_hbond_bias import add_soft_selector_hbond_bias_force
 from poly_csp.forcefield.selector_mapping import map_selector_instances
 from poly_csp.structure.pbc import get_box_vectors_A, get_box_vectors_nm
 
@@ -851,6 +853,7 @@ def _add_nonbonded_force(
     repulsion_cutoff_nm: float,
     soft_exclude_14: bool,
     anti_stacking_sigma_scale: float,
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions,
 ) -> tuple[set[tuple[int, int]], dict[str, object]]:
     bonds = [
         (int(bond.GetBeginAtomIdx()), int(bond.GetEndAtomIdx()))
@@ -936,6 +939,13 @@ def _add_nonbonded_force(
     for i, j in sorted(excluded):
         repulsive.addExclusion(int(i), int(j))
     system.addForce(repulsive)
+    soft_selector_hbond_summary = add_soft_selector_hbond_bias_force(
+        system,
+        mol,
+        options=soft_selector_hbond_bias,
+        periodic=periodic,
+        excluded_pairs=excluded,
+    )
     return excluded, {
         "mode": "soft",
         "force_kind": "CustomNonbondedForce",
@@ -948,6 +958,7 @@ def _add_nonbonded_force(
         "soft_exclude_14": bool(soft_exclude_14),
         "anti_stacking_sigma_scale": float(anti_stacking_sigma_scale),
         "scaled_aromatic_selector_atoms": int(scaled_aromatic_selector_atoms),
+        "soft_selector_hbond_bias": soft_selector_hbond_summary,
     }
 
 
@@ -1023,6 +1034,7 @@ def create_system(
     repulsion_cutoff_nm: float = 0.6,
     soft_exclude_14: bool = False,
     anti_stacking_sigma_scale: float = 1.0,
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions | None = None,
 ) -> SystemBuildResult:
     """Construct the canonical runtime system from real parameter sources."""
     if not mol.HasProp("_poly_csp_manifest_schema_version"):
@@ -1063,6 +1075,11 @@ def create_system(
         repulsion_cutoff_nm=float(repulsion_cutoff_nm),
         soft_exclude_14=bool(soft_exclude_14),
         anti_stacking_sigma_scale=float(anti_stacking_sigma_scale),
+        soft_selector_hbond_bias=(
+            SoftSelectorHbondBiasOptions()
+            if soft_selector_hbond_bias is None
+            else soft_selector_hbond_bias
+        ),
     )
     force_inventory = _collect_force_inventory(system)
 

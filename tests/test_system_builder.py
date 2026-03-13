@@ -6,7 +6,7 @@ import openmm as mm
 from openmm import unit
 from rdkit import Chem
 
-from poly_csp.config.schema import HelixSpec
+from poly_csp.config.schema import HelixSpec, SoftSelectorHbondBiasOptions
 from poly_csp.forcefield.connectors import (
     ConnectorAngleTemplate,
     ConnectorAtomParams,
@@ -716,6 +716,49 @@ def test_create_system_soft_mode_scales_selector_aromatic_sigmas_only() -> None:
         == scaled_selector_aromatics
     )
     assert abs(scaled.exception_summary["anti_stacking_sigma_scale"] - 1.5) < 1e-12
+
+
+def test_create_system_soft_mode_adds_selector_hbond_bias_only_to_soft_stage() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = _build_forcefield_mol(polymer="amylose", dp=2, selector=selector, site="C6")
+    glycam = _fake_glycam_params(mol)
+    selector_params = _fake_selector_params(mol, selector.name)
+    connector_params = _fake_connector_params(
+        mol,
+        selector_name=selector.name,
+        linkage_type=selector.linkage_type,
+        site="C6",
+    )
+    options = SoftSelectorHbondBiasOptions(
+        enabled=True,
+        epsilon_kj_per_mol=3.0,
+        r0_nm=0.20,
+        half_width_nm=0.05,
+        hbond_neighbor_window=1,
+    )
+
+    soft = create_system(
+        mol,
+        glycam_params=glycam,
+        selector_params_by_name={selector.name: selector_params},
+        connector_params_by_key={(selector.name, "C6"): connector_params},
+        nonbonded_mode="soft",
+        soft_selector_hbond_bias=options,
+    )
+    full = create_system(
+        mol,
+        glycam_params=glycam,
+        selector_params_by_name={selector.name: selector_params},
+        connector_params_by_key={(selector.name, "C6"): connector_params},
+        nonbonded_mode="full",
+        soft_selector_hbond_bias=options,
+    )
+
+    assert soft.force_inventory.counts.get("CustomBondForce", 0) == 1
+    assert full.force_inventory.counts.get("CustomBondForce", 0) == 0
+    assert soft.exception_summary["soft_selector_hbond_bias"]["enabled"] is True
+    assert soft.exception_summary["soft_selector_hbond_bias"]["pair_count"] > 0
+    assert full.exception_summary.get("soft_selector_hbond_bias") is None
 
 
 def test_create_system_rejects_missing_selector_payloads_early() -> None:

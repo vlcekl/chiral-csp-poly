@@ -171,6 +171,10 @@ def test_pipeline_ordering_solvent_ready_group_override_runs(tmp_path: Path) -> 
     assert report["ordering_summary"]["full_stage_skipped"] is True
     assert report["ordering_summary"]["final_stage_nonbonded_mode"] == "soft"
     assert report["ordering_summary"]["stage2_nonbonded_mode"] is None
+    assert (
+        report["ordering_summary"]["soft_exception_summary"]["soft_selector_hbond_bias"]["enabled"]
+        is True
+    )
     assert report["ordering_summary"]["final_selector_aromatic_stacking_A"]
     assert report["forcefield_mode"] == "runtime"
     assert report["relax_enabled"] is False
@@ -202,6 +206,7 @@ def test_pipeline_forcefield_runtime_seed_relax_group_override_runs(
     assert report["relax_summary"]["stage1_nonbonded_mode"] == "soft"
     assert report["relax_summary"]["stage2_nonbonded_mode"] is None
     assert report["relax_summary"]["final_stage_nonbonded_mode"] == "soft"
+    assert report["relax_summary"]["soft_exception_summary"]["soft_selector_hbond_bias"]["enabled"] is True
 
 
 def test_ranked_periodic_cell_subreport_uses_main_backbone_pose_cache_metadata() -> None:

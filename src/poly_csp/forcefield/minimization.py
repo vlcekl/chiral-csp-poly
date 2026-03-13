@@ -10,7 +10,11 @@ from rdkit.Geometry import Point3D
 import openmm as mm
 from openmm import unit
 
-from poly_csp.config.schema import HbondPairingMode, HbondRestraintAtomMode
+from poly_csp.config.schema import (
+    HbondPairingMode,
+    HbondRestraintAtomMode,
+    SoftSelectorHbondBiasOptions,
+)
 from poly_csp.ordering.hbonds import build_hbond_restraint_pairs
 from poly_csp.forcefield.restraints import (
     add_explicit_positional_restraints,
@@ -271,6 +275,7 @@ def prepare_runtime_optimization_bundle(
     soft_repulsion_cutoff_nm: float = 0.6,
     soft_exclude_14: bool = False,
     anti_stacking_sigma_scale: float = 1.0,
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions | None = None,
     hbond_max_distance_A: float = 3.3,
     hbond_neighbor_window: int = 1,
     hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs",
@@ -290,6 +295,11 @@ def prepare_runtime_optimization_bundle(
         repulsion_cutoff_nm=float(soft_repulsion_cutoff_nm),
         soft_exclude_14=bool(soft_exclude_14),
         anti_stacking_sigma_scale=float(anti_stacking_sigma_scale),
+        soft_selector_hbond_bias=(
+            SoftSelectorHbondBiasOptions()
+            if soft_selector_hbond_bias is None
+            else soft_selector_hbond_bias
+        ),
         mixing_rules_cfg=mixing_rules_cfg,
     )
     prepare_system_for_minimization(

@@ -1,6 +1,6 @@
 enabled: true
 n_starts: 10
-top_k: 5
+top_k: 8
 seed: null
 strategy: multi_start
 n_workers: 0

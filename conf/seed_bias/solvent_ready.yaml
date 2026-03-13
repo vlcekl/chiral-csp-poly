@@ -1,0 +1,15 @@
+soft_repulsion_k_kj_per_mol_nm2: 900.0
+soft_repulsion_cutoff_nm: 0.65
+anti_stacking_sigma_scale: 1.4
+soft_exclude_14: true
+ideal_hbond_target_nm: 0.19
+hbond_neighbor_window: 1
+hbond_pairing_mode: nearest_unique
+hbond_restraint_atom_mode: hydrogen_if_present
+skip_full_stage: true
+soft_selector_hbond_bias:
+  enabled: true
+  epsilon_kj_per_mol: 6.0
+  r0_nm: 0.20
+  half_width_nm: 0.19
+  hbond_neighbor_window: 1

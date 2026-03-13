@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
@@ -10,7 +10,11 @@ from rdkit import Chem
 import openmm as mm
 from openmm import unit
 
-from poly_csp.config.schema import HbondPairingMode, HbondRestraintAtomMode
+from poly_csp.config.schema import (
+    HbondPairingMode,
+    HbondRestraintAtomMode,
+    SoftSelectorHbondBiasOptions,
+)
 from poly_csp.forcefield.anneal import run_heat_cool_cycle, run_temperature_ramp
 from poly_csp.forcefield.minimization import (
     ExplicitPositionalRestraintGroup,
@@ -51,6 +55,9 @@ class RelaxSpec:
     hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
     hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
     skip_full_stage: bool = False
+    soft_selector_hbond_bias: SoftSelectorHbondBiasOptions = field(
+        default_factory=SoftSelectorHbondBiasOptions
+    )
     anneal_enabled: bool = False
     t_start_K: float = 50.0
     t_end_K: float = 350.0
@@ -134,6 +141,7 @@ def _prepare_relaxation_bundle(
         soft_repulsion_cutoff_nm=float(soft_repulsion_cutoff_nm),
         soft_exclude_14=bool(spec.soft_exclude_14),
         anti_stacking_sigma_scale=float(spec.anti_stacking_sigma_scale),
+        soft_selector_hbond_bias=spec.soft_selector_hbond_bias,
         hbond_neighbor_window=int(spec.hbond_neighbor_window),
         hbond_pairing_mode=spec.hbond_pairing_mode,
         hbond_restraint_atom_mode=spec.hbond_restraint_atom_mode,
