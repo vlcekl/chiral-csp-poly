@@ -4,3 +4,10 @@ cache_enabled: true
 cache_dir: .cache/poly_csp/runtime_params
 soft_repulsion_k_kj_per_mol_nm2: 800.0
 soft_repulsion_cutoff_nm: 0.6
+anti_stacking_sigma_scale: 1.0
+soft_exclude_14: false
+ideal_hbond_target_nm: null
+hbond_neighbor_window: 1
+hbond_pairing_mode: legacy_all_pairs
+hbond_restraint_atom_mode: hydrogen_if_present
+skip_full_stage: false

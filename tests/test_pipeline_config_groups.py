@@ -149,6 +149,61 @@ def test_pipeline_phase_group_periodic_override_runs(tmp_path: Path) -> None:
     assert report["forcefield_summary"]["exception_summary"]["periodic"] is True
 
 
+def test_pipeline_ordering_solvent_ready_group_override_runs(tmp_path: Path) -> None:
+    outdir = tmp_path / "ordering_solvent_ready_out"
+    _run_build(
+        "topology.backbone.dp=2 "
+        "topology.selector.enabled=true "
+        "topology.selector.sites=[C6] "
+        "ordering=solvent_ready "
+        "ordering.max_candidates=4 "
+        "ordering.soft_n_stages=1 "
+        "ordering.soft_max_iterations=5 "
+        "ordering.full_max_iterations=5 "
+        "forcefield/options=runtime_seed "
+        "output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["ordering_enabled"] is True
+    assert report["ordering_summary"]["objective"] == "negative_stage1_energy_kj_mol"
+    assert report["ordering_summary"]["full_stage_skipped"] is True
+    assert report["ordering_summary"]["final_stage_nonbonded_mode"] == "soft"
+    assert report["ordering_summary"]["stage2_nonbonded_mode"] is None
+    assert report["ordering_summary"]["final_selector_aromatic_stacking_A"]
+    assert report["forcefield_mode"] == "runtime"
+    assert report["relax_enabled"] is False
+
+
+def test_pipeline_forcefield_runtime_seed_relax_group_override_runs(
+    tmp_path: Path,
+) -> None:
+    outdir = tmp_path / "runtime_seed_relax_out"
+    _run_build(
+        "topology.backbone.dp=1 "
+        "topology.selector.enabled=true "
+        "topology.selector.sites=[C6] "
+        "ordering.enabled=false "
+        "forcefield/options=runtime_seed_relax "
+        "forcefield.options.soft_n_stages=1 "
+        "forcefield.options.soft_max_iterations=5 "
+        "forcefield.options.full_max_iterations=5 "
+        "output.export_formats=[pdb,sdf] "
+        f"output.dir={outdir}"
+    )
+
+    report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
+    assert report["forcefield_mode"] == "runtime"
+    assert report["relax_enabled"] is True
+    assert report["relax_summary"]["protocol"] == "two_stage_runtime"
+    assert report["relax_summary"]["protocol_summary"]["skip_full_stage"] is True
+    assert report["relax_summary"]["full_stage_skipped"] is True
+    assert report["relax_summary"]["stage1_nonbonded_mode"] == "soft"
+    assert report["relax_summary"]["stage2_nonbonded_mode"] is None
+    assert report["relax_summary"]["final_stage_nonbonded_mode"] == "soft"
+
+
 def test_ranked_periodic_cell_subreport_uses_main_backbone_pose_cache_metadata() -> None:
     report = {
         "backbone_pose_cache": {

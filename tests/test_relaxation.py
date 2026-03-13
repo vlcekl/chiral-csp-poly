@@ -187,6 +187,12 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
         full_max_iterations=7,
         final_restraint_factor=0.2,
         freeze_backbone=False,
+        anti_stacking_sigma_scale=1.4,
+        soft_exclude_14=True,
+        ideal_hbond_target_nm=0.19,
+        hbond_neighbor_window=2,
+        hbond_pairing_mode="nearest_unique",
+        hbond_restraint_atom_mode="donor_heavy",
         anneal_enabled=False,
     )
     relaxed, summary = run_staged_relaxation(
@@ -199,6 +205,12 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
     assert calls["prepare"]["args"][0] is mol
     assert calls["prepare"]["kwargs"]["selector"] is selector
     assert calls["prepare"]["kwargs"]["runtime_params"] is runtime
+    assert calls["prepare"]["kwargs"]["soft_exclude_14"] is True
+    assert calls["prepare"]["kwargs"]["anti_stacking_sigma_scale"] == 1.4
+    assert calls["prepare"]["kwargs"]["ideal_hbond_target_nm"] == 0.19
+    assert calls["prepare"]["kwargs"]["hbond_neighbor_window"] == 2
+    assert calls["prepare"]["kwargs"]["hbond_pairing_mode"] == "nearest_unique"
+    assert calls["prepare"]["kwargs"]["hbond_restraint_atom_mode"] == "donor_heavy"
     assert calls["run"]["prepared"] is bundle
     assert calls["run"]["initial_positions_nm"] is None
     assert relaxed.GetNumAtoms() == mol.GetNumAtoms()
@@ -209,6 +221,8 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
     assert summary["restraint_summary"] == asdict(bundle.restraint_spec)
     assert summary["stage1_nonbonded_mode"] == "soft"
     assert summary["stage2_nonbonded_mode"] == "full"
+    assert summary["full_stage_skipped"] is False
+    assert summary["final_stage_nonbonded_mode"] == "full"
     assert summary["stage1_energies_kj_mol"] == [12.0]
     assert summary["stage2_energies_kj_mol"] == [8.5]
     assert summary["final_energy_kj_mol"] == 8.5
@@ -216,6 +230,109 @@ def test_run_staged_relaxation_uses_shared_runtime_bundle(monkeypatch) -> None:
     assert summary["source_manifest"] == {"fake": True}
     assert summary["soft_force_inventory"]["counts"]["CustomNonbondedForce"] == 1
     assert summary["full_force_inventory"]["counts"]["NonbondedForce"] == 1
+
+
+def test_run_staged_relaxation_skip_full_stage_updates_summary(monkeypatch) -> None:
+    mol, selector = _forcefield_selector_mol()
+    runtime = SimpleNamespace(
+        glycam=None,
+        selector_params_by_name={},
+        connector_params_by_key={},
+        source_manifest={"runtime": {"cache": {"kind": "test"}}},
+    )
+    soft = _fake_system_result(mol, nonbonded_mode="soft")
+    full = _fake_system_result(mol, nonbonded_mode="full")
+    bundle = PreparedRuntimeOptimizationBundle(
+        soft=soft,
+        full=full,
+        reference_positions_nm=soft.positions_nm,
+        restraint_spec=RuntimeRestraintSpec(
+            positional_k=10.0,
+            dihedral_k=0.0,
+            hbond_k=0.0,
+            freeze_backbone=False,
+        ),
+        protocol=TwoStageMinimizationProtocol(
+            soft_n_stages=1,
+            soft_max_iterations=5,
+            full_max_iterations=7,
+            final_restraint_factor=0.2,
+            skip_full_stage=True,
+        ),
+    )
+
+    monkeypatch.setattr(
+        "poly_csp.forcefield.relaxation.prepare_runtime_optimization_bundle",
+        lambda *args, **kwargs: bundle,
+    )
+    monkeypatch.setattr(
+        "poly_csp.forcefield.relaxation.run_prepared_runtime_optimization",
+        lambda prepared, *, initial_positions_nm=None: TwoStageMinimizationResult(
+            stage1_energies_kj_mol=(12.0,),
+            stage2_energies_kj_mol=(12.0,),
+            stage1_positions_nm=prepared.soft.positions_nm,
+            final_positions_nm=prepared.soft.positions_nm,
+            full_stage_skipped=True,
+        ),
+    )
+
+    spec = RelaxSpec(
+        enabled=True,
+        positional_k=10.0,
+        dihedral_k=0.0,
+        hbond_k=0.0,
+        soft_n_stages=1,
+        soft_max_iterations=5,
+        full_max_iterations=7,
+        final_restraint_factor=0.2,
+        freeze_backbone=False,
+        skip_full_stage=True,
+        anneal_enabled=False,
+    )
+    _, summary = run_staged_relaxation(
+        mol=mol,
+        spec=spec,
+        selector=selector,
+        runtime_params=runtime,
+    )
+
+    assert summary["stage1_nonbonded_mode"] == "soft"
+    assert summary["stage2_nonbonded_mode"] is None
+    assert summary["full_stage_skipped"] is True
+    assert summary["final_stage_nonbonded_mode"] == "soft"
+    assert summary["stage1_energies_kj_mol"] == [12.0]
+    assert summary["stage2_energies_kj_mol"] == [12.0]
+    assert summary["final_energy_kj_mol"] == 12.0
+
+
+def test_run_staged_relaxation_rejects_skip_full_stage_with_anneal() -> None:
+    mol, selector = _forcefield_selector_mol()
+
+    spec = RelaxSpec(
+        enabled=True,
+        positional_k=10.0,
+        dihedral_k=0.0,
+        hbond_k=0.0,
+        skip_full_stage=True,
+        anneal_enabled=True,
+    )
+
+    try:
+        run_staged_relaxation(
+            mol=mol,
+            spec=spec,
+            selector=selector,
+            runtime_params=SimpleNamespace(
+                glycam=None,
+                selector_params_by_name={},
+                connector_params_by_key={},
+                source_manifest={"runtime": {"cache": {"kind": "test"}}},
+            ),
+        )
+    except ValueError as exc:
+        assert "skip_full_stage=True" in str(exc)
+    else:
+        raise AssertionError("Expected skip_full_stage+anneal to fail.")
 
 
 def test_helix_core_backbone_heavy_indices_exclude_exocyclic_site_atoms() -> None:

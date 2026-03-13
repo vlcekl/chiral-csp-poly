@@ -11,6 +11,8 @@ Site = Literal["C2", "C3", "C6"]
 Handedness = Literal["left", "right"]
 MonomerRepresentation = Literal["anhydro", "natural_oh"]
 EndMode = Literal["open", "capped", "periodic"]
+HbondPairingMode = Literal["legacy_all_pairs", "nearest_unique"]
+HbondRestraintAtomMode = Literal["hydrogen_if_present", "donor_heavy"]
 
 
 class HelixSpec(BaseModel):
@@ -311,6 +313,13 @@ class RuntimeForcefieldOptions(BaseModel):
     final_restraint_factor: float = 0.15
     soft_repulsion_k_kj_per_mol_nm2: float = 800.0
     soft_repulsion_cutoff_nm: confloat(gt=0) = 0.6
+    anti_stacking_sigma_scale: confloat(gt=0) = 1.0
+    soft_exclude_14: bool = False
+    ideal_hbond_target_nm: Optional[confloat(gt=0)] = None
+    hbond_neighbor_window: int = 1
+    hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
+    hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
+    skip_full_stage: bool = False
     anneal: AnnealOptions = Field(default_factory=AnnealOptions)
 
 

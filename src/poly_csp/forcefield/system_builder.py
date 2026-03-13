@@ -849,12 +849,18 @@ def _add_nonbonded_force(
     mixing_rules_cfg: Mapping[str, object] | None,
     repulsion_k_kj_per_mol_nm2: float,
     repulsion_cutoff_nm: float,
+    soft_exclude_14: bool,
+    anti_stacking_sigma_scale: float,
 ) -> tuple[set[tuple[int, int]], dict[str, object]]:
     bonds = [
         (int(bond.GetBeginAtomIdx()), int(bond.GetEndAtomIdx()))
         for bond in mol.GetBonds()
     ]
-    excluded = exclusion_pairs_from_mol(mol, exclude_13=True, exclude_14=False)
+    excluded = exclusion_pairs_from_mol(
+        mol,
+        exclude_13=True,
+        exclude_14=(bool(soft_exclude_14) if nonbonded_mode == "soft" else False),
+    )
 
     if nonbonded_mode == "full":
         nonbonded = mm.NonbondedForce()
@@ -916,8 +922,17 @@ def _add_nonbonded_force(
         cutoff_nm = float(repulsion_cutoff_nm)
         repulsive.setNonbondedMethod(mm.CustomNonbondedForce.CutoffNonPeriodic)
         repulsive.setCutoffDistance(float(cutoff_nm) * unit.nanometer)
+    scaled_aromatic_selector_atoms = 0
     for atom_idx in range(mol.GetNumAtoms()):
-        repulsive.addParticle([_soft_sigma_nm(assigned_nonbonded, atom_idx)])
+        sigma_nm, was_scaled = _soft_sigma_nm(
+            assigned_nonbonded,
+            mol,
+            atom_idx,
+            anti_stacking_sigma_scale=float(anti_stacking_sigma_scale),
+        )
+        repulsive.addParticle([sigma_nm])
+        if was_scaled:
+            scaled_aromatic_selector_atoms += 1
     for i, j in sorted(excluded):
         repulsive.addExclusion(int(i), int(j))
     system.addForce(repulsive)
@@ -930,6 +945,9 @@ def _add_nonbonded_force(
         "periodic": bool(periodic),
         "repulsion_k_kj_per_mol_nm2": float(repulsion_k_kj_per_mol_nm2),
         "repulsion_cutoff_nm": float(cutoff_nm),
+        "soft_exclude_14": bool(soft_exclude_14),
+        "anti_stacking_sigma_scale": float(anti_stacking_sigma_scale),
+        "scaled_aromatic_selector_atoms": int(scaled_aromatic_selector_atoms),
     }
 
 
@@ -946,10 +964,24 @@ def _collect_force_inventory(system: mm.System) -> ForceInventorySummary:
 
 def _soft_sigma_nm(
     assigned_nonbonded: Sequence[tuple[float, float, float]],
+    mol: Chem.Mol,
     atom_idx: int,
-) -> float:
+    *,
+    anti_stacking_sigma_scale: float,
+) -> tuple[float, bool]:
     params = assigned_nonbonded[atom_idx]
-    return float(params[1])
+    sigma_nm = float(params[1])
+    atom = mol.GetAtomWithIdx(int(atom_idx))
+    if (
+        atom.GetAtomicNum() > 1
+        and atom.GetIsAromatic()
+        and atom.HasProp("_poly_csp_manifest_source")
+        and atom.GetProp("_poly_csp_manifest_source") == "selector"
+    ):
+        anti_stacking_sigma_scale = float(anti_stacking_sigma_scale)
+        if anti_stacking_sigma_scale != 1.0:
+            return sigma_nm * anti_stacking_sigma_scale, True
+    return sigma_nm, False
 
 
 def _periodic_cutoff_nm(mol: Chem.Mol) -> float:
@@ -989,6 +1021,8 @@ def create_system(
     mixing_rules_cfg: Mapping[str, object] | None = None,
     repulsion_k_kj_per_mol_nm2: float = 800.0,
     repulsion_cutoff_nm: float = 0.6,
+    soft_exclude_14: bool = False,
+    anti_stacking_sigma_scale: float = 1.0,
 ) -> SystemBuildResult:
     """Construct the canonical runtime system from real parameter sources."""
     if not mol.HasProp("_poly_csp_manifest_schema_version"):
@@ -1027,6 +1061,8 @@ def create_system(
         mixing_rules_cfg=mixing_rules_cfg,
         repulsion_k_kj_per_mol_nm2=float(repulsion_k_kj_per_mol_nm2),
         repulsion_cutoff_nm=float(repulsion_cutoff_nm),
+        soft_exclude_14=bool(soft_exclude_14),
+        anti_stacking_sigma_scale=float(anti_stacking_sigma_scale),
     )
     force_inventory = _collect_force_inventory(system)
 

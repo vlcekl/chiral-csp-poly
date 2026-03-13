@@ -65,6 +65,7 @@ from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
     min_distance_by_class,
     min_interatomic_distance,
+    selector_aromatic_stacking_metrics,
     selector_aromatic_ring_planarity,
     screw_symmetry_rmsd_from_mol,
     selector_torsion_stats,
@@ -177,6 +178,7 @@ class BuildReport:
     qc_hbond_geometric_donor_occupancy_fraction: float
     qc_selector_torsion_stats_deg: dict[str, dict[str, float]]
     qc_selector_aromatic_ring_planarity_A: dict[str, object]
+    qc_selector_aromatic_stacking_A: dict[str, object]
     qc_periodic_closure_metrics: dict[str, object]
     qc_thresholds: dict[str, object]
     qc_pass: bool
@@ -294,6 +296,17 @@ def _cfg_to_relax_spec(options: RuntimeForcefieldOptions):
         full_max_iterations=int(options.full_max_iterations),
         final_restraint_factor=float(options.final_restraint_factor),
         anneal_enabled=bool(options.anneal.enabled),
+        anti_stacking_sigma_scale=float(options.anti_stacking_sigma_scale),
+        soft_exclude_14=bool(options.soft_exclude_14),
+        ideal_hbond_target_nm=(
+            None
+            if options.ideal_hbond_target_nm is None
+            else float(options.ideal_hbond_target_nm)
+        ),
+        hbond_neighbor_window=int(options.hbond_neighbor_window),
+        hbond_pairing_mode=options.hbond_pairing_mode,
+        hbond_restraint_atom_mode=options.hbond_restraint_atom_mode,
+        skip_full_stage=bool(options.skip_full_stage),
         t_start_K=float(options.anneal.t_start_K),
         t_end_K=float(options.anneal.t_end_K),
         anneal_steps=int(options.anneal.n_steps),
@@ -893,6 +906,7 @@ def main(cfg: DictConfig) -> None:
     qc_hbond_geometric_donor_occupancy_fraction = 0.0
     qc_selector_torsions: dict[str, dict[str, float]] = {}
     qc_selector_ring_planarity: dict[str, object] = {}
+    qc_selector_stacking: dict[str, object] = {}
     qc_periodic_closure_metrics: dict[str, object] = {}
     if selector is not None:
         hb = compute_hbond_metrics(
@@ -924,6 +938,10 @@ def main(cfg: DictConfig) -> None:
             attach_dummy_idx=selector.attach_dummy_idx,
         )
         qc_selector_ring_planarity = selector_aromatic_ring_planarity(
+            qc_mol,
+            selector.mol,
+        )
+        qc_selector_stacking = selector_aromatic_stacking_metrics(
             qc_mol,
             selector.mol,
         )
@@ -1152,6 +1170,7 @@ def main(cfg: DictConfig) -> None:
         ),
         qc_selector_torsion_stats_deg=qc_selector_torsions,
         qc_selector_aromatic_ring_planarity_A=qc_selector_ring_planarity,
+        qc_selector_aromatic_stacking_A=qc_selector_stacking,
         qc_periodic_closure_metrics=qc_periodic_closure_metrics,
         qc_thresholds=qc_thresholds,
         qc_pass=bool(qc_pass),
@@ -1261,6 +1280,7 @@ def main(cfg: DictConfig) -> None:
             "periodic_box_A": report.periodic_box_A,
             "qc_pass": report.qc_pass,
             "qc_fail_reasons": report.qc_fail_reasons,
+            "qc_selector_aromatic_stacking_A": report.qc_selector_aromatic_stacking_A,
             "qc_periodic_closure_metrics": report.qc_periodic_closure_metrics,
             "ordering_summary": report.ordering_summary,
             "relax_summary": report.relax_summary,
@@ -1306,6 +1326,11 @@ def main(cfg: DictConfig) -> None:
         print(
             "  selector ring max OOP (A):   "
             f"{float(qc_selector_ring_planarity['max_out_of_plane_A']):.3f}"
+        )
+    if qc_selector_stacking:
+        print(
+            "  selector ring min centroid:  "
+            f"{float(qc_selector_stacking['min_centroid_distance_A']):.3f}"
         )
     if qc_periodic_closure_metrics:
         print(

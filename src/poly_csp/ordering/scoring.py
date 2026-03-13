@@ -26,6 +26,21 @@ def _selector_instance_local_index_maps(mol: Chem.Mol) -> Dict[int, Dict[int, in
     return instances
 
 
+def _selector_aromatic_rings(
+    selector_mol: Chem.Mol,
+    *,
+    ring_size: int | None = None,
+) -> list[tuple[int, ...]]:
+    rings: list[tuple[int, ...]] = []
+    for ring in selector_mol.GetRingInfo().AtomRings():
+        if ring_size is not None and len(ring) != int(ring_size):
+            continue
+        if not all(selector_mol.GetAtomWithIdx(int(idx)).GetIsAromatic() for idx in ring):
+            continue
+        rings.append(tuple(int(idx) for idx in ring))
+    return rings
+
+
 def selector_aromatic_ring_planarity(
     mol: Chem.Mol,
     selector_mol: Chem.Mol,
@@ -35,12 +50,7 @@ def selector_aromatic_ring_planarity(
     if mol.GetNumConformers() == 0:
         return {}
 
-    aromatic_rings = [
-        tuple(int(idx) for idx in ring)
-        for ring in selector_mol.GetRingInfo().AtomRings()
-        if len(ring) == int(ring_size)
-        and all(selector_mol.GetAtomWithIdx(int(idx)).GetIsAromatic() for idx in ring)
-    ]
+    aromatic_rings = _selector_aromatic_rings(selector_mol, ring_size=ring_size)
     if not aromatic_rings:
         return {}
 
@@ -78,6 +88,111 @@ def selector_aromatic_ring_planarity(
         "mean_max_out_of_plane_A": float(np.mean(max_arr)),
         "max_rms_out_of_plane_A": float(np.max(rms_arr)),
         "mean_rms_out_of_plane_A": float(np.mean(rms_arr)),
+    }
+
+
+def selector_aromatic_stacking_metrics(
+    mol: Chem.Mol,
+    selector_mol: Chem.Mol,
+    *,
+    threshold_A: float = 4.5,
+) -> Dict[str, object]:
+    if mol.GetNumConformers() == 0:
+        return {}
+
+    aromatic_rings = _selector_aromatic_rings(selector_mol, ring_size=None)
+    if not aromatic_rings:
+        return {}
+
+    instances = _selector_instance_local_index_maps(mol)
+    if len(instances) < 2:
+        return {}
+
+    xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
+    box_vectors_A = None
+    if (
+        mol.HasProp("_poly_csp_box_a_A")
+        and mol.HasProp("_poly_csp_box_b_A")
+        and mol.HasProp("_poly_csp_box_c_A")
+    ):
+        box_vectors_A = (
+            float(mol.GetDoubleProp("_poly_csp_box_a_A")),
+            float(mol.GetDoubleProp("_poly_csp_box_b_A")),
+            float(mol.GetDoubleProp("_poly_csp_box_c_A")),
+        )
+
+    centroids_by_instance: dict[int, list[np.ndarray]] = {}
+    for instance_id, mapping in instances.items():
+        ring_centroids: list[np.ndarray] = []
+        for ring in aromatic_rings:
+            if any(local_idx not in mapping for local_idx in ring):
+                continue
+            ring_xyz = xyz[np.asarray([mapping[local_idx] for local_idx in ring], dtype=int)]
+            ring_centroids.append(np.mean(ring_xyz, axis=0))
+        if ring_centroids:
+            centroids_by_instance[int(instance_id)] = ring_centroids
+
+    if len(centroids_by_instance) < 2:
+        return {}
+
+    instance_ids = sorted(centroids_by_instance)
+    all_distances_A: list[float] = []
+    per_pair_min_A: list[float] = []
+    instance_pair_stats: list[dict[str, object]] = []
+    threshold = float(threshold_A)
+
+    for left_pos, left_id in enumerate(instance_ids):
+        left_centroids = centroids_by_instance[left_id]
+        for right_id in instance_ids[left_pos + 1 :]:
+            right_centroids = centroids_by_instance[right_id]
+            pair_distances_A: list[float] = []
+            for left_centroid in left_centroids:
+                for right_centroid in right_centroids:
+                    delta = minimum_image_delta_A(
+                        right_centroid - left_centroid,
+                        box_vectors_A,
+                    )
+                    pair_distances_A.append(float(np.linalg.norm(delta)))
+            if not pair_distances_A:
+                continue
+            pair_min_A = float(min(pair_distances_A))
+            pair_below_threshold = sum(
+                1 for distance_A in pair_distances_A if distance_A < threshold
+            )
+            all_distances_A.extend(pair_distances_A)
+            per_pair_min_A.append(pair_min_A)
+            instance_pair_stats.append(
+                {
+                    "instance_i": int(left_id),
+                    "instance_j": int(right_id),
+                    "ring_pair_count": int(len(pair_distances_A)),
+                    "ring_pairs_below_threshold": int(pair_below_threshold),
+                    "min_centroid_distance_A": pair_min_A,
+                }
+            )
+
+    if not instance_pair_stats:
+        return {}
+
+    return {
+        "template_ring_count": int(len(aromatic_rings)),
+        "instance_count": int(len(centroids_by_instance)),
+        "ring_count": int(sum(len(v) for v in centroids_by_instance.values())),
+        "threshold_A": threshold,
+        "instance_pair_count": int(len(instance_pair_stats)),
+        "ring_pair_count": int(len(all_distances_A)),
+        "ring_pairs_below_threshold": int(
+            sum(int(item["ring_pairs_below_threshold"]) for item in instance_pair_stats)
+        ),
+        "instance_pairs_below_threshold": int(
+            sum(1 for item in instance_pair_stats if item["ring_pairs_below_threshold"] > 0)
+        ),
+        "min_centroid_distance_A": float(min(all_distances_A)),
+        "mean_centroid_distance_A": float(np.mean(np.asarray(all_distances_A, dtype=float))),
+        "mean_min_centroid_distance_A": float(
+            np.mean(np.asarray(per_pair_min_A, dtype=float))
+        ),
+        "instance_pair_stats": instance_pair_stats,
     }
 
 

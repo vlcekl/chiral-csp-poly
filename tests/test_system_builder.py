@@ -176,6 +176,14 @@ def _bonded_snapshot(result) -> dict[str, tuple]:
     }
 
 
+def _soft_nonbonded_force(result) -> mm.CustomNonbondedForce:
+    return next(
+        force
+        for force in (result.system.getForce(i) for i in range(result.system.getNumForces()))
+        if isinstance(force, mm.CustomNonbondedForce)
+    )
+
+
 def _fake_glycam_params(mol: Chem.Mol) -> GlycamParams:
     polymer = mol.GetProp("_poly_csp_polymer")
     representation = mol.GetProp("_poly_csp_representation")
@@ -624,6 +632,90 @@ def test_create_system_supports_ester_connectors_in_both_modes() -> None:
     assert soft.exception_summary["force_kind"] == "CustomNonbondedForce"
     assert full.exception_summary["force_kind"] == "NonbondedForce"
     assert full.exception_summary["counts_by_rule_bucket"]["cross_boundary"] > 0
+
+
+def test_create_system_soft_mode_can_exclude_14_pairs() -> None:
+    mol = _build_forcefield_mol(polymer="amylose", dp=2)
+    glycam = _fake_glycam_params(mol)
+
+    soft_default = create_system(
+        mol,
+        glycam_params=glycam,
+        nonbonded_mode="soft",
+    )
+    soft_ex14 = create_system(
+        mol,
+        glycam_params=glycam,
+        nonbonded_mode="soft",
+        soft_exclude_14=True,
+    )
+    full = create_system(
+        mol,
+        glycam_params=glycam,
+        nonbonded_mode="full",
+        soft_exclude_14=True,
+    )
+
+    assert len(soft_ex14.excluded_pairs) > len(soft_default.excluded_pairs)
+    assert soft_default.exception_summary["soft_exclude_14"] is False
+    assert soft_ex14.exception_summary["soft_exclude_14"] is True
+    assert full.excluded_pairs == soft_default.excluded_pairs
+
+
+def test_create_system_soft_mode_scales_selector_aromatic_sigmas_only() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = _build_forcefield_mol(polymer="amylose", dp=1, selector=selector, site="C6")
+    glycam = _fake_glycam_params(mol)
+    selector_params = _fake_selector_params(mol, selector.name)
+    connector_params = _fake_connector_params(
+        mol,
+        selector_name=selector.name,
+        linkage_type=selector.linkage_type,
+        site="C6",
+    )
+
+    baseline = create_system(
+        mol,
+        glycam_params=glycam,
+        selector_params_by_name={selector.name: selector_params},
+        connector_params_by_key={(selector.name, "C6"): connector_params},
+        nonbonded_mode="soft",
+    )
+    scaled = create_system(
+        mol,
+        glycam_params=glycam,
+        selector_params_by_name={selector.name: selector_params},
+        connector_params_by_key={(selector.name, "C6"): connector_params},
+        nonbonded_mode="soft",
+        anti_stacking_sigma_scale=1.5,
+    )
+
+    baseline_force = _soft_nonbonded_force(baseline)
+    scaled_force = _soft_nonbonded_force(scaled)
+    scaled_selector_aromatics = 0
+
+    for atom in mol.GetAtoms():
+        atom_idx = int(atom.GetIdx())
+        baseline_sigma = float(baseline_force.getParticleParameters(atom_idx)[0])
+        scaled_sigma = float(scaled_force.getParticleParameters(atom_idx)[0])
+        is_selector_aromatic_heavy = (
+            atom.GetAtomicNum() > 1
+            and atom.GetIsAromatic()
+            and atom.HasProp("_poly_csp_manifest_source")
+            and atom.GetProp("_poly_csp_manifest_source") == "selector"
+        )
+        if is_selector_aromatic_heavy:
+            scaled_selector_aromatics += 1
+            assert abs(scaled_sigma - (baseline_sigma * 1.5)) < 1e-12
+        else:
+            assert abs(scaled_sigma - baseline_sigma) < 1e-12
+
+    assert scaled_selector_aromatics > 0
+    assert (
+        scaled.exception_summary["scaled_aromatic_selector_atoms"]
+        == scaled_selector_aromatics
+    )
+    assert abs(scaled.exception_summary["anti_stacking_sigma_scale"] - 1.5) < 1e-12
 
 
 def test_create_system_rejects_missing_selector_payloads_early() -> None:

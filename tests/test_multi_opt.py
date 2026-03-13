@@ -134,3 +134,43 @@ def test_multi_start_falls_back_to_serial_when_process_pool_unavailable(
 
     assert len(results) == 2
     assert all(isinstance(r, RankedResult) for r in results)
+
+
+def test_multi_start_ranks_soft_stage_only_results_by_final_score(monkeypatch) -> None:
+    mol, selector, runtime_params = _build_runtime_case(dp=2)
+    ordering_spec = _ordering_spec(max_candidates=4)
+    multi_spec = MultiOptSpec(enabled=True, n_starts=3, top_k=3, seed=11, n_workers=1)
+    scores = iter([1.5, 3.0, 2.0])
+
+    def fake_run_single_start(*args, **kwargs):
+        score = next(scores)
+        return (
+            score,
+            mol.ToBinary(),
+            {
+                "final_score": score,
+                "stage1_nonbonded_mode": "soft",
+                "stage2_nonbonded_mode": None,
+                "full_stage_skipped": True,
+                "final_stage_nonbonded_mode": "soft",
+            },
+            0,
+        )
+
+    monkeypatch.setattr(
+        "poly_csp.ordering.multi_opt._run_single_start",
+        fake_run_single_start,
+    )
+
+    results = run_multi_start_optimization(
+        mol=mol,
+        selector=selector,
+        sites=["C6"],
+        dp=2,
+        ordering_spec=ordering_spec,
+        multi_spec=multi_spec,
+        runtime_params=runtime_params,
+    )
+
+    assert [result.score for result in results] == [3.0, 2.0, 1.5]
+    assert all(result.summary["stage2_nonbonded_mode"] is None for result in results)

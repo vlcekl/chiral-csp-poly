@@ -10,6 +10,8 @@ from rdkit.Geometry import Point3D
 import openmm as mm
 from openmm import unit
 
+from poly_csp.config.schema import HbondPairingMode, HbondRestraintAtomMode
+from poly_csp.ordering.hbonds import build_hbond_restraint_pairs
 from poly_csp.forcefield.restraints import (
     add_explicit_positional_restraints,
     add_dihedral_restraints,
@@ -40,6 +42,7 @@ class TwoStageMinimizationProtocol:
     soft_max_iterations: int = 200
     full_max_iterations: int = 200
     final_restraint_factor: float = 0.15
+    skip_full_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ class TwoStageMinimizationResult:
     stage2_energies_kj_mol: tuple[float, ...]
     stage1_positions_nm: unit.Quantity
     final_positions_nm: unit.Quantity
+    full_stage_skipped: bool = False
 
 
 def manifest_source(atom: Chem.Atom) -> str:
@@ -147,33 +151,23 @@ def hbond_pairs(
     mol: Chem.Mol,
     selector: SelectorTemplate | None,
     max_dist_A: float = 3.3,
+    *,
+    neighbor_window: int = 1,
+    pairing_mode: HbondPairingMode = "legacy_all_pairs",
+    atom_mode: HbondRestraintAtomMode = "hydrogen_if_present",
+    ideal_target_nm: float | None = None,
 ) -> list[tuple[int, int, float]]:
     if selector is None or mol.GetNumConformers() == 0:
         return []
-
-    xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
-    donors: list[tuple[int, int]] = []
-    acceptors: list[tuple[int, int]] = []
-    for atom in mol.GetAtoms():
-        if not atom.HasProp("_poly_csp_selector_instance"):
-            continue
-        inst = int(atom.GetIntProp("_poly_csp_selector_instance"))
-        local = int(atom.GetIntProp("_poly_csp_selector_local_idx"))
-        if local in selector.donors:
-            donors.append((inst, int(atom.GetIdx())))
-        if local in selector.acceptors:
-            acceptors.append((inst, int(atom.GetIdx())))
-
-    pairs: list[tuple[int, int, float]] = []
-    max_dist_nm = float(max_dist_A / 10.0)
-    for d_inst, d_idx in donors:
-        for a_inst, a_idx in acceptors:
-            if d_inst == a_inst:
-                continue
-            dist_nm = float(np.linalg.norm(xyz[d_idx] - xyz[a_idx]) / 10.0)
-            if dist_nm <= max_dist_nm:
-                pairs.append((d_idx, a_idx, dist_nm))
-    return pairs
+    return build_hbond_restraint_pairs(
+        mol,
+        selector,
+        max_distance_A=float(max_dist_A),
+        neighbor_window=int(neighbor_window),
+        pairing_mode=pairing_mode,
+        atom_mode=atom_mode,
+        ideal_target_nm=ideal_target_nm,
+    )
 
 
 def positions_nm_from_mol(mol: Chem.Mol) -> unit.Quantity:
@@ -202,6 +196,11 @@ def prepare_system_for_minimization(
     reference_positions_nm: unit.Quantity,
     *,
     extra_positional_restraints: Sequence[ExplicitPositionalRestraintGroup] = (),
+    hbond_max_distance_A: float = 3.3,
+    hbond_neighbor_window: int = 1,
+    hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs",
+    hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present",
+    ideal_hbond_target_nm: float | None = None,
 ) -> None:
     backbone_heavy = backbone_heavy_indices(mol)
     if restraint_spec.freeze_backbone:
@@ -224,7 +223,15 @@ def prepare_system_for_minimization(
     if selector is not None and float(restraint_spec.hbond_k) > 0.0:
         add_hbond_distance_restraints(
             system=system,
-            pairs=hbond_pairs(mol, selector),
+            pairs=hbond_pairs(
+                mol,
+                selector,
+                max_dist_A=float(hbond_max_distance_A),
+                neighbor_window=int(hbond_neighbor_window),
+                pairing_mode=hbond_pairing_mode,
+                atom_mode=hbond_restraint_atom_mode,
+                ideal_target_nm=ideal_hbond_target_nm,
+            ),
             k_kj_per_mol_nm2=float(restraint_spec.hbond_k),
         )
     seen_parameter_names: set[str] = set()
@@ -262,6 +269,13 @@ def prepare_runtime_optimization_bundle(
     extra_positional_restraints: Sequence[ExplicitPositionalRestraintGroup] = (),
     soft_repulsion_k_kj_per_mol_nm2: float = 800.0,
     soft_repulsion_cutoff_nm: float = 0.6,
+    soft_exclude_14: bool = False,
+    anti_stacking_sigma_scale: float = 1.0,
+    hbond_max_distance_A: float = 3.3,
+    hbond_neighbor_window: int = 1,
+    hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs",
+    hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present",
+    ideal_hbond_target_nm: float | None = None,
 ) -> PreparedRuntimeOptimizationBundle:
     resolved_extra_restraints = tuple(extra_positional_restraints)
     reference_positions_nm = positions_nm_from_mol(mol)
@@ -274,6 +288,8 @@ def prepare_runtime_optimization_bundle(
         nonbonded_mode="soft",
         repulsion_k_kj_per_mol_nm2=float(soft_repulsion_k_kj_per_mol_nm2),
         repulsion_cutoff_nm=float(soft_repulsion_cutoff_nm),
+        soft_exclude_14=bool(soft_exclude_14),
+        anti_stacking_sigma_scale=float(anti_stacking_sigma_scale),
         mixing_rules_cfg=mixing_rules_cfg,
     )
     prepare_system_for_minimization(
@@ -283,6 +299,11 @@ def prepare_runtime_optimization_bundle(
         selector=selector,
         reference_positions_nm=reference_positions_nm,
         extra_positional_restraints=resolved_extra_restraints,
+        hbond_max_distance_A=float(hbond_max_distance_A),
+        hbond_neighbor_window=int(hbond_neighbor_window),
+        hbond_pairing_mode=hbond_pairing_mode,
+        hbond_restraint_atom_mode=hbond_restraint_atom_mode,
+        ideal_hbond_target_nm=ideal_hbond_target_nm,
     )
     full = create_system(
         mol,
@@ -300,6 +321,11 @@ def prepare_runtime_optimization_bundle(
         selector=selector,
         reference_positions_nm=reference_positions_nm,
         extra_positional_restraints=resolved_extra_restraints,
+        hbond_max_distance_A=float(hbond_max_distance_A),
+        hbond_neighbor_window=int(hbond_neighbor_window),
+        hbond_pairing_mode=hbond_pairing_mode,
+        hbond_restraint_atom_mode=hbond_restraint_atom_mode,
+        ideal_hbond_target_nm=ideal_hbond_target_nm,
     )
     return PreparedRuntimeOptimizationBundle(
         soft=soft,
@@ -424,6 +450,15 @@ def run_two_stage_minimization(
     stage1_positions = soft_context.getState(getPositions=True).getPositions(asNumpy=True)
     del soft_context, soft_integrator
 
+    if bool(protocol.skip_full_stage):
+        return TwoStageMinimizationResult(
+            stage1_energies_kj_mol=tuple(float(x) for x in stage1_energies),
+            stage2_energies_kj_mol=tuple(float(x) for x in stage1_energies),
+            stage1_positions_nm=stage1_positions,
+            final_positions_nm=stage1_positions,
+            full_stage_skipped=True,
+        )
+
     full_context, full_integrator = new_context(full_system, stage1_positions)
     final_factor = float(stage_factors[-1])
     set_optional_parameter(
@@ -461,4 +496,5 @@ def run_two_stage_minimization(
         stage2_energies_kj_mol=tuple(float(x) for x in stage2_energies),
         stage1_positions_nm=stage1_positions,
         final_positions_nm=final_positions,
+        full_stage_skipped=False,
     )

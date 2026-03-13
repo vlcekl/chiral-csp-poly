@@ -316,10 +316,13 @@ conf/
 ├── forcefield/
 │   ├── options/
 │   │   ├── runtime.yaml
-│   │   └── runtime_relax.yaml
+│   │   ├── runtime_relax.yaml
+│   │   ├── runtime_seed.yaml
+│   │   └── runtime_seed_relax.yaml
 │   └── mixing_rules.yaml
 ├── ordering/
-│   └── basic.yaml
+│   ├── basic.yaml
+│   └── solvent_ready.yaml
 ├── multi_opt/
 │   └── default.yaml
 ├── periodic_handoff/
@@ -489,6 +492,31 @@ This path:
 * fails fast on unsupported chemistry instead of falling back.
 
 Use `forcefield/options=runtime_relax` to run the canonical two-stage `soft -> full` relaxation on that same runtime system family. Ordering and relaxation now share the same prepared runtime optimization substrate; relaxation adds only its own restraint policy and optional stage-2 anneal continuation.
+
+For solvent insertion workflows, there are also opt-in seed-oriented presets:
+
+* `ordering=solvent_ready`
+* `forcefield/options=runtime_seed`
+* `forcefield/options=runtime_seed_relax`
+
+These presets keep the production/export forcefield path unchanged, but generate a more open selector seed by combining selector-aromatic soft-stage inflation, optional soft-mode 1-4 exclusion, chemically targeted H-bond biasing, and `skip_full_stage=true` so the seed is not immediately re-collapsed by the vacuum full stage. The runtime seed presets also keep annealing disabled because soft-only finalization and stage-2 annealing are intentionally incompatible.
+
+Example solvent-ready seed build:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  ordering=solvent_ready \
+  forcefield/options=runtime_seed \
+  output.export_formats=[pdb,sdf,amber]
+```
+
+Example solvent-ready post-order relaxation:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  forcefield/options=runtime_seed_relax \
+  output.export_formats=[pdb,sdf,amber]
+```
 
 The build report now records:
 
@@ -670,7 +698,9 @@ Ordering requires the supported runtime slice:
 * bundled selector assets,
 * `anhydro` representation,
 * `open` or `periodic` end mode,
-* `forcefield/options=runtime` or `forcefield/options=runtime_relax`.
+* `forcefield/options=runtime`, `runtime_relax`, `runtime_seed`, or `runtime_seed_relax`.
+
+If the goal is a solvent-ready seed rather than a vacuum-refined selector bundle, use `ordering=solvent_ready`. That preset switches ordering to the soft-stage finalization path (`negative_stage1_energy_kj_mol`) and enables the seed-bias controls needed to reduce selector stacking before explicit-solvent equilibration.
 
 For the bundled CSP carbamate selector catalog:
 
@@ -753,6 +783,7 @@ Each build produces:
   * H-bond pair fraction
   * H-bond donor occupancy
   * Aromatic ring planarity
+  * Aromatic stacking centroid separation
   * Torsion summary
 
 ---
@@ -797,6 +828,18 @@ The current forcefield presets are:
      - `relax_summary.restraint_summary`
      - `relax_summary.anneal_summary`
    - No generic bonded fallback is used in this path.
+
+4. `forcefield/options=runtime_seed`
+   - Uses the same canonical runtime parameter sources as `runtime`.
+   - Enables the solvent-ready seed controls for any downstream runtime relaxation consumer, including periodic handoff cleanup.
+   - Keeps `relax_enabled=false`, so no post-order relaxation is run unless you explicitly choose a relaxation preset.
+   - Does not replace the exported physical forcefield; it only changes how an opt-in seed geometry is generated.
+
+5. `forcefield/options=runtime_seed_relax`
+   - Uses the same canonical runtime parameter sources as `runtime_relax`.
+   - Runs the solvent-ready soft-stage finalization path with `skip_full_stage=true`.
+   - Enables selector anti-stacking and H-bond seed biasing, with annealing intentionally disabled.
+   - Reports the final stage explicitly through `relax_summary.full_stage_skipped` and `relax_summary.final_stage_nonbonded_mode`.
 
 AMBER export remains available, but it is now a downstream product of the canonical runtime system rather than the runtime source of backbone parameters. The docking handoff uses that same final runtime model to emit rigid-receptor `pdbqt` plus `vina_box.txt`.
 

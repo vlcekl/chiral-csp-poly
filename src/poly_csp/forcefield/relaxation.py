@@ -10,6 +10,7 @@ from rdkit import Chem
 import openmm as mm
 from openmm import unit
 
+from poly_csp.config.schema import HbondPairingMode, HbondRestraintAtomMode
 from poly_csp.forcefield.anneal import run_heat_cool_cycle, run_temperature_ramp
 from poly_csp.forcefield.minimization import (
     ExplicitPositionalRestraintGroup,
@@ -43,6 +44,13 @@ class RelaxSpec:
     full_max_iterations: int = 200
     final_restraint_factor: float = 0.15
     freeze_backbone: bool = True
+    anti_stacking_sigma_scale: float = 1.0
+    soft_exclude_14: bool = False
+    ideal_hbond_target_nm: float | None = None
+    hbond_neighbor_window: int = 1
+    hbond_pairing_mode: HbondPairingMode = "legacy_all_pairs"
+    hbond_restraint_atom_mode: HbondRestraintAtomMode = "hydrogen_if_present"
+    skip_full_stage: bool = False
     anneal_enabled: bool = False
     t_start_K: float = 50.0
     t_end_K: float = 350.0
@@ -99,6 +107,7 @@ def _relaxation_protocol(spec: RelaxSpec) -> TwoStageMinimizationProtocol:
         soft_max_iterations=int(spec.soft_max_iterations),
         full_max_iterations=int(spec.full_max_iterations),
         final_restraint_factor=float(spec.final_restraint_factor),
+        skip_full_stage=bool(spec.skip_full_stage),
     )
 
 
@@ -123,6 +132,12 @@ def _prepare_relaxation_bundle(
         extra_positional_restraints=extra_positional_restraints,
         soft_repulsion_k_kj_per_mol_nm2=float(soft_repulsion_k_kj_per_mol_nm2),
         soft_repulsion_cutoff_nm=float(soft_repulsion_cutoff_nm),
+        soft_exclude_14=bool(spec.soft_exclude_14),
+        anti_stacking_sigma_scale=float(spec.anti_stacking_sigma_scale),
+        hbond_neighbor_window=int(spec.hbond_neighbor_window),
+        hbond_pairing_mode=spec.hbond_pairing_mode,
+        hbond_restraint_atom_mode=spec.hbond_restraint_atom_mode,
+        ideal_hbond_target_nm=spec.ideal_hbond_target_nm,
     )
 
 
@@ -144,6 +159,12 @@ def run_staged_relaxation(
 
     _require_forcefield_molecule(mol)
 
+    if bool(spec.skip_full_stage) and bool(spec.anneal_enabled):
+        raise ValueError(
+            "skip_full_stage=True is incompatible with anneal_enabled=True because "
+            "annealing requires the full-stage context."
+        )
+
     runtime = runtime_params
     if runtime is None:
         runtime = load_runtime_params(
@@ -164,6 +185,11 @@ def run_staged_relaxation(
     minimization = run_prepared_runtime_optimization(bundle)
     stage2_energies = list(minimization.stage2_energies_kj_mol)
     anneal_final_energy: float | None = None
+    final_stage_nonbonded_mode = (
+        bundle.soft.nonbonded_mode
+        if minimization.full_stage_skipped
+        else bundle.full.nonbonded_mode
+    )
 
     if spec.anneal_enabled and int(spec.anneal_steps) > 0:
         full_context, full_integrator = new_context(
@@ -228,8 +254,12 @@ def run_staged_relaxation(
         "restraint_summary": asdict(bundle.restraint_spec),
         "stage1_nonbonded_mode": bundle.soft.nonbonded_mode,
         "stage1_energies_kj_mol": list(minimization.stage1_energies_kj_mol),
-        "stage2_nonbonded_mode": bundle.full.nonbonded_mode,
+        "stage2_nonbonded_mode": (
+            None if minimization.full_stage_skipped else bundle.full.nonbonded_mode
+        ),
         "stage2_energies_kj_mol": stage2_energies,
+        "full_stage_skipped": bool(minimization.full_stage_skipped),
+        "final_stage_nonbonded_mode": final_stage_nonbonded_mode,
         "final_energy_kj_mol": (
             float(anneal_final_energy)
             if anneal_final_energy is not None
