@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from functools import lru_cache
 from importlib.resources import as_file, files
-from typing import Dict, Literal
+from typing import Dict, Literal, TypeAlias
 
 from omegaconf import OmegaConf
 from pydantic import BaseModel, Field, PositiveInt
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-from poly_csp.topology.selectors import SelectorTemplate, infer_donor_acceptor_atoms
+from poly_csp.topology.selectors import (
+    AnchorDihedralAtomRef,
+    SelectorDihedralSpec,
+    SelectorTemplate,
+    infer_donor_acceptor_atoms,
+)
+
+
+SelectorAssetDihedralRef: TypeAlias = int | AnchorDihedralAtomRef
 
 
 class RotamerGridAssetSpec(BaseModel):
@@ -26,11 +34,21 @@ class SelectorAssetSpec(BaseModel):
     attach_atom_map_num: PositiveInt
     attach_dummy_map_num: PositiveInt | None = None
     dihedrals: Dict[str, tuple[int, int, int, int]]
+    anchor_dihedrals: Dict[
+        str,
+        tuple[
+            SelectorAssetDihedralRef,
+            SelectorAssetDihedralRef,
+            SelectorAssetDihedralRef,
+            SelectorAssetDihedralRef,
+        ],
+    ] = Field(default_factory=dict)
     linkage_type: Literal["carbamate", "ester", "ether"] = "carbamate"
     connector_role_by_map_num: Dict[int, str] = Field(default_factory=dict)
     auto_detect_hbond: bool = True
     embed_seed: int = 3501
     rotamer_grid: RotamerGridAssetSpec | None = None
+    anchor_rotamer_grid: RotamerGridAssetSpec | None = None
 
 
 def _asset_refs():
@@ -64,6 +82,21 @@ def _idx_from_mapnum(mol: Chem.Mol, map_num: int, *, label: str) -> int:
         if atom.GetAtomMapNum() == int(map_num):
             return int(atom.GetIdx())
     raise ValueError(f"Map number {map_num} not found in selector asset {label!r}.")
+
+
+def _resolve_anchor_dihedral_ref(
+    mol: Chem.Mol,
+    ref: SelectorAssetDihedralRef,
+    *,
+    label: str,
+) -> SelectorAssetDihedralRef:
+    if isinstance(ref, str):
+        if ref not in {"site_carbon", "site_oxygen"}:
+            raise ValueError(
+                f"Unsupported anchor dihedral atom ref {ref!r} in selector asset {label!r}."
+            )
+        return ref
+    return _idx_from_mapnum(mol, int(ref), label=label)
 
 
 def _embedding_reference_mol(mol: Chem.Mol) -> Chem.Mol:
@@ -154,6 +187,12 @@ def load_selector_asset_template(name: str) -> SelectorTemplate:
         )
         for dihedral_name, map_nums in spec.dihedrals.items()
     }
+    anchor_dihedrals: dict[str, SelectorDihedralSpec] = {
+        dihedral_name: tuple(
+            _resolve_anchor_dihedral_ref(mol, ref, label=spec.name) for ref in refs
+        )
+        for dihedral_name, refs in spec.anchor_dihedrals.items()
+    }
     connector_local_roles = {
         _idx_from_mapnum(mol, int(map_num), label=spec.name): role
         for map_num, role in spec.connector_role_by_map_num.items()
@@ -172,6 +211,7 @@ def load_selector_asset_template(name: str) -> SelectorTemplate:
         attach_atom_idx=attach_atom_idx,
         attach_dummy_idx=attach_dummy_idx,
         dihedrals=dihedrals,
+        anchor_dihedrals=anchor_dihedrals,
         donors=tuple(donors),
         acceptors=tuple(acceptors),
         linkage_type=spec.linkage_type,
@@ -185,6 +225,14 @@ def load_selector_asset_template(name: str) -> SelectorTemplate:
             else {
                 str(name): tuple(float(value) for value in values)
                 for name, values in spec.rotamer_grid.dihedral_values_deg.items()
+            }
+        ),
+        anchor_rotamer_grid=(
+            {}
+            if spec.anchor_rotamer_grid is None
+            else {
+                str(name): tuple(float(value) for value in values)
+                for name, values in spec.anchor_rotamer_grid.dihedral_values_deg.items()
             }
         ),
         rotamer_max_candidates=(

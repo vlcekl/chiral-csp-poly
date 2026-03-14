@@ -506,6 +506,95 @@ def screw_symmetry_rmsd_from_mol(
     return float(np.sqrt(sum_sq / float(count)))
 
 
+def _resolve_screw_transform(
+    mol: Chem.Mol,
+    helix: HelixSpec | None,
+) -> ScrewTransform:
+    if helix is not None:
+        return ScrewTransform(theta_rad=helix.theta_rad, rise_A=helix.rise_A)
+    if not mol.HasProp("_poly_csp_helix_theta_rad") or not mol.HasProp("_poly_csp_helix_rise_A"):
+        raise ValueError(
+            "Selector symmetry metric requires helix metadata either via the helix "
+            "argument or molecule properties _poly_csp_helix_theta_rad/_poly_csp_helix_rise_A."
+        )
+    return ScrewTransform(
+        theta_rad=float(mol.GetDoubleProp("_poly_csp_helix_theta_rad")),
+        rise_A=float(mol.GetDoubleProp("_poly_csp_helix_rise_A")),
+    )
+
+
+def _selector_attachment_maps_by_residue_site(
+    mol: Chem.Mol,
+) -> dict[tuple[int, str], dict[int, int]]:
+    out: dict[tuple[int, str], dict[int, int]] = {}
+    for atom in mol.GetAtoms():
+        if not atom.HasProp("_poly_csp_selector_instance"):
+            continue
+        if not atom.HasProp("_poly_csp_selector_local_idx"):
+            continue
+        if not atom.HasProp("_poly_csp_residue_index") or not atom.HasProp("_poly_csp_site"):
+            continue
+        key = (
+            int(atom.GetIntProp("_poly_csp_residue_index")),
+            atom.GetProp("_poly_csp_site"),
+        )
+        out.setdefault(key, {})[int(atom.GetIntProp("_poly_csp_selector_local_idx"))] = int(
+            atom.GetIdx()
+        )
+    return out
+
+
+def selector_screw_symmetry_rmsd_from_mol(
+    mol: Chem.Mol,
+    helix: HelixSpec | None = None,
+    k: int = 1,
+) -> float:
+    if mol.GetNumConformers() == 0:
+        return 0.0
+    if k <= 0:
+        return 0.0
+
+    attachment_maps = _selector_attachment_maps_by_residue_site(mol)
+    if not attachment_maps:
+        return 0.0
+
+    xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
+    inv = _resolve_screw_transform(mol, helix)
+    inv = ScrewTransform(theta_rad=-inv.theta_rad, rise_A=-inv.rise_A)
+
+    dp = 0
+    if mol.HasProp("_poly_csp_dp"):
+        dp = int(mol.GetIntProp("_poly_csp_dp"))
+    else:
+        dp = 1 + max(residue_index for residue_index, _ in attachment_maps)
+    if dp <= k:
+        return 0.0
+
+    sites = sorted({site for _, site in attachment_maps})
+    sum_sq = 0.0
+    count = 0
+    for residue_index in range(dp - k):
+        for site in sites:
+            left = attachment_maps.get((residue_index, site))
+            right = attachment_maps.get((residue_index + k, site))
+            if not left or not right:
+                continue
+            shared = sorted(set(left).intersection(right))
+            if not shared:
+                continue
+            left_idx = np.asarray([left[local_idx] for local_idx in shared], dtype=int)
+            right_idx = np.asarray([right[local_idx] for local_idx in shared], dtype=int)
+            left_xyz = xyz[left_idx]
+            right_xyz = xyz[right_idx]
+            right_mapped = inv.apply(right_xyz, k)
+            diff = left_xyz - right_mapped
+            sum_sq += float(np.sum(diff * diff))
+            count += int(diff.shape[0])
+    if count == 0:
+        return 0.0
+    return float(np.sqrt(sum_sq / float(count)))
+
+
 def selector_torsion_stats(
     mol: Chem.Mol,
     selector_dihedrals: Dict[str, tuple[int, int, int, int]],

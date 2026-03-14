@@ -172,6 +172,10 @@ def _site_oxygen_global_index(mol: Chem.Mol, residue_index: int, site: Site) -> 
     return residue_index * n_monomer + local_o
 
 
+def _site_carbon_global_index(mol: Chem.Mol, residue_index: int, site: Site) -> int:
+    return residue_label_global_index(mol, residue_index, str(site))
+
+
 def _selector_local_to_global_map(
     mol: Chem.Mol,
     residue_index: int,
@@ -195,6 +199,53 @@ def _selector_local_to_global_map(
         )
     selected_inst = max(instances.keys())
     return instances[selected_inst]
+
+
+def _selector_dihedral_refs(
+    selector: SelectorTemplate,
+    name: str,
+) -> tuple[object, object, object, object]:
+    if name in selector.dihedrals:
+        return selector.dihedrals[name]
+    if name in selector.anchor_dihedrals:
+        return selector.anchor_dihedrals[name]
+    raise KeyError(f"Unknown selector dihedral {name!r} for {selector.name}.")
+
+
+def _resolve_selector_dihedral_atom_indices(
+    mol: Chem.Mol,
+    residue_index: int,
+    site: Site,
+    selector: SelectorTemplate,
+    name: str,
+) -> tuple[int, int, int, int]:
+    local_to_global = _selector_local_to_global_map(mol, residue_index, site)
+    sugar_o_global = _site_oxygen_global_index(mol, residue_index, site)
+    site_c_global = _site_carbon_global_index(mol, residue_index, site)
+
+    mapped: list[int] = []
+    for ref in _selector_dihedral_refs(selector, name):
+        if isinstance(ref, str):
+            if ref == "site_oxygen":
+                mapped.append(int(sugar_o_global))
+                continue
+            if ref == "site_carbon":
+                mapped.append(int(site_c_global))
+                continue
+            raise ValueError(
+                f"Unsupported selector dihedral atom ref {ref!r} for dihedral {name!r}."
+            )
+        local_idx = int(ref)
+        if local_idx in local_to_global:
+            mapped.append(local_to_global[local_idx])
+            continue
+        if selector.attach_dummy_idx is not None and local_idx == selector.attach_dummy_idx:
+            mapped.append(int(sugar_o_global))
+            continue
+        raise ValueError(
+            f"Could not map selector local index {local_idx} for dihedral {name!r}."
+        )
+    return int(mapped[0]), int(mapped[1]), int(mapped[2]), int(mapped[3])
 
 
 def _downstream_mask(mol: Chem.Mol, b: int, c: int) -> np.ndarray:
@@ -233,29 +284,17 @@ def apply_selector_pose_dihedrals(
     if not pose_spec.dihedral_targets_deg:
         return Chem.Mol(mol)
 
-    tpl = selector
-    local_to_global = _selector_local_to_global_map(mol, residue_index, site)
-    sugar_o_global = _site_oxygen_global_index(mol, residue_index, site)
-
     conf = mol.GetConformer(0)
     coords = np.asarray(conf.GetPositions(), dtype=float).reshape((-1, 3))
 
     for name, target_deg in pose_spec.dihedral_targets_deg.items():
-        if name not in tpl.dihedrals:
-            raise KeyError(f"Unknown selector dihedral {name!r} for {tpl.name}.")
-
-        mapped = []
-        for local_idx in tpl.dihedrals[name]:
-            if local_idx in local_to_global:
-                mapped.append(local_to_global[local_idx])
-            elif tpl.attach_dummy_idx is not None and local_idx == tpl.attach_dummy_idx:
-                mapped.append(sugar_o_global)
-            else:
-                raise ValueError(
-                    f"Could not map selector local index {local_idx} for dihedral {name!r}."
-                )
-
-        a, b, c, d = mapped
+        a, b, c, d = _resolve_selector_dihedral_atom_indices(
+            mol,
+            residue_index,
+            site,
+            selector,
+            name,
+        )
         rotate_mask = _downstream_mask(mol, b, c)
         coords = set_dihedral_rad(
             coords=coords,

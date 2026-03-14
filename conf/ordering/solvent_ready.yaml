@@ -4,4 +4,5 @@ defaults:
   - override /seed_bias: solvent_ready
   - _self_
 
-ordering: {} 
+# Solvent-ready ordering overlay
+ordering: {}

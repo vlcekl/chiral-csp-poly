@@ -11,7 +11,12 @@ from poly_csp.topology.monomers import make_glucose_template
 from poly_csp.topology.backbone import polymerize
 from tests.support import assign_conformer
 from poly_csp.config.schema import HelixSpec
-from poly_csp.ordering.scoring import screw_symmetry_rmsd_from_mol
+from poly_csp.ordering.scoring import (
+    screw_symmetry_rmsd_from_mol,
+    selector_screw_symmetry_rmsd_from_mol,
+)
+from poly_csp.topology.selectors import SelectorRegistry
+from tests.support import build_forcefield_mol
 
 
 def _helix() -> HelixSpec:
@@ -57,3 +62,31 @@ def test_screw_symmetry_rmsd_from_mol_uses_final_coordinates() -> None:
 
     updated = screw_symmetry_rmsd_from_mol(perturbed, helix=helix, k=4)
     assert updated > 1e-3
+
+
+def test_selector_screw_symmetry_rmsd_from_mol_detects_selector_perturbation() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = build_forcefield_mol(
+        polymer="amylose",
+        dp=3,
+        selector=selector,
+        site="C6",
+    )
+
+    baseline = selector_screw_symmetry_rmsd_from_mol(mol, helix=_helix(), k=1)
+    assert baseline > 0.0
+
+    distorted = Chem.Mol(mol)
+    conf = distorted.GetConformer()
+    atom_idx = next(
+        atom.GetIdx()
+        for atom in distorted.GetAtoms()
+        if atom.HasProp("_poly_csp_selector_instance")
+        and int(atom.GetIntProp("_poly_csp_residue_index")) == 1
+        and atom.GetProp("_poly_csp_site") == "C6"
+    )
+    pos = conf.GetAtomPosition(atom_idx)
+    conf.SetAtomPosition(atom_idx, Point3D(float(pos.x) + 0.4, float(pos.y), float(pos.z)))
+
+    updated = selector_screw_symmetry_rmsd_from_mol(distorted, helix=_helix(), k=1)
+    assert updated > baseline

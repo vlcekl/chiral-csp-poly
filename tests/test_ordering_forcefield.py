@@ -23,15 +23,21 @@ def _ordering_spec(
     *,
     repeat_residues: int | None = None,
     max_candidates: int = 8,
+    strategy: str = "greedy",
+    symmetry_maxiter: int = 60,
+    symmetry_popsize: int = 12,
 ) -> OrderingSpec:
     return OrderingSpec(
         enabled=True,
+        strategy=strategy,  # type: ignore[arg-type]
         repeat_residues=repeat_residues,
         max_candidates=max_candidates,
         positional_k=1000.0,
         soft_n_stages=1,
         soft_max_iterations=5,
         full_max_iterations=5,
+        symmetry_maxiter=symmetry_maxiter,
+        symmetry_popsize=symmetry_popsize,
     )
 
 
@@ -435,6 +441,78 @@ def test_optimize_selector_ordering_supports_periodic_runtime_systems() -> None:
     assert summary["stage1_nonbonded_mode"] == "soft"
     assert summary["stage2_nonbonded_mode"] == "full"
     assert summary["final_energy_kj_mol"] is not None
+
+
+def test_optimize_selector_ordering_supports_symmetry_coupled_strategy() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C6")
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
+
+    out, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C6"],
+        dp=3,
+        spec=_ordering_spec(
+            strategy="symmetry_coupled",
+            symmetry_maxiter=1,
+            symmetry_popsize=2,
+        ),
+        runtime_params=runtime_params,
+        seed=17,
+    )
+
+    assert out.HasProp("_poly_csp_manifest_schema_version")
+    assert summary["strategy"] == "symmetry_coupled"
+    assert summary["stage1_nonbonded_mode"] == "soft"
+    assert summary["stage2_nonbonded_mode"] == "full"
+    assert summary["final_energy_kj_mol"] is not None
+    assert summary["final_selector_symmetry_rmsd_A"] < 1e-6
+    assert summary["active_symmetry_dof"] >= 1
+    assert "optimized_dihedrals_by_site" in summary
+    assert "C6" in summary["selected_pose_by_site"]
+
+
+def test_optimize_selector_ordering_supports_symmetry_network_strategy() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C6")
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C6")
+
+    out, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C6"],
+        dp=3,
+        spec=OrderingSpec(
+            enabled=True,
+            strategy="symmetry_network",
+            positional_k=1000.0,
+            soft_n_stages=1,
+            soft_max_iterations=5,
+            full_max_iterations=5,
+            symmetry_maxiter=1,
+            symmetry_popsize=2,
+            symmetry_polish=False,
+            symmetry_network_use_full_energy_in_search=False,
+            symmetry_network_rerank_population=True,
+        ),
+        runtime_params=runtime_params,
+        seed=23,
+    )
+
+    assert out.HasProp("_poly_csp_manifest_schema_version")
+    assert summary["strategy"] == "symmetry_network"
+    assert summary["search_objective"] == "network_first_symmetry_score"
+    assert summary["hbond_connectivity_policy_applied"] == "generic"
+    assert summary["final_hbond_family_metrics"] == {}
+    assert summary["stage1_nonbonded_mode"] == "soft"
+    assert summary["stage2_nonbonded_mode"] == "full"
+    assert summary["final_energy_kj_mol"] is not None
+    assert summary["final_selector_symmetry_rmsd_A"] < 1e-6
+    assert summary["active_anchor_dihedral_names"] == ["tau_attach"]
+    assert "tau_attach" in summary["selected_pose_by_site"]["C6"]["0"]
+    assert summary["network_score_weights"]["geom_occ"] == 100.0
+    assert summary["network_score_weights"]["family_min_geom"] == 150.0
 
 
 def test_ordering_seeded_determinism_and_metadata() -> None:

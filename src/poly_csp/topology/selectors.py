@@ -2,15 +2,44 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Tuple
+from typing import Dict, Literal, Tuple, TypeAlias
 
 from rdkit import Chem
+
+
+AnchorDihedralAtomRef: TypeAlias = Literal["site_carbon", "site_oxygen"]
+SelectorDihedralAtomRef: TypeAlias = int | AnchorDihedralAtomRef
+SelectorDihedralSpec: TypeAlias = Tuple[
+    SelectorDihedralAtomRef,
+    SelectorDihedralAtomRef,
+    SelectorDihedralAtomRef,
+    SelectorDihedralAtomRef,
+]
 
 
 def infer_donor_acceptor_atoms(mol: Chem.Mol) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """
     Lightweight donor/acceptor inference for selector plugins.
     """
+
+    def _is_carbonyl_carbon(atom: Chem.Atom) -> bool:
+        if atom.GetAtomicNum() != 6:
+            return False
+        return any(
+            bond.GetBondType() == Chem.BondType.DOUBLE
+            and bond.GetOtherAtom(atom).GetAtomicNum() in {8, 16}
+            for bond in atom.GetBonds()
+        )
+
+    def _is_amide_like_nitrogen(atom: Chem.Atom) -> bool:
+        if atom.GetAtomicNum() != 7:
+            return False
+        return any(
+            bond.GetBondType() == Chem.BondType.SINGLE
+            and _is_carbonyl_carbon(bond.GetOtherAtom(atom))
+            for bond in atom.GetBonds()
+        )
+
     donors: list[int] = []
     acceptors: list[int] = []
     for atom in mol.GetAtoms():
@@ -21,7 +50,7 @@ def infer_donor_acceptor_atoms(mol: Chem.Mol) -> tuple[tuple[int, ...], tuple[in
             has_h = atom.GetTotalNumHs(includeNeighbors=True) > 0
             if has_h and charge <= 0:
                 donors.append(idx)
-            if charge <= 0 and not atom.GetIsAromatic():
+            if charge <= 0 and not _is_amide_like_nitrogen(atom):
                 acceptors.append(idx)
         elif z == 8:
             if charge <= 0:
@@ -37,6 +66,7 @@ class SelectorTemplate:
     mol: Chem.Mol
     attach_atom_idx: int  # atom to bond from (typically carbonyl carbon)
     dihedrals: Dict[str, Tuple[int, int, int, int]]  # selector-local indices
+    anchor_dihedrals: Dict[str, SelectorDihedralSpec] = field(default_factory=dict)
     donors: Tuple[int, ...] = ()
     acceptors: Tuple[int, ...] = ()
     attach_dummy_idx: int | None = None  # optional [*] replaced at attachment
@@ -47,6 +77,7 @@ class SelectorTemplate:
     reference_columns: Tuple[str, ...] = ()
     reference_backbones: Tuple[str, ...] = ()
     rotamer_grid: Dict[str, Tuple[float, ...]] = field(default_factory=dict)
+    anchor_rotamer_grid: Dict[str, Tuple[float, ...]] = field(default_factory=dict)
     rotamer_max_candidates: int = 128
 
 
@@ -55,6 +86,7 @@ def selector_from_smiles(
     smiles: str,
     attach_atom_idx: int,
     dihedrals: Dict[str, Tuple[int, int, int, int]],
+    anchor_dihedrals: Dict[str, SelectorDihedralSpec] | None = None,
     attach_dummy_idx: int | None = None,
     linkage_type: Literal["carbamate", "ester", "ether"] = "carbamate",
     connector_local_roles: Dict[int, str] | None = None,
@@ -73,6 +105,14 @@ def selector_from_smiles(
         attach_atom_idx=int(attach_atom_idx),
         attach_dummy_idx=attach_dummy_idx,
         dihedrals=dict(dihedrals),
+        anchor_dihedrals=(
+            {}
+            if anchor_dihedrals is None
+            else {
+                str(name): tuple(spec)
+                for name, spec in anchor_dihedrals.items()
+            }
+        ),
         donors=tuple(donors),
         acceptors=tuple(acceptors),
         linkage_type=linkage_type,

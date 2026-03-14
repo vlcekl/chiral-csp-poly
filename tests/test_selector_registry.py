@@ -114,3 +114,5 @@ def test_selector_from_smiles_detects_implicit_h_donors() -> None:
         dihedrals={},
     )
     assert tpl.donors
+    assert len(tpl.donors) == 1
+    assert len(tpl.acceptors) == 1

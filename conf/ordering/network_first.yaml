@@ -1,0 +1,22 @@
+# @package _global_
+defaults:
+  - /ordering/basic@ordering
+  - _self_
+
+ordering:
+  strategy: symmetry_network
+  skip_full_stage: false
+  symmetry_network_min_heavy_distance_A: 1.7
+  symmetry_network_clash_penalty: 1000000.0
+  symmetry_network_weight_geom_occ: 100.0
+  symmetry_network_weight_like_occ: 20.0
+  symmetry_network_weight_geom_frac: 5.0
+  symmetry_network_weight_family_min_geom: 150.0
+  symmetry_network_weight_family_min_like: 40.0
+  symmetry_network_weight_soft_energy: 1.0
+  symmetry_network_weight_full_energy: 1.0
+  symmetry_network_energy_clip: 5.0
+  symmetry_network_rerank_population: true
+  symmetry_network_use_full_energy_in_search: true
+  symmetry_init_from_rotamer_grid: true
+  symmetry_init_jitter_deg: 10.0

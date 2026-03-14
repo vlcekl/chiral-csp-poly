@@ -1,7 +1,10 @@
+# Runtime and relaxation gates
 enabled: true
 relax_enabled: true
 cache_enabled: true
 cache_dir: .cache/poly_csp/runtime_params
+
+# Shared soft-stage bias and nonbonded controls
 soft_repulsion_k_kj_per_mol_nm2: ${seed_bias.soft_repulsion_k_kj_per_mol_nm2}
 soft_repulsion_cutoff_nm: ${seed_bias.soft_repulsion_cutoff_nm}
 anti_stacking_sigma_scale: ${seed_bias.anti_stacking_sigma_scale}
@@ -11,6 +14,8 @@ hbond_neighbor_window: ${seed_bias.hbond_neighbor_window}
 hbond_pairing_mode: ${seed_bias.hbond_pairing_mode}
 hbond_restraint_atom_mode: ${seed_bias.hbond_restraint_atom_mode}
 skip_full_stage: ${seed_bias.skip_full_stage}
+
+# Soft selector H-bond bias
 soft_selector_hbond_bias:
   enabled: ${seed_bias.soft_selector_hbond_bias.enabled}
   epsilon_kj_per_mol: ${seed_bias.soft_selector_hbond_bias.epsilon_kj_per_mol}
@@ -18,7 +23,7 @@ soft_selector_hbond_bias:
   half_width_nm: ${seed_bias.soft_selector_hbond_bias.half_width_nm}
   hbond_neighbor_window: ${seed_bias.soft_selector_hbond_bias.hbond_neighbor_window}
 
-# Restrained relaxation controls
+# Relaxation restraint and protocol controls
 positional_k: 5000.0
 dihedral_k: 0.0  # 500.0
 hbond_k: 0.0  # 50.0
@@ -28,7 +33,7 @@ soft_max_iterations: 400
 full_max_iterations: 200
 final_restraint_factor: 0.15
 
-# Temperature schedule
+# Anneal controls
 anneal:
   enabled: true
   t_start_K: 50

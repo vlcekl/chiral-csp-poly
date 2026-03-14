@@ -6,9 +6,11 @@ defaults:
 
 forcefield:
   options:
+    # Relaxation restraint and protocol controls
     hbond_k: 0.0
     dihedral_l: 0.0
 
+    # Anneal controls
     # Seed-mode soft finalization is intentionally incompatible with annealing.
     anneal:
       enabled: false

@@ -11,6 +11,8 @@ dihedrals:
   tau_link: [1, 2, 4, 5]
   tau_ar: [2, 4, 5, 6]
   tau_ring: [4, 5, 8, 9]
+anchor_dihedrals:
+  tau_attach: [site_carbon, site_oxygen, 2, 4]
 connector_role_by_map_num:
   2: carbonyl_c
   3: carbonyl_o
@@ -19,4 +21,8 @@ rotamer_grid:
   dihedral_values_deg:
     tau_link: [-120.0, -60.0, 60.0, 120.0]
     tau_ar: [-120.0, -60.0, 60.0, 120.0]
+  max_candidates: 64
+anchor_rotamer_grid:
+  dihedral_values_deg:
+    tau_attach: [-120.0, -60.0, 60.0, 120.0]
   max_candidates: 64

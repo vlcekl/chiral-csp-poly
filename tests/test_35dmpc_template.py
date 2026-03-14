@@ -13,8 +13,10 @@ def test_make_35_dmpc_template_structure() -> None:
     assert tpl.attach_atom_idx != tpl.attach_dummy_idx
     assert tpl.linkage_type == "carbamate"
     assert "tau_link" in tpl.dihedrals
-    assert len(tpl.donors) >= 1
-    assert len(tpl.acceptors) >= 1
+    assert "tau_attach" in tpl.anchor_dihedrals
+    assert "tau_attach" in tpl.anchor_rotamer_grid
+    assert len(tpl.donors) == 1
+    assert len(tpl.acceptors) == 1
     assert set(tpl.connector_local_roles.values()) == {
         "carbonyl_c",
         "carbonyl_o",

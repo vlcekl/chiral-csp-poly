@@ -58,6 +58,7 @@ def test_csp_selector_assets_load_with_expected_metadata(selector_name: str) -> 
     assert spec.reference_backbones == expected["reference_backbones"]
     assert spec.linkage_type == "carbamate"
     assert set(spec.dihedrals) == {"tau_link", "tau_ar", "tau_ring"}
+    assert set(spec.anchor_dihedrals) == {"tau_attach"}
     assert set(spec.connector_role_by_map_num.values()) == {
         "carbonyl_c",
         "carbonyl_o",
@@ -68,12 +69,14 @@ def test_csp_selector_assets_load_with_expected_metadata(selector_name: str) -> 
     assert template.reference_backbones == expected["reference_backbones"]
     assert template.linkage_type == "carbamate"
     assert set(template.dihedrals) == {"tau_link", "tau_ar", "tau_ring"}
+    assert set(template.anchor_dihedrals) == {"tau_attach"}
     assert set(template.connector_local_roles.values()) == {
         "carbonyl_c",
         "carbonyl_o",
         "amide_n",
     }
     assert set(template.rotamer_grid) == {"tau_link", "tau_ar"}
+    assert set(template.anchor_rotamer_grid) == {"tau_attach"}
     assert template.rotamer_max_candidates == 64
     assert template.donors
     assert template.acceptors

@@ -1321,6 +1321,8 @@ def build_backbone_structure(
     out.SetProp("_poly_csp_representation", first_state.representation)
     out.SetProp("_poly_csp_end_mode", first_state.end_mode)
     out.SetProp("_poly_csp_helix_name", str(helix_spec.name))
+    out.SetDoubleProp("_poly_csp_helix_theta_rad", float(helix_spec.theta_rad))
+    out.SetDoubleProp("_poly_csp_helix_rise_A", float(helix_spec.rise_A))
     if helix_spec.repeat_residues is not None:
         out.SetIntProp("_poly_csp_helix_repeat_residues", int(helix_spec.repeat_residues))
     if helix_spec.repeat_turns is not None:

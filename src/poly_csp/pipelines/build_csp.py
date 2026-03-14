@@ -62,11 +62,15 @@ from poly_csp.structure.periodic_handoff import (
     extract_periodic_handoff_template,
     run_open_handoff_cleanup_relaxation,
 )
-from poly_csp.ordering.hbonds import compute_hbond_metrics
+from poly_csp.ordering.hbonds import (
+    HbondMetrics,
+    compute_selector_hbond_diagnostics,
+)
 from poly_csp.ordering.scoring import (
     bonded_exclusion_pairs,
     min_distance_by_class,
     min_interatomic_distance,
+    selector_screw_symmetry_rmsd_from_mol,
     selector_aromatic_stacking_metrics,
     selector_aromatic_ring_planarity,
     screw_symmetry_rmsd_from_mol,
@@ -168,8 +172,11 @@ class BuildReport:
     qc_min_heavy_distance_A: float
     qc_class_min_distance_A: dict[str, Optional[float]]
     qc_screw_symmetry_rmsd_A: float
+    qc_selector_screw_symmetry_rmsd_A: float
     qc_hbond_like_fraction: float
     qc_hbond_geometric_fraction: float
+    qc_hbond_connectivity_policy: str
+    qc_hbond_family_metrics: dict[str, dict[str, object]]
     qc_hbond_like_satisfied_pairs: int
     qc_hbond_geometric_satisfied_pairs: int
     qc_hbond_total_pairs: int
@@ -485,6 +492,23 @@ def _heavy_atom_mask_from_rdkit(mol) -> np.ndarray:
 
 def _finite_or_none(value: float) -> Optional[float]:
     return float(value) if np.isfinite(value) else None
+
+
+def _hbond_metrics_summary(metrics: HbondMetrics) -> dict[str, object]:
+    return {
+        "like_fraction": float(metrics.like_fraction),
+        "geometric_fraction": float(metrics.geometric_fraction),
+        "donor_count": int(metrics.donor_count),
+        "like_satisfied_pairs": int(metrics.like_satisfied_pairs),
+        "geometric_satisfied_pairs": int(metrics.geometric_satisfied_pairs),
+        "total_pairs": int(metrics.total_pairs),
+        "like_donor_occupancy_fraction": float(metrics.like_donor_occupancy_fraction),
+        "geometric_donor_occupancy_fraction": float(
+            metrics.geometric_donor_occupancy_fraction
+        ),
+        "mean_like_distance_A": float(metrics.mean_like_distance_A),
+        "mean_geometric_distance_A": float(metrics.mean_geometric_distance_A),
+    }
 
 
 def _export_runtime_artifacts(
@@ -960,6 +984,8 @@ def main(cfg: DictConfig) -> None:
 
     qc_hbond_like_fraction = 0.0
     qc_hbond_geometric_fraction = 0.0
+    qc_hbond_connectivity_policy = "generic"
+    qc_hbond_family_metrics: dict[str, dict[str, object]] = {}
     qc_hbond_like_satisfied_pairs = 0
     qc_hbond_geometric_satisfied_pairs = 0
     qc_hbond_total_pairs = 0
@@ -971,9 +997,10 @@ def main(cfg: DictConfig) -> None:
     qc_selector_torsions: dict[str, dict[str, float]] = {}
     qc_selector_ring_planarity: dict[str, object] = {}
     qc_selector_stacking: dict[str, object] = {}
+    qc_selector_symmetry_rmsd = 0.0
     qc_periodic_closure_metrics: dict[str, object] = {}
     if selector is not None:
-        hb = compute_hbond_metrics(
+        hb_diag = compute_selector_hbond_diagnostics(
             mol=qc_mol,
             selector=selector,
             max_distance_A=ordering_spec.hbond_max_distance_A,
@@ -981,7 +1008,14 @@ def main(cfg: DictConfig) -> None:
             min_donor_angle_deg=ordering_spec.hbond_min_donor_angle_deg,
             min_acceptor_angle_deg=ordering_spec.hbond_min_acceptor_angle_deg,
             box_vectors_A=box_vectors_A,
+            connectivity_policy=ordering_spec.hbond_connectivity_policy,
         )
+        hb = hb_diag.metrics
+        qc_hbond_connectivity_policy = str(hb_diag.applied_policy)
+        qc_hbond_family_metrics = {
+            family_name: _hbond_metrics_summary(metrics)
+            for family_name, metrics in sorted(hb_diag.family_metrics.items())
+        }
         qc_hbond_like_fraction = float(hb.like_fraction)
         qc_hbond_geometric_fraction = float(hb.geometric_fraction)
         qc_hbond_like_satisfied_pairs = int(hb.like_satisfied_pairs)
@@ -1008,6 +1042,9 @@ def main(cfg: DictConfig) -> None:
         qc_selector_stacking = selector_aromatic_stacking_metrics(
             qc_mol,
             selector.mol,
+        )
+        qc_selector_symmetry_rmsd = float(
+            selector_screw_symmetry_rmsd_from_mol(qc_mol, helix=helix, k=1)
         )
     if is_periodic:
         closure = next(
@@ -1220,8 +1257,11 @@ def main(cfg: DictConfig) -> None:
         qc_min_heavy_distance_A=qc_min_dist,
         qc_class_min_distance_A=qc_class_dist,
         qc_screw_symmetry_rmsd_A=qc_sym_rmsd,
+        qc_selector_screw_symmetry_rmsd_A=qc_selector_symmetry_rmsd,
         qc_hbond_like_fraction=qc_hbond_like_fraction,
         qc_hbond_geometric_fraction=qc_hbond_geometric_fraction,
+        qc_hbond_connectivity_policy=str(qc_hbond_connectivity_policy),
+        qc_hbond_family_metrics=qc_hbond_family_metrics,
         qc_hbond_like_satisfied_pairs=qc_hbond_like_satisfied_pairs,
         qc_hbond_geometric_satisfied_pairs=qc_hbond_geometric_satisfied_pairs,
         qc_hbond_total_pairs=qc_hbond_total_pairs,
@@ -1379,6 +1419,7 @@ def main(cfg: DictConfig) -> None:
     print(f"  pass:                         {qc_pass}")
     print(f"  min heavy-atom distance (A):  {qc_min_dist:.3f}")
     print(f"  screw symmetry RMSD (A):      {qc_sym_rmsd:.3f}")
+    print(f"  hbond policy:                 {qc_hbond_connectivity_policy}")
     print(f"  hbond-like fraction:          {qc_hbond_like_fraction:.3f}")
     print(f"  hbond-geometric fraction:     {qc_hbond_geometric_fraction:.3f}")
     print(
@@ -1386,6 +1427,12 @@ def main(cfg: DictConfig) -> None:
         f"{qc_hbond_like_donor_occupancy_fraction:.3f} like / "
         f"{qc_hbond_geometric_donor_occupancy_fraction:.3f} geom"
     )
+    for family_name, metrics in sorted(qc_hbond_family_metrics.items()):
+        print(
+            f"  hbond family {family_name}: "
+            f"{float(metrics['like_fraction']):.3f} like / "
+            f"{float(metrics['geometric_fraction']):.3f} geom"
+        )
     if qc_selector_ring_planarity:
         print(
             "  selector ring max OOP (A):   "

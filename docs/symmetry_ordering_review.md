@@ -192,3 +192,31 @@ There are two primary paradigms for implementing this:
 **Recommendation:**
 Adding non-energetic criteria is highly feasible. The best approach is to evaluate the DE population against the existing `soft` OpenMM system, which natively encapsulates structural constraints like anti-stacking and H-bond forcing as continuous energy biases, thus maintaining maximum evaluation throughput.
 
+## 7. Periodic vs. Finite (Open) Systems
+
+The `poly_csp` framework supports two distinct end modes for polymers: `periodic` (infinite) and `open` (finite). Symmetry ordering must handle both correctly while preserving the core mathematical design.
+
+The proposed mathematical framework (Section 3) assumes a perfectly wrapped periodic system where atom $j$ on Residue 0 hydrogen-binds backwards across the periodic boundary to the last residue $N_{res}-1$. 
+
+**How to Handle `end_mode="periodic"`**
+*   **Implementation:** The algorithm described in Section 3 works out-of-the-box. We set the OpenMM `Context` to use periodic boundary conditions (`context.setPositions` using an explicitly set `DefaultPeriodicBoxVectors` where $Lz = dp \times \text{rise\_A}$).
+*   **Symmetry Maintenance:** Because OpenMM natively wraps coordinates and handles cross-boundary interactions, the energy evaluated natively reflects an infinitely long chain. All $N$ residues simply clone their selectors from Residue 0.
+
+**How to Handle `end_mode="open"` (Finite Polymers)**
+For a finite polymer with open ends (e.g., $dp=24$), applying perfect periodic boundaries during optimization is physically incorrect because the real chain ends have vacuum boundaries and terminal hydroxyls/caps.
+
+However, we **still want** to discover the mathematically perfect internal crystalline packing for the *center* of the chain, ignoring end-effects.
+
+*   **Implementation Strategy (The "Periodic-Core" Proxy):** Even if the user requests an open $dp=24$ polymer, we should **not** evaluate the DE objective on the $dp=24$ open chain.
+    1.  Instead, we temporarily extract the $N_{res}$ monomer repeating unit (e.g., $dp=4$ for amylose 4/3) and build a small proxy `periodic` OpenMM system in memory purely for the DE engine.
+    2.  The DE engine optimizes this small $dp=4$ periodic system to find the optimal symmetric packing $\mathbf{\Phi}_{opt}$.
+    3.  Once found, we simply apply $\mathbf{\Phi}_{opt}$ uniformly to *all* residues of the actual $dp=24$ open polymer.
+*   **Pros:** 
+    *   **Massive Speedup:** DE evaluates a tiny 4-residue system instead of 24 residues. 13,500 evaluations of a $dp=4$ system is extremely fast.
+    *   **Pure Symmetry:** It guarantees the selectors are optimized for bulk symmetry, entirely uncorrupted by boundary effects (which can otherwise cause greedy optimizers to "unravel" the ends). The terminal selectors simply use the bulk optimal angles. 
+*   **Cons:** 
+    *   The very ends of the open chain might have slight steric clashes or suboptimal H-bonds because they lack a neighbor. *However*, this is mathematically identical to what happens in real life when a perfectly crystalline bulk phase terminates at a surface, and the subsequent downstream relaxation stage (`forcefield/options=runtime_relax`) will naturally allow those specific terminal selectors to relax away from the bulk symmetry during MD equilibration.
+
+**Recommendation:**
+The symmetry ordering algorithm should **always** operate on a small periodic proxy system ($dp=N_{res}$) regardless of whether the target `end_mode` is `periodic` or `open`. The discovered $\mathbf{\Phi}_{opt}$ is then mapped onto the full target topology. This guarantees maximum performance, enforces strictly pure bulk symmetry without end-effect corruption, and elegantly handles both end modes via a single mathematical path.
+

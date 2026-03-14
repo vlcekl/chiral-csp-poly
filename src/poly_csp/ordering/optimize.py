@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional
+from typing import Dict, Iterable, List, Literal, Mapping, Optional
 
 import numpy as np
 from rdkit import Chem
@@ -23,7 +23,13 @@ from poly_csp.forcefield.minimization import (
     update_rdkit_coords,
 )
 from poly_csp.forcefield.runtime_params import RuntimeParams, load_runtime_params
-from poly_csp.ordering.hbonds import HbondMetrics, compute_hbond_metrics
+from poly_csp.ordering.hbonds import (
+    HbondMetrics,
+    HbondConnectivityPolicy,
+    SelectorHbondDiagnostics,
+    compute_selector_hbond_diagnostics,
+    resolve_hbond_connectivity_policy,
+)
 from poly_csp.ordering.rotamers import (
     RotamerGridSpec,
     default_rotamer_grid,
@@ -43,6 +49,7 @@ from poly_csp.topology.selectors import SelectorTemplate
 @dataclass(frozen=True)
 class OrderingSpec:
     enabled: bool = False
+    strategy: Literal["greedy", "symmetry_coupled", "symmetry_network"] = "greedy"
     repeat_residues: Optional[int] = None
     max_candidates: int = 64
     positional_k: float = 5000.0
@@ -72,6 +79,24 @@ class OrderingSpec:
     hbond_neighbor_window: int = 1
     hbond_min_donor_angle_deg: float = 100.0
     hbond_min_acceptor_angle_deg: float = 90.0
+    hbond_connectivity_policy: HbondConnectivityPolicy = "auto"
+    symmetry_maxiter: int = 60
+    symmetry_popsize: int = 12
+    symmetry_polish: bool = False
+    symmetry_network_min_heavy_distance_A: float = 1.7
+    symmetry_network_clash_penalty: float = 1.0e6
+    symmetry_network_weight_geom_occ: float = 100.0
+    symmetry_network_weight_like_occ: float = 20.0
+    symmetry_network_weight_geom_frac: float = 5.0
+    symmetry_network_weight_family_min_geom: float = 150.0
+    symmetry_network_weight_family_min_like: float = 40.0
+    symmetry_network_weight_soft_energy: float = 1.0
+    symmetry_network_weight_full_energy: float = 1.0
+    symmetry_network_energy_clip: float = 5.0
+    symmetry_network_rerank_population: bool = True
+    symmetry_network_use_full_energy_in_search: bool = True
+    symmetry_init_from_rotamer_grid: bool = True
+    symmetry_init_jitter_deg: float = 10.0
 
 
 @dataclass(frozen=True)
@@ -92,6 +117,14 @@ class RuntimeOrderingEvaluation:
 
 
 def _ordering_objective_label(spec: OrderingSpec) -> str:
+    if spec.strategy == "symmetry_network":
+        return "negative_network_first_symmetry_score"
+    if spec.strategy == "symmetry_coupled":
+        return (
+            "negative_stage1_single_point_energy_kj_mol"
+            if bool(spec.skip_full_stage)
+            else "negative_stage2_single_point_energy_kj_mol"
+        )
     return (
         "negative_stage1_energy_kj_mol"
         if bool(spec.skip_full_stage)
@@ -139,16 +172,9 @@ def _ordering_diagnostics(
     selector: SelectorTemplate,
     spec: OrderingSpec,
 ) -> tuple[HbondMetrics, float, dict[str, float], dict[str, object]]:
+    hb_diag = _ordering_hbond_diagnostics(mol, selector, spec)
+    hb = hb_diag.metrics
     box_vectors_A = get_box_vectors_A(mol)
-    hb = compute_hbond_metrics(
-        mol=mol,
-        selector=selector,
-        max_distance_A=spec.hbond_max_distance_A,
-        neighbor_window=spec.hbond_neighbor_window,
-        min_donor_angle_deg=spec.hbond_min_donor_angle_deg,
-        min_acceptor_angle_deg=spec.hbond_min_acceptor_angle_deg,
-        box_vectors_A=box_vectors_A,
-    )
     xyz = np.asarray(mol.GetConformer(0).GetPositions(), dtype=float).reshape((-1, 3))
     excluded = bonded_exclusion_pairs(mol, max_path_length=2)
     heavy_mask = _heavy_mask(mol)
@@ -172,6 +198,24 @@ def _ordering_diagnostics(
         selector.mol,
     )
     return hb, dmin, class_min, stacking
+
+
+def _ordering_hbond_diagnostics(
+    mol: Chem.Mol,
+    selector: SelectorTemplate,
+    spec: OrderingSpec,
+) -> SelectorHbondDiagnostics:
+    box_vectors_A = get_box_vectors_A(mol)
+    return compute_selector_hbond_diagnostics(
+        mol=mol,
+        selector=selector,
+        max_distance_A=spec.hbond_max_distance_A,
+        neighbor_window=spec.hbond_neighbor_window,
+        min_donor_angle_deg=spec.hbond_min_donor_angle_deg,
+        min_acceptor_angle_deg=spec.hbond_min_acceptor_angle_deg,
+        box_vectors_A=box_vectors_A,
+        connectivity_policy=spec.hbond_connectivity_policy,
+    )
 
 
 def _prepare_runtime_ordering_systems(
@@ -261,7 +305,7 @@ def _evaluate_runtime_candidate(
     )
 
 
-def optimize_selector_ordering(
+def _optimize_selector_ordering_greedy(
     mol: Chem.Mol,
     selector: SelectorTemplate,
     sites: Iterable[Site],
@@ -299,9 +343,18 @@ def optimize_selector_ordering(
 
     if not spec.enabled:
         hb, dmin, class_min, stacking = _ordering_diagnostics(mol, selector, spec)
+        applied_hbond_connectivity_policy = resolve_hbond_connectivity_policy(
+            mol,
+            selector,
+            requested_policy=spec.hbond_connectivity_policy,
+            requested_sites=sites,
+        )
         return Chem.Mol(mol), {
             "enabled": False,
+            "strategy": "greedy",
             "objective": _ordering_objective_label(spec),
+            "hbond_connectivity_policy_requested": str(spec.hbond_connectivity_policy),
+            "hbond_connectivity_policy_applied": str(applied_hbond_connectivity_policy),
             "baseline_energy_kj_mol": None,
             "stage1_nonbonded_mode": None,
             "stage2_nonbonded_mode": None,
@@ -500,7 +553,17 @@ def optimize_selector_ordering(
     }
     summary: Dict[str, object] = {
         "enabled": True,
+        "strategy": "greedy",
         "objective": _ordering_objective_label(spec),
+        "hbond_connectivity_policy_requested": str(spec.hbond_connectivity_policy),
+        "hbond_connectivity_policy_applied": str(
+            resolve_hbond_connectivity_policy(
+                final.mol,
+                selector,
+                requested_policy=spec.hbond_connectivity_policy,
+                requested_sites=site_keys,
+            )
+        ),
         "stage1_nonbonded_mode": final.soft_nonbonded_mode,
         "soft_exception_summary": dict(final.soft_exception_summary),
         "stage2_nonbonded_mode": (
@@ -578,3 +641,68 @@ def optimize_selector_ordering(
         "selected_pose_by_site": selected_summary,
     }
     return final.mol, summary
+
+
+def optimize_selector_ordering(
+    mol: Chem.Mol,
+    selector: SelectorTemplate,
+    sites: Iterable[Site],
+    dp: int,
+    spec: OrderingSpec,
+    grid: RotamerGridSpec | None = None,
+    seed: int | None = None,
+    *,
+    runtime_params: RuntimeParams | None = None,
+    work_dir: str | Path | None = None,
+    cache_enabled: bool = True,
+    cache_dir: str | Path | None = None,
+    mixing_rules_cfg: Mapping[str, object] | None = None,
+) -> tuple[Chem.Mol, Dict[str, object]]:
+    if spec.strategy == "symmetry_coupled":
+        from poly_csp.ordering.symmetry_opt import optimize_symmetry_coupled_ordering
+
+        return optimize_symmetry_coupled_ordering(
+            mol=mol,
+            selector=selector,
+            sites=sites,
+            dp=dp,
+            spec=spec,
+            grid=grid,
+            seed=seed,
+            runtime_params=runtime_params,
+            work_dir=work_dir,
+            cache_enabled=cache_enabled,
+            cache_dir=cache_dir,
+            mixing_rules_cfg=mixing_rules_cfg,
+        )
+    if spec.strategy == "symmetry_network":
+        from poly_csp.ordering.symmetry_opt import optimize_symmetry_network_ordering
+
+        return optimize_symmetry_network_ordering(
+            mol=mol,
+            selector=selector,
+            sites=sites,
+            dp=dp,
+            spec=spec,
+            grid=grid,
+            seed=seed,
+            runtime_params=runtime_params,
+            work_dir=work_dir,
+            cache_enabled=cache_enabled,
+            cache_dir=cache_dir,
+            mixing_rules_cfg=mixing_rules_cfg,
+        )
+    return _optimize_selector_ordering_greedy(
+        mol=mol,
+        selector=selector,
+        sites=sites,
+        dp=dp,
+        spec=spec,
+        grid=grid,
+        seed=seed,
+        runtime_params=runtime_params,
+        work_dir=work_dir,
+        cache_enabled=cache_enabled,
+        cache_dir=cache_dir,
+        mixing_rules_cfg=mixing_rules_cfg,
+    )

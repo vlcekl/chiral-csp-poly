@@ -496,6 +496,13 @@ This path:
 
 Use `forcefield/options=runtime_relax` to run the canonical two-stage `soft -> full` relaxation on that same runtime system family. Ordering and relaxation now share the same prepared runtime optimization substrate; relaxation adds only its own restraint policy and optional stage-2 anneal continuation.
 
+Conformer optimization is now split into two layers:
+
+* `ordering`: selector-focused conformer search on the canonical runtime system
+* `forcefield/options=runtime_relax` or `runtime_seed_relax`: post-order restrained relaxation on that same runtime system family
+
+See [docs/conformer_optimization.md](/home/lukas/work/projects/chiral_csp_poly/docs/conformer_optimization.md) for the full matrix of ordering and relaxation modes and how they combine.
+
 For solvent insertion workflows, there are also opt-in seed-oriented presets:
 
 * `ordering=solvent_ready`
@@ -723,11 +730,60 @@ Ordering requires the supported runtime slice:
 
 If the goal is a solvent-ready seed rather than a vacuum-refined selector bundle, use `ordering=solvent_ready`. That preset switches ordering to the soft-stage finalization path (`negative_stage1_energy_kj_mol`) and, together with `seed_bias=solvent_ready`, enables the shared seed-bias controls needed to reduce selector stacking before explicit-solvent equilibration. The solvent-ready ordering preset now keeps legacy explicit H-bond restraints off (`ordering.hbond_k=0.0`) and instead relies on the shared bounded soft-stage `soft_selector_hbond_bias` potential so ordering can continue to reuse a shared prepared runtime bundle.
 
+### Ordering strategies
+
+`ordering.strategy` now supports three selector-ordering modes:
+
+1. `greedy`
+   - The original forcefield-aware ordering path.
+   - Enumerates discrete selector poses from the selector asset rotamer grid.
+   - Optimizes site-by-site and repeat-class-by-repeat-class.
+   - Scores each candidate by short runtime `soft -> full` minimization.
+
+2. `symmetry_coupled`
+   - The new symmetry-preserving branch.
+   - Optimizes only the active selector dihedrals on residue 0 for the requested sites.
+   - Rebuilds selector and connector coordinates on the remaining residues by exact screw projection before each score evaluation.
+   - Scores each candidate by single-point energy on the full runtime system rather than by in-loop local minimization.
+
+3. `symmetry_network`
+   - The network-first symmetry branch.
+   - Starts from the same exact screw-projection machinery as `symmetry_coupled`.
+   - Adds anchor-aware selector attachment torsions such as `tau_attach` to the active variables when the selector asset provides them.
+   - Scores candidates by a network-first objective that prioritizes the CSP literature connectivity pattern when available: the `C2/C3` adjacent zipper and the `C6` helical pitch bridge, before soft/full single-point energies.
+
+The important point is that the symmetry strategies still evaluate the full polymer, not an isolated residue. “Single-residue” refers only to the independent degrees of freedom. The evaluated coordinates include every symmetry-related residue in the built model, and periodic systems still include periodic-image interactions through the normal OpenMM runtime path.
+
+The objective labels differ by strategy:
+
+* `greedy`:
+  * `negative_stage2_energy_kj_mol` by default
+  * `negative_stage1_energy_kj_mol` when `skip_full_stage=true`
+* `symmetry_coupled`:
+  * `negative_stage2_single_point_energy_kj_mol` by default
+  * `negative_stage1_single_point_energy_kj_mol` when `skip_full_stage=true`
+* `symmetry_network`:
+  * `negative_network_first_symmetry_score`
+  * the reported `final_energy_kj_mol` still comes from the final soft/full runtime single-point evaluation
+
+Example:
+
+```bash
+python -m poly_csp.pipelines.build_csp \
+  forcefield/options=runtime \
+  ordering.enabled=true \
+  ordering.strategy=symmetry_network \
+  topology.selector.sites=[C2,C3,C6]
+```
+
 For the bundled CSP carbamate selector catalog:
 
 * `ordering.repeat_residues` now defaults to the active helix repeat when you do not override it
 * the six polymer CSP carbamate selector assets currently expose a `4 x 4` `tau_link` / `tau_ar` grid
 * `ordering.max_candidates` values above `16` do not broaden those CSP carbamate searches unless the asset grid itself is expanded
+* `symmetry_coupled` uses the same active dihedral names exposed by the selector rotamer grid, but treats them as continuous variables rather than picking one discrete library pose per repeat class
+* `symmetry_network` additionally activates anchor-aware dihedrals such as `tau_attach` when the selector asset provides `anchor_dihedrals` and `anchor_rotamer_grid`
+* `ordering.hbond_connectivity_policy=auto` now makes ordering/QC use the connectivity-aware CSP target graph when the selector/backbone/site combination supports it, otherwise it falls back to generic nearby-pair H-bond metrics
 
 ### Configuration
 
@@ -800,6 +856,7 @@ Each build produces:
 * QC metrics:
 
   * Symmetry RMSD
+  * Selector symmetry RMSD
   * Clash score
   * H-bond pair fraction
   * H-bond donor occupancy
@@ -887,7 +944,6 @@ No stochastic conformer generation is used during structure construction. Orderi
 Planned extensions:
 
 * Hydrogen-bond network scoring
-* Symmetry-aware rotamer optimization
 * Silica surface coating module
 * Multi-chain packing builder
 * Force-field abstraction layer
@@ -953,7 +1009,9 @@ The codebase now has:
 * canonical two-stage runtime relaxation (`soft -> full`),
 * persistent GLYCAM / selector / connector runtime-parameter caching,
 * separate AMBER export utilities,
-* selector ordering, QC, SDF export, and multi-start optimization,
+* selector ordering with both `greedy` and `symmetry_coupled` strategies,
+* selector symmetry RMSD reporting in ordering and QC summaries,
+* QC, SDF export, and multi-start optimization,
 * periodic unit-cell optimization with periodic-aware QC,
 * periodic-to-open handoff expansion for docking / AMBER export,
 * ranked periodic handoff export bundles with retained periodic-cell diagnostics,

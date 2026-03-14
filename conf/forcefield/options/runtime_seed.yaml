@@ -6,5 +6,6 @@ defaults:
 
 forcefield:
   options:
+    # Relaxation restraint and protocol controls
     # Used mainly for seed-generation and periodic handoff cleanup defaults.
     hbond_k: 0.0
