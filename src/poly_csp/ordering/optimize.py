@@ -79,7 +79,7 @@ class OrderingSpec:
     hbond_neighbor_window: int = 1
     hbond_min_donor_angle_deg: float = 100.0
     hbond_min_acceptor_angle_deg: float = 90.0
-    hbond_connectivity_policy: HbondConnectivityPolicy = "auto"
+    hbond_connectivity_policy: HbondConnectivityPolicy = "custom_v1"
     symmetry_maxiter: int = 60
     symmetry_popsize: int = 12
     symmetry_polish: bool = False
@@ -95,8 +95,33 @@ class OrderingSpec:
     symmetry_network_energy_clip: float = 5.0
     symmetry_network_rerank_population: bool = True
     symmetry_network_use_full_energy_in_search: bool = True
+    symmetry_network_capture_enabled: bool = True
+    symmetry_network_capture_soft_repulsion_scale: float = 0.15
+    symmetry_network_capture_min_heavy_distance_A: float = 1.25
+    symmetry_network_capture_clash_penalty: float = 10000.0
+    symmetry_network_capture_weight_geom_occ: float = 180.0
+    symmetry_network_capture_weight_like_occ: float = 40.0
+    symmetry_network_capture_weight_geom_frac: float = 12.0
+    symmetry_network_capture_weight_family_min_geom: float = 260.0
+    symmetry_network_capture_weight_family_min_like: float = 80.0
+    symmetry_network_capture_weight_soft_energy: float = 0.10
+    symmetry_network_capture_energy_clip: float = 3.0
+    symmetry_network_cleanup_enabled: bool = True
+    symmetry_network_cleanup_maxiter: int = 24
+    symmetry_network_cleanup_popsize: int = 8
+    symmetry_network_cleanup_polish: bool = False
+    symmetry_network_cleanup_init_jitter_deg: float = 6.0
     symmetry_init_from_rotamer_grid: bool = True
     symmetry_init_jitter_deg: float = 10.0
+    symmetry_backbone_refine_enabled: bool = True
+    symmetry_backbone_reoptimize_selectors: bool = True
+    symmetry_backbone_include_c6_omega: bool = True
+    symmetry_backbone_include_phi: bool = True
+    symmetry_backbone_include_psi: bool = True
+    symmetry_backbone_maxiter: int = 20
+    symmetry_backbone_popsize: int = 8
+    symmetry_backbone_polish: bool = False
+    symmetry_backbone_init_jitter_deg: float = 8.0
 
 
 @dataclass(frozen=True)

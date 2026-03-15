@@ -36,13 +36,13 @@ soft_selector_hbond_bias:
 
 # Ordering diagnostics
 hbond_max_distance_A: 3.3
-hbond_connectivity_policy: auto
+hbond_connectivity_policy: custom_v1
 hbond_min_donor_angle_deg: 100.0
 hbond_min_acceptor_angle_deg: 90.0
 
 # Symmetry-coupled-only controls
-symmetry_maxiter: 60
-symmetry_popsize: 12
+symmetry_maxiter: 120
+symmetry_popsize: 18
 symmetry_polish: false
 
 # Symmetry-network-only controls
@@ -58,5 +58,30 @@ symmetry_network_weight_full_energy: 1.0
 symmetry_network_energy_clip: 5.0
 symmetry_network_rerank_population: true
 symmetry_network_use_full_energy_in_search: true
+symmetry_network_capture_enabled: true
+symmetry_network_capture_soft_repulsion_scale: 0.15
+symmetry_network_capture_min_heavy_distance_A: 1.25
+symmetry_network_capture_clash_penalty: 10000.0
+symmetry_network_capture_weight_geom_occ: 180.0
+symmetry_network_capture_weight_like_occ: 40.0
+symmetry_network_capture_weight_geom_frac: 12.0
+symmetry_network_capture_weight_family_min_geom: 260.0
+symmetry_network_capture_weight_family_min_like: 80.0
+symmetry_network_capture_weight_soft_energy: 0.10
+symmetry_network_capture_energy_clip: 3.0
+symmetry_network_cleanup_enabled: true
+symmetry_network_cleanup_maxiter: 40
+symmetry_network_cleanup_popsize: 12
+symmetry_network_cleanup_polish: false
+symmetry_network_cleanup_init_jitter_deg: 6.0
 symmetry_init_from_rotamer_grid: true
 symmetry_init_jitter_deg: 10.0
+symmetry_backbone_refine_enabled: true
+symmetry_backbone_reoptimize_selectors: true
+symmetry_backbone_include_c6_omega: true
+symmetry_backbone_include_phi: true
+symmetry_backbone_include_psi: true
+symmetry_backbone_maxiter: 20
+symmetry_backbone_popsize: 8
+symmetry_backbone_polish: false
+symmetry_backbone_init_jitter_deg: 8.0

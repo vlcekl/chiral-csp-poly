@@ -4,7 +4,9 @@ name: amylose_CSP_4_3_derivatized
 repeat_residues: 4
 repeat_turns: 3
 handedness: left
-axial_repeat_A: 14.6
+axial_repeat_A: 15.614
+glycosidic_phi_deg: -68.5
+glycosidic_psi_deg: -42.0
 
 inter_rod_distance_A: 18.9
 reference_label: literature_polysaccharide_csp

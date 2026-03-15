@@ -148,10 +148,46 @@ def test_pipeline_symmetry_network_ordering_reports_anchor_dihedrals(
     data = json.loads(report_path.read_text(encoding="utf-8"))
     assert data["ordering_enabled"] is True
     assert data["ordering_summary"]["strategy"] == "symmetry_network"
-    assert data["ordering_summary"]["hbond_connectivity_policy_applied"] == "csp_literature_v1"
-    assert "c6_pitch_bridge" in data["ordering_summary"]["final_hbond_family_metrics"]
+    assert data["ordering_summary"]["hbond_connectivity_policy_applied"] == "custom_v1"
+    assert "c6_forward_neighbor" in data["ordering_summary"]["final_hbond_family_metrics"]
     assert data["ordering_summary"]["final_selector_symmetry_rmsd_A"] < 1e-6
     assert data["ordering_summary"]["active_anchor_dihedral_names"] == ["tau_attach"]
-    assert data["qc_hbond_connectivity_policy"] == "csp_literature_v1"
-    assert "c6_pitch_bridge" in data["qc_hbond_family_metrics"]
+    assert data["ordering_summary"]["backbone_refinement_applied"] is True
+    assert data["ordering_summary"]["active_backbone_dihedral_names"] == ["bb_c6_omega"]
+    assert data["qc_hbond_connectivity_policy"] == "custom_v1"
+    assert "c6_forward_neighbor" in data["qc_hbond_family_metrics"]
     assert "tau_attach" in data["ordering_summary"]["selected_pose_by_site"]["C6"]["0"]
+
+
+def test_pipeline_symmetry_network_periodic_glycosidic_backbone_terms_are_reported(
+    tmp_path: Path,
+) -> None:
+    outdir = tmp_path / "symmetry_network_periodic_backbone_out"
+    overrides = (
+        "topology.backbone.dp=4 "
+        "topology.selector.enabled=true topology.selector.sites=[C2] "
+        "ordering.enabled=true ordering.strategy=symmetry_network "
+        "ordering.symmetry_backbone_refine_enabled=true "
+        "ordering.symmetry_backbone_include_phi=true "
+        "ordering.symmetry_backbone_include_psi=true "
+        "ordering.symmetry_maxiter=1 ordering.symmetry_popsize=2 "
+        "ordering.symmetry_network_use_full_energy_in_search=false "
+        "forcefield/options=runtime output.export_formats=[sdf] "
+        f"output.dir={outdir}"
+    )
+    cmd = [sys.executable, "-m", "poly_csp.pipelines.build_csp", *shlex.split(overrides)]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(_ROOT / "src")
+    subprocess.run(
+        cmd, check=True, text=True, capture_output=True, cwd=_ROOT, env=env
+    )
+
+    report_path = outdir / "build_report.json"
+    assert report_path.exists()
+    data = json.loads(report_path.read_text(encoding="utf-8"))
+    assert data["ordering_enabled"] is True
+    assert data["ordering_summary"]["strategy"] == "symmetry_network"
+    assert data["ordering_summary"]["backbone_refinement_applied"] is True
+    assert "bb_phi" in data["ordering_summary"]["active_backbone_dihedral_names"]
+    assert "bb_psi" in data["ordering_summary"]["active_backbone_dihedral_names"]
+    assert data["ordering_summary"]["backbone_refinement_skipped_reason"] is None

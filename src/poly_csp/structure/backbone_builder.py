@@ -15,6 +15,7 @@ from poly_csp.cache_versions import (
     BACKBONE_POSE_MODEL_VERSION,
 )
 from poly_csp.config.schema import HelixSpec
+from poly_csp.structure.dihedrals import measure_dihedral_rad
 from poly_csp.structure.matrix import ScrewTransform
 from poly_csp.structure.naming import AtomManifestEntry, build_atom_manifest
 from poly_csp.structure.pbc import get_box_vectors_A
@@ -38,6 +39,7 @@ from poly_csp.topology.utils import (
 _RING_LABELS = ("C1", "C2", "C3", "C4", "C5", "O5")
 _BOND_SIGMA_A = 0.05
 _ANGLE_SIGMA_DEG = 8.0
+_TORSION_SIGMA_DEG = 8.0
 _CLASH_CUTOFF_A = 1.55
 _POSE_RADIUS_BOUNDS = (0.8, 2.4)
 _POSE_TILT_BOUNDS = (-1.4, 1.4)
@@ -84,6 +86,8 @@ class LinkageTargets:
     donor_angle_deg: float
     acceptor_angle_deg: float
     acceptor_angle_c2_deg: float
+    glycosidic_phi_deg: float | None = None
+    glycosidic_psi_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +98,9 @@ class BackbonePoseEvaluation:
     acceptor_angle_deg: float
     acceptor_angle_c2_deg: float
     min_inter_residue_distance_A: float
+    glycosidic_phi_deg: float
+    glycosidic_psi_deg: float
+    h1_h4_distance_A: float | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +241,11 @@ def _wrap_angle(theta_rad: float) -> float:
     return float(wrapped)
 
 
+def _wrap_angle_deg(theta_deg: float) -> float:
+    wrapped = (float(theta_deg) + 180.0) % 360.0 - 180.0
+    return float(wrapped)
+
+
 def _validate_periodic_helix(topology_mol: Chem.Mol, helix_spec: HelixSpec) -> None:
     end_mode = (
         str(topology_mol.GetProp("_poly_csp_end_mode"))
@@ -332,6 +344,8 @@ def _apply_backbone_pose(
 def _linkage_targets(
     polymer: str,
     representation: str,
+    *,
+    helix_spec: HelixSpec | None = None,
 ) -> LinkageTargets:
     donor_template = load_explicit_backbone_template(
         polymer=polymer,  # type: ignore[arg-type]
@@ -379,8 +393,136 @@ def _linkage_targets(
         donor_angle_deg=donor_angle,
         acceptor_angle_deg=acceptor_angle,
         acceptor_angle_c2_deg=acceptor_angle_c2,
+        glycosidic_phi_deg=(
+            None
+            if helix_spec is None or helix_spec.glycosidic_phi_deg is None
+            else float(helix_spec.glycosidic_phi_deg)
+        ),
+        glycosidic_psi_deg=(
+            None
+            if helix_spec is None or helix_spec.glycosidic_psi_deg is None
+            else float(helix_spec.glycosidic_psi_deg)
+        ),
     )
 
+
+def _template_atom_name_index(
+    template: ExplicitResidueTemplate,
+    atom_name: str,
+) -> int | None:
+    matches = [
+        int(atom_idx)
+        for atom_idx, candidate in template.atom_name_by_idx.items()
+        if str(candidate) == str(atom_name)
+    ]
+    if len(matches) != 1:
+        return None
+    return int(matches[0])
+
+
+def _measure_target_glycosidic_metrics(
+    residue0: np.ndarray,
+    residue1: np.ndarray,
+    *,
+    heavy_label_to_idx: dict[str, int],
+    literature_template: ExplicitResidueTemplate | None,
+    literature_residue0: np.ndarray | None = None,
+    literature_residue1: np.ndarray | None = None,
+) -> tuple[float, float, float | None]:
+    o4_idx = heavy_label_to_idx["O4"]
+    c4_idx = heavy_label_to_idx["C4"]
+    c1_idx = heavy_label_to_idx["C1"]
+    o5_idx = heavy_label_to_idx["O5"]
+    c3_idx = heavy_label_to_idx["C3"]
+
+    paired_coords = np.vstack([residue0, residue1])
+    if literature_template is None:
+        phi_deg = float(
+            np.rad2deg(
+                measure_dihedral_rad(
+                    paired_coords,
+                    o5_idx,
+                    c1_idx,
+                    residue0.shape[0] + o4_idx,
+                    residue0.shape[0] + c4_idx,
+                )
+            )
+        )
+        psi_deg = float(
+            np.rad2deg(
+                measure_dihedral_rad(
+                    paired_coords,
+                    residue0.shape[0] + c3_idx,
+                    residue0.shape[0] + c4_idx,
+                    residue0.shape[0] + o4_idx,
+                    c1_idx,
+                )
+            )
+        )
+        return phi_deg, psi_deg, None
+
+    if literature_residue0 is None or literature_residue1 is None:
+        raise ValueError("Literature glycosidic measurement requires explicit residue coordinates.")
+
+    h1_idx = _template_atom_name_index(literature_template, "H1")
+    h4_idx = _template_atom_name_index(literature_template, "H4")
+    if h1_idx is None or h4_idx is None:
+        return (
+            float(
+                np.rad2deg(
+                    measure_dihedral_rad(
+                        paired_coords,
+                        o5_idx,
+                        c1_idx,
+                        residue0.shape[0] + o4_idx,
+                        residue0.shape[0] + c4_idx,
+                    )
+                )
+            ),
+            float(
+                np.rad2deg(
+                    measure_dihedral_rad(
+                        paired_coords,
+                        residue0.shape[0] + c3_idx,
+                        residue0.shape[0] + c4_idx,
+                        residue0.shape[0] + o4_idx,
+                        c1_idx,
+                    )
+                )
+            ),
+            None,
+        )
+
+    c1_lit_idx = literature_template.heavy_label_to_idx["C1"]
+    o4_lit_idx = literature_template.heavy_label_to_idx["O4"]
+    c4_lit_idx = literature_template.heavy_label_to_idx["C4"]
+    paired_explicit = np.vstack([literature_residue0, literature_residue1])
+    phi_deg = float(
+        np.rad2deg(
+            measure_dihedral_rad(
+                paired_explicit,
+                h1_idx,
+                c1_lit_idx,
+                literature_residue0.shape[0] + o4_lit_idx,
+                literature_residue0.shape[0] + c4_lit_idx,
+            )
+        )
+    )
+    psi_deg = float(
+        np.rad2deg(
+            measure_dihedral_rad(
+                paired_explicit,
+                c1_lit_idx,
+                literature_residue0.shape[0] + o4_lit_idx,
+                literature_residue0.shape[0] + c4_lit_idx,
+                literature_residue0.shape[0] + h4_idx,
+            )
+        )
+    )
+    h1_h4_distance_A = float(
+        np.linalg.norm(literature_residue0[h1_idx] - literature_residue1[h4_idx])
+    )
+    return phi_deg, psi_deg, h1_h4_distance_A
 
 def _evaluate_backbone_pose(
     coords: np.ndarray,
@@ -388,6 +530,7 @@ def _evaluate_backbone_pose(
     pose: BackbonePose,
     screw: ScrewTransform,
     targets: LinkageTargets,
+    literature_template: ExplicitResidueTemplate | None = None,
 ) -> BackbonePoseEvaluation:
     residue0 = _apply_backbone_pose(coords, heavy_label_to_idx, pose)
     residue1 = screw.apply(residue0, 1)
@@ -397,6 +540,7 @@ def _evaluate_backbone_pose(
     c1_idx = heavy_label_to_idx["C1"]
     o5_idx = heavy_label_to_idx["O5"]
     c2_idx = heavy_label_to_idx["C2"]
+    c3_idx = heavy_label_to_idx["C3"]
 
     bond_length = float(np.linalg.norm(residue0[o4_idx] - residue1[c1_idx]))
     donor_angle = _bond_angle_deg(residue0[c4_idx], residue0[o4_idx], residue1[c1_idx])
@@ -405,6 +549,24 @@ def _evaluate_backbone_pose(
         residue0[o4_idx],
         residue1[c1_idx],
         residue1[c2_idx],
+    )
+    literature_residue0 = None
+    literature_residue1 = None
+    if literature_template is not None:
+        literature_coords = _explicit_template_coords(literature_template)
+        literature_residue0 = _apply_backbone_pose(
+            literature_coords,
+            literature_template.heavy_label_to_idx,
+            pose,
+        )
+        literature_residue1 = screw.apply(literature_residue0, 1)
+    glycosidic_phi_deg, glycosidic_psi_deg, h1_h4_distance_A = _measure_target_glycosidic_metrics(
+        residue0,
+        residue1,
+        heavy_label_to_idx=heavy_label_to_idx,
+        literature_template=literature_template,
+        literature_residue0=literature_residue0,
+        literature_residue1=literature_residue1,
     )
 
     min_distance = float("inf")
@@ -425,6 +587,16 @@ def _evaluate_backbone_pose(
         + ((acceptor_angle_c2 - targets.acceptor_angle_c2_deg) / _ANGLE_SIGMA_DEG) ** 2
         + clash_penalty
     )
+    if targets.glycosidic_phi_deg is not None:
+        score += (
+            _wrap_angle_deg(glycosidic_phi_deg - float(targets.glycosidic_phi_deg))
+            / _TORSION_SIGMA_DEG
+        ) ** 2
+    if targets.glycosidic_psi_deg is not None:
+        score += (
+            _wrap_angle_deg(glycosidic_psi_deg - float(targets.glycosidic_psi_deg))
+            / _TORSION_SIGMA_DEG
+        ) ** 2
     return BackbonePoseEvaluation(
         score=float(score),
         bond_length_A=bond_length,
@@ -432,6 +604,9 @@ def _evaluate_backbone_pose(
         acceptor_angle_deg=acceptor_angle,
         acceptor_angle_c2_deg=acceptor_angle_c2,
         min_inter_residue_distance_A=min_distance,
+        glycosidic_phi_deg=glycosidic_phi_deg,
+        glycosidic_psi_deg=glycosidic_psi_deg,
+        h1_h4_distance_A=h1_h4_distance_A,
     )
 
 
@@ -576,9 +751,17 @@ def _refine_backbone_pose(
     screw: ScrewTransform,
     targets: LinkageTargets,
     seed: BackbonePose,
+    literature_template: ExplicitResidueTemplate | None = None,
 ) -> tuple[BackbonePose, BackbonePoseEvaluation]:
     best_pose = _clip_pose(seed)
-    best_eval = _evaluate_backbone_pose(coords, heavy_label_to_idx, best_pose, screw, targets)
+    best_eval = _evaluate_backbone_pose(
+        coords,
+        heavy_label_to_idx,
+        best_pose,
+        screw,
+        targets,
+        literature_template=literature_template,
+    )
     schedules = (
         (0.4, 0.3, 0.3),
         (0.2, 0.15, 0.15),
@@ -633,7 +816,12 @@ def _refine_backbone_pose(
             for candidate in list(candidates) + angle_candidates:
                 clipped = _clip_pose(candidate)
                 evaluation = _evaluate_backbone_pose(
-                    coords, heavy_label_to_idx, clipped, screw, targets
+                    coords,
+                    heavy_label_to_idx,
+                    clipped,
+                    screw,
+                    targets,
+                    literature_template=literature_template,
                 )
                 if evaluation.score + 1e-12 < best_eval.score:
                     best_pose = clipped
@@ -642,7 +830,10 @@ def _refine_backbone_pose(
     return best_pose, best_eval
 
 
-_BACKBONE_POSE_CACHE: dict[tuple[str, str, float, float], BackbonePose] = {}
+_BACKBONE_POSE_CACHE: dict[
+    tuple[str, str, float, float, float | None, float | None],
+    BackbonePose,
+] = {}
 
 
 def _backbone_pose_cache_identity(
@@ -657,10 +848,21 @@ def _backbone_pose_cache_identity(
         "schema_version": BACKBONE_POSE_CACHE_SCHEMA_VERSION,
         "model_version": BACKBONE_POSE_MODEL_VERSION,
         "kind": "backbone_pose",
+        "pose_strategy": "literature_hydrogen_torsions_with_geometry_fallback_v2",
         "polymer": str(polymer),
         "representation": str(representation),
         "theta_rad": float(helix_spec.theta_rad),
         "rise_A": float(helix_spec.rise_A),
+        "glycosidic_phi_deg": (
+            None
+            if helix_spec.glycosidic_phi_deg is None
+            else float(helix_spec.glycosidic_phi_deg)
+        ),
+        "glycosidic_psi_deg": (
+            None
+            if helix_spec.glycosidic_psi_deg is None
+            else float(helix_spec.glycosidic_psi_deg)
+        ),
         "coords_sha256": hashlib.sha256(coords_array.tobytes()).hexdigest(),
         "heavy_label_to_idx": {
             str(label): int(idx)
@@ -799,12 +1001,15 @@ def _fit_backbone_pose(
     coords: np.ndarray,
     heavy_label_to_idx: dict[str, int],
     helix_spec: HelixSpec,
+    literature_template: ExplicitResidueTemplate | None = None,
 ) -> tuple[BackbonePose, BackbonePoseCacheSummary]:
     cache_key = (
         str(polymer),
         str(representation),
         float(helix_spec.theta_rad),
         float(helix_spec.rise_A),
+        None if helix_spec.glycosidic_phi_deg is None else float(helix_spec.glycosidic_phi_deg),
+        None if helix_spec.glycosidic_psi_deg is None else float(helix_spec.glycosidic_psi_deg),
     )
     payload_path, _ = _backbone_pose_cache_entry(
         polymer=polymer,
@@ -869,11 +1074,22 @@ def _fit_backbone_pose(
         )
 
     screw = ScrewTransform(theta_rad=helix_spec.theta_rad, rise_A=helix_spec.rise_A)
-    targets = _linkage_targets(polymer=polymer, representation=representation)
+    targets = _linkage_targets(
+        polymer=polymer,
+        representation=representation,
+        helix_spec=helix_spec,
+    )
     scored_seeds = sorted(
         (
             (
-                _evaluate_backbone_pose(coords, heavy_label_to_idx, pose, screw, targets).score,
+                _evaluate_backbone_pose(
+                    coords,
+                    heavy_label_to_idx,
+                    pose,
+                    screw,
+                    targets,
+                    literature_template=literature_template,
+                ).score,
                 pose,
             )
             for pose in _candidate_backbone_poses()
@@ -890,6 +1106,7 @@ def _fit_backbone_pose(
             screw,
             targets,
             seed,
+            literature_template=literature_template,
         )
         if best_eval is None or evaluation.score < best_eval.score:
             best_pose = pose
@@ -897,10 +1114,40 @@ def _fit_backbone_pose(
 
     if best_pose is None or best_eval is None:
         raise RuntimeError("Failed to fit a helical backbone pose.")
-    if abs(best_eval.bond_length_A - targets.bond_length_A) > 0.2:
-        raise ValueError(
-            "Helix parameters are incompatible with a chemically plausible glycosidic bond."
+    max_bond_length_error_A = 0.2
+    if abs(best_eval.bond_length_A - targets.bond_length_A) > max_bond_length_error_A:
+        has_glycosidic_targets = (
+            helix_spec.glycosidic_phi_deg is not None
+            or helix_spec.glycosidic_psi_deg is not None
         )
+        if has_glycosidic_targets:
+            fallback_spec = helix_spec.model_copy(
+                update={
+                    "glycosidic_phi_deg": None,
+                    "glycosidic_psi_deg": None,
+                }
+            )
+            fallback_pose, _ = _fit_backbone_pose(
+                polymer=polymer,
+                representation=representation,
+                coords=coords,
+                heavy_label_to_idx=heavy_label_to_idx,
+                helix_spec=fallback_spec,
+                literature_template=literature_template,
+            )
+            best_pose = fallback_pose
+            best_eval = _evaluate_backbone_pose(
+                coords,
+                heavy_label_to_idx,
+                best_pose,
+                screw,
+                targets,
+                literature_template=literature_template,
+            )
+        if abs(best_eval.bond_length_A - targets.bond_length_A) > max_bond_length_error_A:
+            raise ValueError(
+                "Helix parameters are incompatible with a chemically plausible glycosidic bond."
+            )
     _BACKBONE_POSE_CACHE[cache_key] = best_pose
     persisted = _store_disk_cached_backbone_pose(
         polymer=polymer,
@@ -930,12 +1177,17 @@ def build_backbone_heavy_coords(
         raise ValueError(f"dp must be >= 1, got {dp}")
 
     coords = _glucose_template_coords(template)
+    literature_template = load_explicit_backbone_template(
+        polymer=template.polymer,
+        representation=template.representation,
+    )
     pose, _ = _fit_backbone_pose(
         polymer=template.polymer,
         representation=template.representation,
         coords=coords,
         heavy_label_to_idx=template.atom_idx,
         helix_spec=helix_spec,
+        literature_template=literature_template,
     )
     residue0 = _apply_backbone_pose(coords, template.atom_idx, pose)
     screw = ScrewTransform(theta_rad=helix_spec.theta_rad, rise_A=helix_spec.rise_A)
@@ -1179,12 +1431,17 @@ def build_backbone_structure(
         polymer=first_state.polymer,
         monomer_representation=first_state.representation,
     )
+    literature_template = load_explicit_backbone_template(
+        polymer=first_state.polymer,
+        representation=first_state.representation,
+    )
     backbone_pose, pose_cache_summary = _fit_backbone_pose(
         polymer=first_state.polymer,
         representation=first_state.representation,
         coords=_glucose_template_coords(pose_template),
         heavy_label_to_idx=pose_template.atom_idx,
         helix_spec=helix_spec,
+        literature_template=literature_template,
     )
     rw = Chem.RWMol()
     positions: list[np.ndarray] = []
@@ -1330,6 +1587,21 @@ def build_backbone_structure(
     if helix_spec.axial_repeat_A is not None:
         out.SetDoubleProp("_poly_csp_helix_axial_repeat_A", float(helix_spec.axial_repeat_A))
     set_residue_label_maps(out, residue_maps)
+    if helix_spec.glycosidic_phi_deg is not None:
+        out.SetDoubleProp(
+            "_poly_csp_helix_glycosidic_phi_deg",
+            float(helix_spec.glycosidic_phi_deg),
+        )
+    if helix_spec.glycosidic_psi_deg is not None:
+        out.SetDoubleProp(
+            "_poly_csp_helix_glycosidic_psi_deg",
+            float(helix_spec.glycosidic_psi_deg),
+        )
+    if helix_spec.glycosidic_omega_deg is not None:
+        out.SetDoubleProp(
+            "_poly_csp_helix_glycosidic_omega_deg",
+            float(helix_spec.glycosidic_omega_deg),
+        )
     set_json_prop(out, "_poly_csp_removed_old_indices_json", [])
     set_json_prop(
         out,

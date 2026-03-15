@@ -31,14 +31,14 @@ def _run_build(overrides: str) -> None:
 @pytest.mark.parametrize(
     ("backbone_preset", "extra_overrides", "polymer", "dp", "helix_name", "axial_repeat_A"),
     [
-        ("amylose_periodic", "", "amylose", 4, "amylose_CSP_4_3_derivatized", 14.6),
+        ("amylose_periodic", "", "amylose", 4, "amylose_CSP_4_3_derivatized", 15.614),
         (
             "cellulose_periodic",
             "structure/helix=cellulose_3_2_derivatized ",
             "cellulose",
             3,
             "cellulose_CSP_3_2_derivatized",
-            16.2,
+            15.3,
         ),
     ],
 )
@@ -89,13 +89,14 @@ def test_pipeline_structure_helix_group_override_runs(tmp_path: Path) -> None:
     report = json.loads((outdir / "build_report.json").read_text(encoding="utf-8"))
     assert report["polymer"] == "cellulose"
     assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
-    assert report["axial_repeat_A"] == pytest.approx(16.2)
+    assert report["axial_repeat_A"] == pytest.approx(15.3)
     assert report["qc_pass"] is True
 
 
 def test_pipeline_selector_group_override_runs(tmp_path: Path) -> None:
     outdir = tmp_path / "selector_group_out"
     _run_build(
+        "topology/backbone=amylose "
         "topology/selector=35dcpc "
         "topology.backbone.dp=1 "
         "ordering.enabled=false "
@@ -152,6 +153,7 @@ def test_pipeline_phase_group_periodic_override_runs(tmp_path: Path) -> None:
 def test_pipeline_ordering_solvent_ready_group_override_runs(tmp_path: Path) -> None:
     outdir = tmp_path / "ordering_solvent_ready_out"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=true "
         "topology.selector.sites=[C6] "
@@ -185,6 +187,7 @@ def test_pipeline_forcefield_runtime_seed_relax_group_override_runs(
 ) -> None:
     outdir = tmp_path / "runtime_seed_relax_out"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=1 "
         "topology.selector.enabled=true "
         "topology.selector.sites=[C6] "

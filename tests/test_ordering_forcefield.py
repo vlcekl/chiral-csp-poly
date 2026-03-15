@@ -502,17 +502,105 @@ def test_optimize_selector_ordering_supports_symmetry_network_strategy() -> None
 
     assert out.HasProp("_poly_csp_manifest_schema_version")
     assert summary["strategy"] == "symmetry_network"
-    assert summary["search_objective"] == "network_first_symmetry_score"
-    assert summary["hbond_connectivity_policy_applied"] == "generic"
-    assert summary["final_hbond_family_metrics"] == {}
+    assert summary["search_objective"] == "staged_network_first_symmetry_score"
+    assert summary["hbond_connectivity_policy_applied"] == "custom_v1"
+    assert "c6_forward_neighbor" in summary["final_hbond_family_metrics"]
     assert summary["stage1_nonbonded_mode"] == "soft"
     assert summary["stage2_nonbonded_mode"] == "full"
     assert summary["final_energy_kj_mol"] is not None
     assert summary["final_selector_symmetry_rmsd_A"] < 1e-6
     assert summary["active_anchor_dihedral_names"] == ["tau_attach"]
+    assert summary["network_capture_enabled"] is True
+    assert summary["network_capture_applied"] is True
+    assert summary["backbone_refinement_applied"] is True
+    assert summary["backbone_refinement_skipped_reason"] is None
+    assert summary["active_backbone_dihedral_names"] == ["bb_c6_omega"]
+    assert "bb_c6_omega" in summary["backbone_refinement_initial_backbone_dihedrals_deg"]
+    assert "bb_c6_omega" in summary["backbone_refinement_final_backbone_dihedrals_deg"]
     assert "tau_attach" in summary["selected_pose_by_site"]["C6"]["0"]
     assert summary["network_score_weights"]["geom_occ"] == 100.0
     assert summary["network_score_weights"]["family_min_geom"] == 150.0
+
+
+def test_symmetry_network_open_chain_glycosidic_refinement_activates_for_zipper_sites() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = build_forcefield_mol(polymer="amylose", dp=3, selector=selector, site="C2")
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C2")
+
+    _, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C2"],
+        dp=3,
+        spec=OrderingSpec(
+            enabled=True,
+            strategy="symmetry_network",
+            positional_k=1000.0,
+            soft_n_stages=1,
+            soft_max_iterations=5,
+            full_max_iterations=5,
+            symmetry_maxiter=1,
+            symmetry_popsize=2,
+            symmetry_backbone_maxiter=1,
+            symmetry_backbone_popsize=2,
+            symmetry_polish=False,
+            symmetry_network_use_full_energy_in_search=False,
+            symmetry_network_rerank_population=True,
+        ),
+        runtime_params=runtime_params,
+        seed=19,
+    )
+
+    assert summary["strategy"] == "symmetry_network"
+    assert summary["backbone_refinement_applied"] is True
+    assert "bb_phi" in summary["active_backbone_dihedral_names"]
+    assert "bb_psi" in summary["active_backbone_dihedral_names"]
+    assert "bb_phi" in summary["backbone_refinement_initial_backbone_dihedrals_deg"]
+    assert "bb_psi" in summary["backbone_refinement_initial_backbone_dihedrals_deg"]
+
+
+def test_symmetry_network_periodic_glycosidic_refinement_activates_for_zipper_sites() -> None:
+    selector = SelectorRegistry.get("35dmpc")
+    mol = build_forcefield_mol(
+        polymer="amylose",
+        dp=4,
+        selector=selector,
+        site="C2",
+        end_mode="periodic",
+    )
+    runtime_params = make_fake_runtime_params(mol, selector=selector, site="C2")
+
+    _, summary = optimize_selector_ordering(
+        mol=mol,
+        selector=selector,
+        sites=["C2"],
+        dp=4,
+        spec=OrderingSpec(
+            enabled=True,
+            strategy="symmetry_network",
+            positional_k=1000.0,
+            soft_n_stages=1,
+            soft_max_iterations=5,
+            full_max_iterations=5,
+            symmetry_maxiter=1,
+            symmetry_popsize=2,
+            symmetry_backbone_maxiter=1,
+            symmetry_backbone_popsize=2,
+            symmetry_polish=False,
+            symmetry_network_use_full_energy_in_search=False,
+            symmetry_network_rerank_population=True,
+        ),
+        runtime_params=runtime_params,
+        seed=29,
+    )
+
+    assert summary["strategy"] == "symmetry_network"
+    assert summary["backbone_refinement_applied"] is True
+    assert summary["backbone_refinement_skipped_reason"] is None
+    assert "bb_phi" in summary["active_backbone_dihedral_names"]
+    assert "bb_psi" in summary["active_backbone_dihedral_names"]
+    assert "bb_phi" in summary["backbone_refinement_initial_backbone_dihedrals_deg"]
+    assert "bb_psi" in summary["backbone_refinement_initial_backbone_dihedrals_deg"]
 
 
 def test_ordering_seeded_determinism_and_metadata() -> None:

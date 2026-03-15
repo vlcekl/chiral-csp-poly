@@ -112,13 +112,19 @@ How it works:
 
 1. Start from the same residue-0 symmetry parameterization used by `symmetry_coupled`.
 2. Extend the active variables with selector anchor-aware dihedrals such as `tau_attach` when the selector asset provides them.
-3. For each trial:
+3. Run a `network_capture` selector stage:
    - apply the residue-0 selector and anchor-aware dihedrals,
    - rebuild the selector and connector blocks on every other residue by exact screw projection,
    - compute current-geometry H-bond metrics and clash diagnostics,
-   - evaluate soft and optional full single-point energies on the projected full-polymer coordinates.
-4. Optimize a network-first scalar score with differential evolution.
-5. Optionally rerank the final population lexicographically by network quality before energy.
+   - evaluate a softened soft-stage objective where target-network formation is weighted more strongly than steric cleanup.
+4. Run a `network_cleanup` selector stage from the best capture candidate:
+   - restore the stronger clash and energy terms,
+   - keep the network terms active,
+   - refine the captured basin without letting the search drift freely back into a network-free state.
+5. Optionally run a second symmetry-coupled backbone refinement pass from the best selector-side cleanup candidate.
+   - This stage adds backbone torsions such as `bb_c6_omega` plus glycosidic `bb_phi` and `bb_psi` on both open-chain and periodic ordering models.
+   - It can re-optimize the selector and anchor-aware torsions jointly with those backbone DOFs.
+6. Optionally rerank the final population lexicographically by network quality before energy inside each DE stage.
 
 Properties:
 
@@ -127,6 +133,8 @@ Properties:
 - full-polymer evaluation at every trial
 - current-geometry network metrics, not static H-bond restraint pairs, drive the search
 - includes anchor-aware torsions such as `tau_attach` when available
+- uses a softened capture stage before the stronger cleanup stage
+- can add a second exact-symmetry backbone refinement stage to recover motifs that need more than selector-side freedom
 
 Objective:
 
@@ -519,7 +527,7 @@ These randomization fields live in `OrderingSpec` and matter for reproducibility
 For the current implementation:
 
 - `symmetry_coupled` activates the selector rotamer-grid dihedral names on residue 0 for each selected site
-- `symmetry_network` activates the same residue-0 selector dihedrals and also adds anchor-aware dihedrals from `selector.anchor_rotamer_grid`, such as `tau_attach`
+- `symmetry_network` activates the same residue-0 selector dihedrals, adds anchor-aware dihedrals from `selector.anchor_rotamer_grid` such as `tau_attach`, runs a softened network-capture stage, then a stronger cleanup stage, and can follow with a second symmetry-coupled backbone refinement pass
 
 For CSP carbamates over `C2/C3/C6`, that means `symmetry_network` usually searches more variables than `symmetry_coupled`.
 
@@ -539,8 +547,33 @@ For CSP carbamates over `C2/C3/C6`, that means `symmetry_network` usually search
 | `ordering.symmetry_network_energy_clip` | Caps the normalized energy contribution so large raw energy differences do not swamp the network terms. | `symmetry_network` |
 | `ordering.symmetry_network_rerank_population` | If `true`, reranks the final DE population lexicographically by network quality before energy rather than blindly taking SciPy’s best scalar objective member. | `symmetry_network` |
 | `ordering.symmetry_network_use_full_energy_in_search` | If `true`, includes full-system single-point energy in each objective evaluation. Turning it off speeds the search and leaves the full energy for final reporting/reranking only. | `symmetry_network` |
+| `ordering.symmetry_network_capture_enabled` | Enables the softened selector-side network-capture stage that runs before cleanup. | `symmetry_network` |
+| `ordering.symmetry_network_capture_soft_repulsion_scale` | Multiplies the base soft repulsion strength used in the capture-stage runtime bundle. Lower values let the search approach the H-bond basin before full packing cleanup. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_min_heavy_distance_A` | Mild heavy-atom clash floor for the capture stage. This should stay low enough to allow approach into a forming network, but high enough to block impossible overlaps. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_clash_penalty` | Penalty assigned to capture-stage candidates that violate the mild clash floor. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_geom_occ` | Capture-stage weight on geometric donor occupancy. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_like_occ` | Capture-stage weight on like donor occupancy. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_geom_frac` | Capture-stage weight on total geometric H-bond fraction. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_family_min_geom` | Capture-stage weight on the weakest geometric target-network family. This is the dominant term that pushes the search into a balanced network basin before packing cleanup. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_family_min_like` | Capture-stage weight on the weakest like target-network family. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_weight_soft_energy` | Capture-stage weight on soft single-point energy. Keep this small so capture remains network-dominated. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_capture_energy_clip` | Capture-stage cap on normalized energy contribution. | `symmetry_network` when capture is enabled |
+| `ordering.symmetry_network_cleanup_enabled` | Enables the selector-side cleanup stage that starts from the capture winner and restores the stronger clash and energy model. | `symmetry_network` |
+| `ordering.symmetry_network_cleanup_maxiter` | Maximum DE generations in the cleanup stage. | `symmetry_network` when cleanup is enabled |
+| `ordering.symmetry_network_cleanup_popsize` | DE population multiplier in the cleanup stage. | `symmetry_network` when cleanup is enabled |
+| `ordering.symmetry_network_cleanup_polish` | Enables SciPy’s local polish step for the cleanup stage. | `symmetry_network` when cleanup is enabled |
+| `ordering.symmetry_network_cleanup_init_jitter_deg` | Jitter around the capture winner when seeding the cleanup-stage population. | `symmetry_network` when cleanup is enabled |
 | `ordering.symmetry_init_from_rotamer_grid` | Seeds the DE population from the selector rotamer grid and anchor rotamer grid instead of relying only on generic Latin-hypercube initialization. | `symmetry_network` |
 | `ordering.symmetry_init_jitter_deg` | Angular jitter added around rotamer-seeded initial members. Small nonzero jitter helps DE escape a purely discrete start while preserving a rotamer prior. | `symmetry_network` |
+| `ordering.symmetry_backbone_refine_enabled` | Enables the second symmetry-coupled backbone refinement stage after the primary selector-side `symmetry_network` search. | `symmetry_network` |
+| `ordering.symmetry_backbone_reoptimize_selectors` | If `true`, the backbone refinement stage re-optimizes the selector and anchor-aware torsions jointly with the backbone torsions instead of holding the stage-1 selector solution fixed. | `symmetry_network` when backbone refinement is enabled |
+| `ordering.symmetry_backbone_include_c6_omega` | Enables the exocyclic glucose `O5-C5-C6-O6` torsion in the refinement stage. This is the main backbone-side DOF for the `C6` pitch-bridge family. | `symmetry_network` when `C6` is an active site |
+| `ordering.symmetry_backbone_include_phi` | Enables the glycosidic `O5(i)-C1(i)-O4(i+1)-C4(i+1)` torsion in the refinement stage. On periodic ordering models it is applied through a lifted-chain projection step that preserves the periodic screw closure. | `symmetry_network` when `C2` and/or `C3` are active |
+| `ordering.symmetry_backbone_include_psi` | Enables the glycosidic `C3(i+1)-C4(i+1)-O4(i+1)-C1(i)` torsion in the refinement stage. This complements `bb_phi` for the `C2/C3` zipper families and now works on both open-chain and periodic ordering models. | `symmetry_network` when `C2` and/or `C3` are active |
+| `ordering.symmetry_backbone_maxiter` | Maximum number of differential-evolution generations in the backbone refinement stage. | `symmetry_network` when backbone refinement is enabled |
+| `ordering.symmetry_backbone_popsize` | Differential-evolution population multiplier for the backbone refinement stage. Effective population size scales with the number of refinement DOFs, including selector re-optimization terms when enabled. | `symmetry_network` when backbone refinement is enabled |
+| `ordering.symmetry_backbone_polish` | Enables SciPy’s local polish step for the backbone refinement stage. | `symmetry_network` when backbone refinement is enabled |
+| `ordering.symmetry_backbone_init_jitter_deg` | Angular jitter around the stage-1 best candidate when seeding the backbone refinement population. This applies to backbone torsions directly and to selector/anchor torsions when they are re-optimized. | `symmetry_network` when backbone refinement is enabled |
 
 ### 13.5 Ordering restraint and protocol controls
 
@@ -576,7 +609,7 @@ These fields shape the soft-stage physics and are shared conceptually between or
 | `ordering.hbond_pairing_mode` | Selects how donor/acceptor pairs are constructed. `legacy_all_pairs` is broad; `nearest_unique` is more selective. | both strategies when H-bond restraints are active |
 | `ordering.hbond_restraint_atom_mode` | Chooses whether restraints are built using hydrogens when present or donor heavy atoms only. | both strategies when H-bond restraints are active |
 | `ordering.hbond_max_distance_A` | Geometric cutoff used for H-bond diagnostic detection in ordering summaries. It does not directly change the force unless explicit H-bond restraints are also enabled. | both strategies, mainly diagnostics |
-| `ordering.hbond_connectivity_policy` | Chooses whether H-bond metrics use the generic nearby-pair definition or a connectivity-aware CSP policy. `auto` resolves to the literature-based `C2/C3` zipper plus `C6` pitch bridge when the selector/backbone/site combination supports it, otherwise it falls back to `generic`. | diagnostics for all strategies; primary search term for `symmetry_network` |
+| `ordering.hbond_connectivity_policy` | Chooses whether H-bond metrics use the generic nearby-pair definition or a connectivity-aware CSP policy. `custom_v1` is the default and targets `C3(i)-NH -> C2(i+1)=O` plus `C6(i)-NH -> C6(i+1)=O` when those sites are active; `auto` currently resolves to that same targeted graph when it is supported and otherwise falls back to `generic`. `csp_literature_v1` remains available as the older zipper-plus-pitch policy. | diagnostics for all strategies; primary search term for `symmetry_network` |
 | `ordering.hbond_min_donor_angle_deg` | Donor-angle threshold for geometric H-bond diagnostics. | diagnostics |
 | `ordering.hbond_min_acceptor_angle_deg` | Acceptor-angle threshold for geometric H-bond diagnostics. | diagnostics |
 

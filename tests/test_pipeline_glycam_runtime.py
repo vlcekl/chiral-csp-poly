@@ -37,6 +37,7 @@ def _run_build(overrides: str) -> subprocess.CompletedProcess[str]:
 def test_pipeline_runtime_amylose(tmp_path: Path) -> None:
     outdir = tmp_path / "amylose_runtime"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
         "forcefield/options=runtime "
@@ -81,7 +82,7 @@ def test_pipeline_runtime_cellulose(tmp_path: Path) -> None:
     assert report["polymer"] == "cellulose"
     assert report["selector_enabled"] is False
     assert report["helix_name"] == "cellulose_CSP_3_2_derivatized"
-    assert report["axial_repeat_A"] == pytest.approx(16.2)
+    assert report["axial_repeat_A"] == pytest.approx(15.3)
     assert report["phase_column_id"] == "OZ"
     assert report["phase_name"] == "Chiralcel OZ"
     assert report["forcefield_mode"] == "runtime"
@@ -117,6 +118,7 @@ def test_pipeline_runtime_supports_periodic_cellulose_mode(tmp_path: Path) -> No
 def test_pipeline_runtime_writes_pdbqt_and_amber_exports(tmp_path: Path) -> None:
     outdir = tmp_path / "runtime_exports"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=2 "
         "topology.selector.enabled=false "
         "forcefield/options=runtime "
@@ -146,6 +148,7 @@ def test_pipeline_runtime_writes_pdbqt_and_amber_exports(tmp_path: Path) -> None
 def test_pipeline_runtime_relax_selector_system(tmp_path: Path) -> None:
     outdir = tmp_path / "selector_runtime_relax"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=1 "
         "topology.selector.enabled=true "
         "topology.selector.sites=[C6] "
@@ -183,6 +186,7 @@ def test_pipeline_runtime_relax_selector_system(tmp_path: Path) -> None:
 def test_pipeline_runtime_multi_opt_writes_ranked_export_bundles(tmp_path: Path) -> None:
     outdir = tmp_path / "runtime_multi_opt_exports"
     _run_build(
+        "topology/backbone=amylose "
         "topology.backbone.dp=1 "
         "topology.selector.enabled=true "
         "topology.selector.sites=[C6] "

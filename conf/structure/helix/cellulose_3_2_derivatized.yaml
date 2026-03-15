@@ -4,7 +4,9 @@ name: cellulose_CSP_3_2_derivatized
 repeat_residues: 3
 repeat_turns: 2
 handedness: left
-axial_repeat_A: 16.2
+axial_repeat_A: 15.3
+glycosidic_phi_deg: 60
+glycosidic_psi_deg: 0
 
 inter_rod_distance_A: 21.0
 core_diameter_A: 14.0

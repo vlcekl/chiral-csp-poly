@@ -749,8 +749,10 @@ If the goal is a solvent-ready seed rather than a vacuum-refined selector bundle
 3. `symmetry_network`
    - The network-first symmetry branch.
    - Starts from the same exact screw-projection machinery as `symmetry_coupled`.
-   - Adds anchor-aware selector attachment torsions such as `tau_attach` to the active variables when the selector asset provides them.
-   - Scores candidates by a network-first objective that prioritizes the CSP literature connectivity pattern when available: the `C2/C3` adjacent zipper and the `C6` helical pitch bridge, before soft/full single-point energies.
+    - Adds anchor-aware selector attachment torsions such as `tau_attach` to the active variables when the selector asset provides them.
+   - Runs a softened network-capture stage first, then a stronger cleanup stage.
+   - Scores candidates by a network-first objective that prioritizes the CSP literature connectivity pattern when available: the `C2/C3` adjacent zipper and the `C6` helical pitch bridge, before stronger steric cleanup and soft/full single-point energies.
+   - Can follow the primary selector search with a second symmetry-coupled backbone refinement stage that adds `bb_c6_omega` plus glycosidic `bb_phi` / `bb_psi` on both open-chain and periodic ordering models.
 
 The important point is that the symmetry strategies still evaluate the full polymer, not an isolated residue. “Single-residue” refers only to the independent degrees of freedom. The evaluated coordinates include every symmetry-related residue in the built model, and periodic systems still include periodic-image interactions through the normal OpenMM runtime path.
 
@@ -783,7 +785,9 @@ For the bundled CSP carbamate selector catalog:
 * `ordering.max_candidates` values above `16` do not broaden those CSP carbamate searches unless the asset grid itself is expanded
 * `symmetry_coupled` uses the same active dihedral names exposed by the selector rotamer grid, but treats them as continuous variables rather than picking one discrete library pose per repeat class
 * `symmetry_network` additionally activates anchor-aware dihedrals such as `tau_attach` when the selector asset provides `anchor_dihedrals` and `anchor_rotamer_grid`
-* `ordering.hbond_connectivity_policy=auto` now makes ordering/QC use the connectivity-aware CSP target graph when the selector/backbone/site combination supports it, otherwise it falls back to generic nearby-pair H-bond metrics
+* `symmetry_network` now uses a staged selector search: softened network capture first, stronger cleanup second
+* `symmetry_network` can also apply a second exact-symmetry backbone refinement stage with `bb_c6_omega` plus glycosidic `bb_phi` / `bb_psi` on open and periodic ordering models
+* `ordering.hbond_connectivity_policy=custom_v1` is now the default targeted CSP policy: `C3(i)-NH -> C2(i+1)=O` and `C6(i)-NH -> C6(i+1)=O`; `auto` currently resolves to that same targeted graph when it is supported and otherwise falls back to generic nearby-pair H-bond metrics
 
 ### Configuration
 

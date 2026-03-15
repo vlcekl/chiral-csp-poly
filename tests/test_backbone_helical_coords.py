@@ -14,6 +14,7 @@ from poly_csp.cache_versions import (
 from tests.support import build_backbone_coords
 from poly_csp.config.schema import HelixSpec
 import poly_csp.structure.backbone_builder as backbone_builder_mod
+from poly_csp.structure.dihedrals import measure_dihedral_rad
 from poly_csp.structure.matrix import ScrewTransform
 from poly_csp.topology.backbone import polymerize
 from poly_csp.topology.monomers import make_glucose_template
@@ -95,9 +96,11 @@ def test_derivatized_amylose_preset_normalizes_expected_geometry() -> None:
     assert helix.name == "amylose_CSP_4_3_derivatized"
     assert helix.repeat_residues == 4
     assert helix.repeat_turns == 3
-    assert helix.rise_A == pytest.approx(3.65)
-    assert helix.axial_repeat_A == pytest.approx(14.6)
-    assert helix.pitch_A == pytest.approx(14.6 / 3.0)
+    assert helix.rise_A == pytest.approx(15.614 / 4.0)
+    assert helix.axial_repeat_A == pytest.approx(15.614)
+    assert helix.pitch_A == pytest.approx(15.614 / 3.0)
+    assert helix.glycosidic_phi_deg == pytest.approx(-68.5)
+    assert helix.glycosidic_psi_deg == pytest.approx(-42.0)
 
 
 def test_derivatized_cellulose_preset_normalizes_expected_geometry() -> None:
@@ -106,9 +109,102 @@ def test_derivatized_cellulose_preset_normalizes_expected_geometry() -> None:
     assert helix.name == "cellulose_CSP_3_2_derivatized"
     assert helix.repeat_residues == 3
     assert helix.repeat_turns == 2
-    assert helix.rise_A == pytest.approx(5.4)
-    assert helix.axial_repeat_A == pytest.approx(16.2)
-    assert helix.pitch_A == pytest.approx(8.1)
+    assert helix.rise_A == pytest.approx(15.3 / 3.0)
+    assert helix.axial_repeat_A == pytest.approx(15.3)
+    assert helix.pitch_A == pytest.approx(15.3 / 2.0)
+    assert helix.glycosidic_phi_deg == pytest.approx(60.0)
+    assert helix.glycosidic_psi_deg == pytest.approx(0.0)
+
+
+def test_derivatized_amylose_backbone_structure_biases_toward_glycosidic_targets() -> None:
+    helix = _load_helix_preset("amylose_4_3_derivatized")
+    helix_without_targets = helix.model_copy(
+        update={
+            "glycosidic_phi_deg": None,
+            "glycosidic_psi_deg": None,
+        }
+    )
+    template = make_glucose_template("amylose", monomer_representation="anhydro")
+    topology = polymerize(
+        template=template,
+        dp=4,
+        linkage="1-4",
+        anomer="alpha",
+    )
+    topology = apply_terminal_mode(
+        mol=topology,
+        mode="periodic",
+        caps={},
+        representation="anhydro",
+    )
+
+    baseline = backbone_builder_mod.build_backbone_structure(topology, helix_without_targets)
+    result = backbone_builder_mod.build_backbone_structure(topology, helix)
+
+    def _measured_dihedrals(build_result):
+        maps = build_result.residue_maps
+        mol = build_result.mol
+        coords = np.asarray(
+            mol.GetConformer(0).GetPositions(),
+            dtype=float,
+        ).reshape((-1, 3))
+        h1_idx = next(
+            int(atom.GetIdx())
+            for atom in mol.GetAtoms()
+            if atom.HasProp("_poly_csp_residue_index")
+            and int(atom.GetIntProp("_poly_csp_residue_index")) == 0
+            and atom.HasProp("_poly_csp_atom_name")
+            and atom.GetProp("_poly_csp_atom_name") == "H1"
+        )
+        h4_idx = next(
+            int(atom.GetIdx())
+            for atom in mol.GetAtoms()
+            if atom.HasProp("_poly_csp_residue_index")
+            and int(atom.GetIntProp("_poly_csp_residue_index")) == 1
+            and atom.HasProp("_poly_csp_atom_name")
+            and atom.GetProp("_poly_csp_atom_name") == "H4"
+        )
+        phi_deg = float(
+            np.rad2deg(
+                measure_dihedral_rad(
+                    coords,
+                    h1_idx,
+                    maps[0]["C1"],
+                    maps[1]["O4"],
+                    maps[1]["C4"],
+                )
+            )
+        )
+        psi_deg = float(
+            np.rad2deg(
+                measure_dihedral_rad(
+                    coords,
+                    maps[0]["C1"],
+                    maps[1]["O4"],
+                    maps[1]["C4"],
+                    h4_idx,
+                )
+            )
+        )
+        return phi_deg, psi_deg
+
+    baseline_phi_deg, baseline_psi_deg = _measured_dihedrals(baseline)
+    phi_deg, psi_deg = _measured_dihedrals(result)
+
+    baseline_error = abs(baseline_phi_deg - float(helix.glycosidic_phi_deg)) + abs(
+        baseline_psi_deg - float(helix.glycosidic_psi_deg)
+    )
+    targeted_error = abs(phi_deg - float(helix.glycosidic_phi_deg)) + abs(
+        psi_deg - float(helix.glycosidic_psi_deg)
+    )
+
+    assert result.mol.GetDoubleProp("_poly_csp_helix_glycosidic_phi_deg") == pytest.approx(
+        float(helix.glycosidic_phi_deg)
+    )
+    assert result.mol.GetDoubleProp("_poly_csp_helix_glycosidic_psi_deg") == pytest.approx(
+        float(helix.glycosidic_psi_deg)
+    )
+    assert targeted_error < baseline_error
 
 
 def _open_backbone_topology(polymer: str = "amylose"):

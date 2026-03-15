@@ -1,5 +1,5 @@
 enabled: false
-n_starts: 10
+n_starts: 8
 top_k: 8
 seed: null
 strategy: multi_start

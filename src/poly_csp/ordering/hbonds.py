@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Literal, Tuple
+from typing import Iterable, List, Literal, Tuple, cast
 
 import numpy as np
 from rdkit import Chem
@@ -13,7 +13,8 @@ from poly_csp.structure.pbc import get_box_vectors_A
 from poly_csp.topology.selectors import SelectorTemplate
 
 
-HbondConnectivityPolicy = Literal["auto", "generic", "csp_literature_v1"]
+HbondConnectivityPolicy = Literal["auto", "generic", "custom_v1", "csp_literature_v1"]
+_TargetedHbondConnectivityPolicy = Literal["custom_v1", "csp_literature_v1"]
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,7 @@ class HbondMetrics:
 @dataclass(frozen=True)
 class SelectorHbondDiagnostics:
     metrics: HbondMetrics
-    applied_policy: Literal["generic", "csp_literature_v1"]
+    applied_policy: Literal["generic", "custom_v1", "csp_literature_v1"]
     family_metrics: dict[str, HbondMetrics]
 
 
@@ -271,6 +272,7 @@ def _csp_pitch_repeat_residues(mol: Chem.Mol) -> int | None:
 def _build_csp_target_hbond_edges(
     mol: Chem.Mol,
     *,
+    policy: _TargetedHbondConnectivityPolicy = "csp_literature_v1",
     requested_sites: Iterable[str] | None = None,
 ) -> tuple[_TargetHbondEdge, ...]:
     if not mol.HasProp("_poly_csp_polymer"):
@@ -341,37 +343,64 @@ def _build_csp_target_hbond_edges(
             )
         )
 
-    if "C2" in active_sites and "C3" in active_sites:
-        for residue_index in range(int(dp)):
-            _append_edge(
-                donor_site="C2",
-                donor_residue_index=residue_index,
-                acceptor_site="C3",
-                acceptor_residue_index=(residue_index - 1),
-            )
-            _append_edge(
-                donor_site="C3",
-                donor_residue_index=residue_index,
-                acceptor_site="C2",
-                acceptor_residue_index=(residue_index - 1),
-            )
+    if policy == "csp_literature_v1":
+        if "C2" in active_sites and "C3" in active_sites:
+            for residue_index in range(int(dp)):
+                _append_edge(
+                    donor_site="C2",
+                    donor_residue_index=residue_index,
+                    acceptor_site="C3",
+                    acceptor_residue_index=(residue_index - 1),
+                )
+                _append_edge(
+                    donor_site="C3",
+                    donor_residue_index=residue_index,
+                    acceptor_site="C2",
+                    acceptor_residue_index=(residue_index - 1),
+                )
 
-    pitch_repeat = _csp_pitch_repeat_residues(mol)
-    if "C6" in active_sites and pitch_repeat is not None and pitch_repeat > 0:
-        for residue_index in range(int(dp)):
-            _append_edge(
-                donor_site="C6",
-                donor_residue_index=residue_index,
-                acceptor_site="C6",
-                acceptor_residue_index=(residue_index + int(pitch_repeat)),
-            )
+        pitch_repeat = _csp_pitch_repeat_residues(mol)
+        if "C6" in active_sites and pitch_repeat is not None and pitch_repeat > 0:
+            for residue_index in range(int(dp)):
+                _append_edge(
+                    donor_site="C6",
+                    donor_residue_index=residue_index,
+                    acceptor_site="C6",
+                    acceptor_residue_index=(residue_index + int(pitch_repeat)),
+                )
+    elif policy == "custom_v1":
+        if "C2" in active_sites and "C3" in active_sites:
+            for residue_index in range(int(dp)):
+                _append_edge(
+                    donor_site="C3",
+                    donor_residue_index=residue_index,
+                    acceptor_site="C2",
+                    acceptor_residue_index=(residue_index + 1),
+                )
+        if "C6" in active_sites:
+            for residue_index in range(int(dp)):
+                _append_edge(
+                    donor_site="C6",
+                    donor_residue_index=residue_index,
+                    acceptor_site="C6",
+                    acceptor_residue_index=(residue_index + 1),
+                )
 
     return tuple(edges)
 
 
-def _target_hbond_edge_family(edge: _TargetHbondEdge) -> str:
+def _target_hbond_edge_family(
+    edge: _TargetHbondEdge,
+    *,
+    policy: _TargetedHbondConnectivityPolicy,
+) -> str:
     donor_site = str(edge.donor_site)
     acceptor_site = str(edge.acceptor_site)
+    if policy == "custom_v1":
+        if donor_site == "C3" and acceptor_site == "C2":
+            return "c3_to_c2_forward_neighbor"
+        if donor_site == "C6" and acceptor_site == "C6":
+            return "c6_forward_neighbor"
     if donor_site == "C2" and acceptor_site == "C3":
         return "c2_to_c3_zipper"
     if donor_site == "C3" and acceptor_site == "C2":
@@ -424,11 +453,12 @@ def _hbond_metrics_from_counts(
 def _compute_target_hbond_metrics(
     mol: Chem.Mol,
     *,
+    policy: _TargetedHbondConnectivityPolicy,
     target_edges: Iterable[_TargetHbondEdge],
     max_distance_A: float,
     min_donor_angle_deg: float,
     min_acceptor_angle_deg: float,
-) -> HbondMetrics:
+) -> tuple[HbondMetrics, dict[str, HbondMetrics]]:
     if mol.GetNumConformers() == 0:
         return _zero_hbond_metrics(), {}
 
@@ -457,7 +487,7 @@ def _compute_target_hbond_metrics(
     family_state: dict[str, dict[str, object]] = {}
 
     for edge in edges:
-        family_name = _target_hbond_edge_family(edge)
+        family_name = _target_hbond_edge_family(edge, policy=policy)
         state = family_state.setdefault(
             family_name,
             {
@@ -589,17 +619,27 @@ def resolve_hbond_connectivity_policy(
     *,
     requested_policy: HbondConnectivityPolicy = "auto",
     requested_sites: Iterable[str] | None = None,
-) -> Literal["generic", "csp_literature_v1"]:
+) -> Literal["generic", "custom_v1", "csp_literature_v1"]:
     if str(requested_policy) == "generic":
         return "generic"
     if selector.linkage_type != "carbamate":
         return "generic"
-    target_edges = _build_csp_target_hbond_edges(
-        mol,
-        requested_sites=requested_sites,
-    )
-    if target_edges:
-        return "csp_literature_v1"
+    requested = str(requested_policy)
+    candidate_policies: tuple[_TargetedHbondConnectivityPolicy, ...]
+    if requested == "auto":
+        candidate_policies = ("custom_v1",)
+    else:
+        candidate_policies = (
+            cast(_TargetedHbondConnectivityPolicy, requested_policy),
+        )
+    for candidate_policy in candidate_policies:
+        target_edges = _build_csp_target_hbond_edges(
+            mol,
+            policy=candidate_policy,
+            requested_sites=requested_sites,
+        )
+        if target_edges:
+            return candidate_policy
     return "generic"
 
 
@@ -615,7 +655,7 @@ def compute_selector_hbond_metrics(
     periodic: bool | None = None,
     connectivity_policy: HbondConnectivityPolicy = "generic",
     requested_sites: Iterable[str] | None = None,
-) -> tuple[HbondMetrics, Literal["generic", "csp_literature_v1"]]:
+) -> tuple[HbondMetrics, Literal["generic", "custom_v1", "csp_literature_v1"]]:
     diagnostics = compute_selector_hbond_diagnostics(
         mol=mol,
         selector=selector,
@@ -650,14 +690,16 @@ def compute_selector_hbond_diagnostics(
         requested_policy=connectivity_policy,
         requested_sites=requested_sites,
     )
-    if applied_policy == "csp_literature_v1":
+    if applied_policy != "generic":
         target_edges = _build_csp_target_hbond_edges(
             mol,
+            policy=cast(_TargetedHbondConnectivityPolicy, applied_policy),
             requested_sites=requested_sites,
         )
         if target_edges:
             metrics, family_metrics = _compute_target_hbond_metrics(
                 mol,
+                policy=cast(_TargetedHbondConnectivityPolicy, applied_policy),
                 target_edges=target_edges,
                 max_distance_A=max_distance_A,
                 min_donor_angle_deg=min_donor_angle_deg,
